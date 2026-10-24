@@ -71,6 +71,66 @@ Got / decided:
 - Customer replies always need approval, even when the customer wrote first.
 - Product name: Road Desk.
 
+## 2026-10-24 · RoopeS + Claude Code (local) · voice design
+
+Asked: the best approach for voice. Requirements from us: a reliable
+transcript for later use, an interview that asks the right things with low
+latency, the agent works through the transcript afterwards, and the first
+question decides whether it is urgent. Mentioned Moshi as an option. Also
+pasted another LLM's suggestion (ElevenLabs through OpenRouter for speech
+out, Chrome for speech in).
+
+Got: before deciding, the agent measured instead of guessing:
+- OpenRouter's model list: there is no Moshi or other full-duplex model.
+  There are 36 speech models and 28 transcription models.
+- A round trip: ElevenLabs Flash speech in 0.63 s; four transcription models
+  in about 1.1 s each, all accurate.
+- First words: Haiku 5.5 0.75 s, Sonnet 5.5 0.84 s, Opus 5.5 5.9 s.
+
+Checked / changed / rejected:
+- Rejected the full Opus agent inside the live call: 5.9 s per turn is too
+  slow. Split instead into a fast interviewer (Sonnet, preloaded context,
+  slot-filling) and an Opus analyst that works on the transcript.
+- Kept Chrome speech recognition only for live speed. The transcript of record
+  comes from recording each utterance and transcribing it on the server,
+  because Chrome keeps no audio and is unreliable in a noisy hall.
+- Rejected speech-to-speech models (no explicit transcript, harder rule
+  control), but kept the VoiceProvider swap point.
+- Added the echo problem (laptop speakers + mic): half-duplex for the demo.
+- Noticed Sonnet volunteered mechanical detail ("cylinder 2, catalytic
+  converter") in the latency test: the interviewer prompt must hold to
+  safety-only advice.
+
+## 2026-10-24 · RoopeS + Claude Code (local) · second plan review
+
+Asked: assess a plan review from another LLM (nine holes) and fold in the good
+parts.
+
+Got: Claude agreed with eight of the nine points and partly agreed with
+point 9. It also owned one mistake of its own: the scenario scripts stated
+conclusions the evidence didn't yet support ("the 26 Oct delivery is at risk"
+before any recovery estimate; "he has not started" where the data only shows
+no recorded start).
+
+Checked / changed / rejected:
+- Reversed our earlier "road cases only" queue decision: one queue for every
+  order needing a person, in three sections (needs your decision / agent
+  working / waiting). The judges score the control room, not a support module.
+- Added follow-up state (next action, waiting on, next check), a follow-up
+  trigger, a watchdog and failure handling; a new failure scenario F (driver
+  goes silent on CD-420537, whose app had really stopped reporting at 08:02).
+- Separated operator approval from customer agreement (promise states), and
+  made approvals bound to a revision, rechecked before execution and executed
+  once, with an "outcome unknown" reconciliation state.
+- Added channel boundaries: per-audience context, server-side identity
+  check, a drivability screen on outbound driver messages, template-only
+  safety instructions.
+- One reading layer over the dataset plus executed changes, and links from
+  cases to imported work items so they don't duplicate.
+- Cut: about 15 trouble codes instead of 40, only decision-relevant OBD
+  signals, simulated driver for the video only. Kept the map and voice.
+- Reserved 40 s of the video for the process story.
+
 ## 2026-10-24 ~12:15 UTC · Claude Code (stream A agent) · M0 foundation
 
 Asked: do M0 (shared contract) since `lib/cr/` did not exist, then move on to
