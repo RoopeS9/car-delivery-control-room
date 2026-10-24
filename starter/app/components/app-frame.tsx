@@ -13,7 +13,7 @@ type NavLink = { section: Section; href: string; label: string; icon: string; su
 // Two first-class places: the map, where the work is watched, and Demo, where
 // things are made to happen. Everything else is under More… at the foot.
 const GROUPS: { label: string; links: NavLink[] }[] = [
-  { label: "Road Desk", links: [
+  { label: "", links: [
     { section: "map", href: "/", label: "Map", icon: "map" },
     { section: "demo", href: "/demo", label: "Demo", icon: "proposal" },
   ] },
@@ -65,7 +65,7 @@ export function AppFrame({ children, section, snapshotAt, board = false, rail = 
       </div>
       <nav className="sidebar-nav" aria-label="Main navigation">
         {GROUPS.map((group) => <div className="nav-group" key={group.label}>
-          <div className="nav-label">{group.label}</div>
+          {group.label && <div className="nav-label">{group.label}</div>}
           {group.links.map((link) => {
             const count = counts?.[link.section]
             return <Link key={link.section} href={link.href} title={folded ? link.label : undefined}

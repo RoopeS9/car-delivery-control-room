@@ -464,11 +464,11 @@ export function ChartHome({ initial }: { initial: ChartView }) {
   const simNow = new Date(Date.parse(view.simNow) + (Date.now() - fetchedAt)).toISOString()
 
   return <AppFrame section="map" rail snapshotAt={view.snapshotAt} counts={{ map: view.needs.length }}
-    extra={<NeedsList view={view} onPick={focus} onHover={setHoverId} selectedId={selectedId} />}>
+>
     <div className={`chart-home z-${zoom < 6 ? "low" : zoom < 8 ? "mid" : "high"}${selected ? " has-dossier" : ""}`} data-chart={theme}>
       <div ref={holder} className="chart-map" role="region" aria-label="Map of deliveries. Car positions are simulated phone GPS." />
 
-      {view.needs.length > 0 && !selected && <NeedsPeek view={view} onPick={focus} onHover={setHoverId} />}
+      {!selected && <NeedsPeek view={view} onPick={focus} onHover={setHoverId} selectedId={selectedId} />}
 
       {selected && <Dossier key={selected.orderId} node={selected} onClose={() => setSelectedId(null)} />}
 
@@ -540,33 +540,36 @@ function Scrubber({ simNow, replay, onReplay }: { simNow: string; replay: Replay
   </div>
 }
 
-/** The few things that need a person, shown in the open navigation on the map. */
-function NeedsList({ view, onPick, onHover, selectedId }: { view: ChartView; onPick: (id: string) => void; onHover: (id: string | null) => void; selectedId: string | null }) {
-  const shown = view.needs.slice(0, 5)
-  const more = view.needs.length - shown.length
-  return <section className="needs" aria-label="Needs a person">
-    <div className="nav-label">Needs a person now</div>
-    {view.needs.length === 0 ? <p className="needs-empty">Nothing needs a person right now. The agent is watching {view.counts.moving} moving cars; anything it cannot settle alone appears here.</p>
-      : <ul className="needs-list">{shown.map((item) => <NeedCard key={item.orderId} item={item} active={item.orderId === selectedId} onPick={onPick} onHover={onHover} />)}</ul>}
-    {more > 0 && <Link className="needs-more" href="/queue">{more} more in Needs you <Icon name="arrow" size={12} /></Link>}
+/**
+ * What needs a person, on the map itself: folded, the most urgent item and how
+ * many more; open, at most six cards, the rest in Needs you, and what the agent
+ * closed today folded below.
+ */
+function NeedsPeek({ view, onPick, onHover, selectedId }: { view: ChartView; onPick: (id: string) => void; onHover: (id: string | null) => void; selectedId: string | null }) {
+  const [open, setOpen] = useState(false)
+  const top = view.needs[0]
+  if (!top) return <div className="needs-peek needs-calm"><span className="peek-count">Nothing needs a person right now</span><span className="peek-hint">The agent is watching {view.counts.moving} moving cars.</span></div>
+  if (!open) return <div className="needs-peek" data-tone={top.tone}>
+    <span className="q-bar" aria-hidden="true" />
+    <button type="button" className="peek-main" onClick={() => onPick(top.orderId)} onMouseEnter={() => onHover(top.orderId)} onMouseLeave={() => onHover(null)}>
+      <span className="peek-count">{view.needs.length} need{view.needs.length === 1 ? "s" : ""} a person · most urgent</span>
+      <span className="peek-car"><b>{top.vehicle}</b><span className="q-ref">{top.reference}</span></span>
+      <span className="peek-what">{top.headline}</span>
+    </button>
+    {view.needs.length > 1 && <button type="button" className="peek-more" onClick={() => setOpen(true)}>Show all {view.needs.length} <Icon name="chevron" size={11} style={{ transform: "rotate(90deg)" }} /></button>}
+  </div>
+  const shown = view.needs.slice(0, 6)
+  return <section className="needs-peek needs-open" aria-label="Needs a person">
+    <header><span className="peek-count">{view.needs.length} need{view.needs.length === 1 ? "s" : ""} a person</span>
+      <button type="button" className="peek-more" onClick={() => setOpen(false)}>Fold <Icon name="chevron" size={11} style={{ transform: "rotate(-90deg)" }} /></button></header>
+    <ul className="needs-list">{shown.map((item) => <NeedCard key={item.orderId} item={item} active={item.orderId === selectedId} onPick={onPick} onHover={onHover} />)}</ul>
+    {view.needs.length > shown.length && <Link className="needs-more" href="/queue">{view.needs.length - shown.length} more in Needs you <Icon name="arrow" size={12} /></Link>}
     <details className="needs-fold">
       <summary><Icon name="chevron" size={11} />Handled by the agent today <span className="num">{view.handled.length}</span></summary>
       {view.handled.length === 0 ? <p className="needs-empty">Nothing closed by the agent yet in this simulated day.</p>
         : <ul className="needs-list">{view.handled.map((item) => <NeedCard key={`h-${item.orderId}-${item.since}`} item={item} active={false} onPick={onPick} onHover={onHover} />)}</ul>}
     </details>
   </section>
-}
-
-/** Folded view on the map itself: the most urgent item and how many more, one click from the list. */
-function NeedsPeek({ view, onPick, onHover }: { view: ChartView; onPick: (id: string) => void; onHover: (id: string | null) => void }) {
-  const top = view.needs[0]
-  return <button type="button" className="needs-peek" data-tone={top.tone} onClick={() => onPick(top.orderId)} onMouseEnter={() => onHover(top.orderId)} onMouseLeave={() => onHover(null)}>
-    <span className="q-bar" aria-hidden="true" />
-    <span className="peek-count">{view.needs.length} need{view.needs.length === 1 ? "s" : ""} a person · most urgent</span>
-    <span className="peek-car"><b>{top.vehicle}</b><span className="q-ref">{top.reference}</span></span>
-    <span className="peek-what">{top.headline}</span>
-    <span className="peek-hint">Open the navigation for the rest, or press ] to step through them</span>
-  </button>
 }
 
 function NeedCard({ item, active, onPick, onHover }: { item: ChartCard; active: boolean; onPick: (id: string) => void; onHover: (id: string | null) => void }) {
