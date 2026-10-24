@@ -176,6 +176,8 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
     <div className="dcard-actions">
       {mode === "idle" && card.choiceOnly && <>
         <button type="button" className="btn primary" disabled={busy || !chosen} onClick={() => decide("approve")}>{chosen ? chosen.label : "Choose an option"}</button>
+        {/* The options are often things a person does outside the system (call the driver). PLAN 4.2b / scenario F: "I'll handle it", then log what happened. */}
+        <button type="button" className="btn" disabled={busy} onClick={() => decide("handle")}>I&apos;ll handle it</button>
         <span className="dcard-spacer" />
         <button type="button" className="btn quiet" disabled={busy} onClick={() => { setMode("instruct"); setError("") }}>Tell the agent instead</button>
       </>}
