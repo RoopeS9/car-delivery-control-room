@@ -60,9 +60,14 @@ export type SourceRef = { kind: string; id: string; label: string; at?: string |
 
 // ---------------------------------------------------------------- proposals
 
+/**
+ * `OPERATOR_DECISION` is an escalation: a question with options and no single
+ * action behind it (the agent's `escalate` tool). It still renders as a
+ * decision card; the chosen option goes back to the agent.
+ */
 export const ACTION_TYPES = [
   "CONTACT_CUSTOMER", "UPDATE_ETA", "CHANGE_PROMISE", "BOOK_RECOVERY", "BOOK_TRAVEL", "APPROVE_EXPENSE",
-  "REASSIGN_DRIVER", "CLEAR_TO_CONTINUE", "CONTACT_SITE_AS_CUSTOMER",
+  "REASSIGN_DRIVER", "CLEAR_TO_CONTINUE", "CONTACT_SITE_AS_CUSTOMER", "OPERATOR_DECISION",
 ] as const
 export type ActionType = (typeof ACTION_TYPES)[number]
 
@@ -101,6 +106,49 @@ export type HandoverPacket = {
   recommendation: string
   alternatives: string[]
 }
+
+// ---------------------------------------------------------------- API (stream A routes, used by the UI)
+
+/** POST here to decide a proposal. Body: `DecisionRequest`. Response: `DecisionResponse`. */
+export const decisionPath = (caseId: string, proposalId: string) => `/api/cases/${caseId}/proposals/${proposalId}/decide`
+
+/**
+ * Approve, edit-and-approve (send `edited_draft_message`) or reject (a
+ * `note` is required: it goes back to the agent).
+ */
+export type DecisionRequest = {
+  decision: "approve" | "reject"
+  /** Operator role id, e.g. `ops-shift`. No login in this prototype. */
+  decided_by: string
+  note?: string | null
+  /** The option picked when the card had options. */
+  option_id?: string | null
+  /** The operator's edited draft. Turns an approval into EDITED_AND_APPROVED. */
+  edited_draft_message?: DraftMessage | null
+}
+
+export type DecisionResponse = {
+  proposal_id: string
+  status: ProposalStatus
+  /** What happens now, in words, for the "what happens next" line. */
+  next_step: string
+  case_status: CaseStatus
+  error?: string
+}
+
+/** POST here for the "Ask the agent" box. Body: `AskAgentRequest`. Response: `AskAgentResponse`. */
+export const askAgentPath = "/api/agent/ask"
+
+export type AskAgentRequest = {
+  /** One of the two. A case wins; an order reference opens or reuses the order's open case. */
+  case_id?: string | null
+  order_ref?: string | null
+  text: string
+  /** Operator role id, e.g. `ops-shift`. */
+  asked_by: string
+}
+
+export type AskAgentResponse = { case_id: string; reply: string; run_id: string; error?: string }
 
 // ---------------------------------------------------------------- autonomy
 
@@ -144,6 +192,24 @@ export type GpsData = {
   heading?: number
   place_label?: string | null
 }
+
+/**
+ * `cr_events.data` for a `photo` event. Give the image either inline
+ * (`base64`) or as a file under `starter/public/` (`path`, e.g.
+ * `/demo/dashboard-584.png`). PNG, JPEG or WebP only: the agent reads it with
+ * vision. Every image must be generated or drawn, never a real photo.
+ */
+export type PhotoData = {
+  media_type: "image/png" | "image/jpeg" | "image/webp"
+  base64?: string
+  path?: string
+  /** What the photo is meant to show, e.g. "dashboard", "damage front left". */
+  subject?: string | null
+  caption?: string | null
+}
+
+/** `cr_events.data` for a `message` event with `kind: "photo_request"`: the driver app shows a camera button. */
+export type PhotoRequestData = { request: "photo"; subject: string }
 
 // ---------------------------------------------------------------- agent runs
 
