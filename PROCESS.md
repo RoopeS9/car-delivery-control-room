@@ -133,8 +133,6 @@ Checked / changed / rejected:
   signals, simulated driver for the video only. Kept the map and voice.
 - Reserved 40 s of the video for the process story.
 
-## 2026-10-24 ~12:15 UTC · Claude Code (stream A agent) · M0 foundation
-
 ## 2026-10-24 ~11:45 UTC · Claude Code (stream A agent) · M0 foundation
 
 Asked: do M0 (shared contract) since `lib/cr/` did not exist, then move on to
@@ -197,8 +195,6 @@ Checked / changed / rejected:
 - The board and the record still agree on "needs a person" for all 100 orders
   with a live case in the database (smoke). A missing `cr_` table falls back to
   the snapshot instead of breaking the starter.
-
-## 2026-10-24 ~13:30 UTC · Claude Code (stream A agent) · agent core + channel routes
 
 ## 2026-10-24 ~12:00 UTC · Claude Code (stream A agent) · agent core + channel routes
 
@@ -328,8 +324,6 @@ Checked / changed / rejected:
   for operators instead of code.
 - Smoke still reports agreement on all 100 orders; build passes.
 
-## 2026-10-24 ~14:15 UTC · Claude Code (stream A agent) · M1 acceptance tests
-
 ## 2026-10-24 ~12:05 UTC · Claude Code (stream A agent) · M1 acceptance tests
 
 Asked: prove in code that customer contact cannot happen without approval
@@ -380,8 +374,6 @@ Checked / changed / rejected:
   page offers "Tell the agent" open by default in that state.
 - Screenshots at 390 px caught the map shrinking to a strip under the legend
   and code chips wrapping mid-word; both fixed.
-
-## 2026-10-24 ~14:40 UTC · Claude Code (stream A agent) · plan re-check, out-of-date cards
 
 ## 2026-10-24 ~12:10 UTC · Claude Code (stream A agent) · plan re-check, out-of-date cards
 
