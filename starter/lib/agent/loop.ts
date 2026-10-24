@@ -286,7 +286,7 @@ async function deliver(request: TurnRequest, caseRow: CaseRow, facts: OrderFacts
       // operator ("here is the draft…", then a rule) is not part of the message.
       const name = String(endpoint.site?.name ?? endpoint.address.name ?? "the site")
       const body = text.replace(/^[^\n]*(?:draft|held for|approval)[^\n]*:?\s*\n+(?:-{3,}\s*\n+)?/i, "").replace(/\n+-{3,}[\s\S]*$/, "").trim() || text
-      await submitProposal({ audience: "operator", caseRow, facts }, {
+      await submitProposal({ audience: "operator", caseRow, facts, systemHeld: true }, {
         action_type: "CONTACT_SITE_AS_CUSTOMER",
         title: `Reply to ${name}`,
         rationale: `${name} belongs to the customer, so the agent drafted the reply and a person approves it before it is sent.`,

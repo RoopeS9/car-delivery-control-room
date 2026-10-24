@@ -38,9 +38,11 @@ export async function standardChecks(rec: Rec, detail: CaseDetail, opts: { stopN
   if (toCustomer.length) rec.fail("Nothing reaches the customer without approval", toCustomer.map((e) => e.id).join(", "))
   else rec.pass("Nothing reaches the customer without approval", "no agent message addressed to the customer")
   // One question at a time: no two pending cards; no duplicate titles among proposals
+  // A reply the gate held for approval sits beside the agent's one open question; it is not a second question.
   const pending = proposals.filter((p) => p.status === "PENDING")
-  if (pending.length > 1) rec.fail("At most one card waits at a time", pending.map((p) => `${p.actionType}: ${p.title}`).join(" | "))
-  else rec.pass("At most one card waits at a time", `${pending.length} pending`)
+  const asked = pending.filter((p) => !/^Reply to /.test(p.title))
+  if (asked.length > 1) rec.fail("At most one card waits at a time", pending.map((p) => `${p.actionType}: ${p.title}`).join(" | "))
+  else rec.pass("At most one card waits at a time", `${pending.length} pending${pending.length !== asked.length ? " (one is a held reply)" : ""}`)
   const titles = proposals.map((p) => `${p.actionType}|${p.title.toLowerCase()}`)
   const dupes = titles.filter((t, i) => titles.indexOf(t) !== i)
   if (dupes.length) rec.fail("The same card is not raised twice", [...new Set(dupes)].join(" | "))

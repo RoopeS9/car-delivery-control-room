@@ -15,7 +15,7 @@ import { AGENT_ID } from "./config"
 import { contextFor, loadOrderFacts, type End } from "./context"
 import { loadDriverSafetyContext, renderSafetyTemplate, SAFETY_TEMPLATES, screenDriverMessage } from "./drivability"
 import { firstName, localTime, relative, utcTime } from "./format"
-import { checkTool, recordedTravelSelection, submitProposal, validateProposal, type GateContext, type ProposalInput, type ToolName } from "./gate"
+import { checkTool, recordedTravelSelection, submitProposal, validateProposal, type GateContext, type ProposalInput, type ToolName, DecisionError } from "./gate"
 import { cityCoords, matchWarningLights, playbook, playbooks, troubleCode } from "./knowledge"
 import { findNearbyHelp, searchTravelOptions, type HelpKind, type TravelKind } from "./mocks"
 import { orderTimeline, renderLines } from "./timeline"
@@ -292,7 +292,7 @@ export async function holdForClearance(state: GateContext, text: string, reason:
     body: `Drivability screen held back a message that reads as permission to drive on${reason ? ` (${reason})` : ""}. It is now a card for an operator.`,
     data: { refused: true, rule: "drivability_screen", text },
   })
-  await submitProposal({ audience: "operator", caseRow: state.caseRow, facts: state.facts }, {
+  await submitProposal({ audience: "operator", caseRow: state.caseRow, facts: state.facts, systemHeld: true }, {
     action_type: "CLEAR_TO_CONTINUE",
     title: "Clear the driver to drive on?",
     rationale: "The agent's message to the driver read as permission to drive on. Only an operator can give that.",
@@ -663,7 +663,10 @@ export async function runTool(state: TurnState, name: string, rawInput: unknown)
     try {
       outcome = await handlers[name as ToolName](state, input)
     } catch (error) {
-      outcome = { content: `The tool failed: ${error instanceof Error ? error.message : String(error)}`, isError: true }
+      // A rule the gate enforces (one question at a time, a rejected card not re-asked) is a refusal the agent reads, not a crash.
+      outcome = error instanceof DecisionError
+        ? { content: `Not recorded: ${error.message}`, isError: true, gate: "REFUSED" }
+        : { content: `The tool failed: ${error instanceof Error ? error.message : String(error)}`, isError: true }
     }
     if (outcome.gate === "REFUSED") {
       trace.gate_reason = typeof outcome.content === "string" ? outcome.content : null

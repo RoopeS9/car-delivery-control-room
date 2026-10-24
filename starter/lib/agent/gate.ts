@@ -76,6 +76,8 @@ export type GateContext = {
   readOnly?: boolean
   /** When this turn read the case. Messages up to then were in front of the agent. */
   turnStartedAt?: Date
+  /** The gate itself made this card (a held reply, a held clearance): it is not the agent asking a second question. */
+  systemHeld?: boolean
 }
 
 const READ_TOOLS: readonly ToolName[] = [
@@ -328,6 +330,12 @@ export async function submitProposal(ctx: GateContext, input: ProposalInput): Pr
   const existing = await listProposals({ caseId: ctx.caseRow.id })
   const pendingTwin = existing.find((row) => row.status === "PENDING" && twinOf(row))
   if (pendingTwin) return { proposal: pendingTwin, level: "ASK_FIRST", executed: false }
+  // One question at a time (principles 5): while a card waits, the agent does not raise a second one; it notes what it
+  // learnt and proposes the next step after the decision. A reply the gate holds for approval is not a second question.
+  const waiting = existing.find((row) => row.status === "PENDING")
+  if (waiting && !ctx.systemHeld) {
+    throw new DecisionError(409, `A card is already waiting for operations on this case: "${waiting.title}". One question at a time: do not propose another card now. Put what you have learnt into the case summary and your handover note; propose the next step after they decide. If this new card replaces the waiting one, say so in a note to operations instead.`)
+  }
   const rejectedTwin = existing.filter((row) => row.status === "REJECTED" && twinOf(row)).at(-1)
   if (rejectedTwin && rejectedTwin.decidedAt && simNow().getTime() - rejectedTwin.decidedAt.getTime() < 4 * 3600_000) {
     throw new DecisionError(409, `An operator rejected "${rejectedTwin.title}" on this case${rejectedTwin.decisionNote ? ` (${rejectedTwin.decisionNote})` : ""}. Do not propose it again: work out a different next step from their reason, or put the case into a wait with wait_for.`)
