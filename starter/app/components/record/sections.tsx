@@ -1,11 +1,14 @@
 "use client"
 
+import type React from "react"
+
 import Link from "next/link"
 import { needsPersonItem } from "@/lib/present/tone-rule"
 import { useState } from "react"
 import type { AttentionItem, JourneyGroup, JourneyLeg, JourneyStep, MessageView, ProposalView, RecordView, ThreadView } from "@/lib/present/types"
 import { fmtClock, fmtDateTime, fmtDay, relativeTo } from "@/lib/present/time"
 import { Icon } from "../icons"
+import { initials, personColor } from "@/lib/present/color"
 import { ActorName, Chip, Empty, OrderLink, OrderLinks, Range, SectionHead, When } from "../ui"
 import { OrderFiles } from "./files"
 import { Composer, postJson, type Draft } from "../helpdesk/composer"
@@ -190,8 +193,10 @@ export function ThreadMessages({ thread }: { thread: { messages: ChatMessage[] }
     const side = message.internal ? "internal" : ours(message.author.kind) ? "ours" : "theirs"
     const previous = all[index - 1]
     const sameSpeaker = previous && previous.author.name === message.author.name && !previous.internal && !message.internal
-    return <div className={`chat-line chat-${side}${message.author.kind === "agent" ? " chat-agent" : ""}`} key={message.id}>
+    const who = side === "ours" ? "var(--teal-ink)" : personColor(message.author.id ?? message.author.name)
+    return <div className={`chat-line chat-${side}${message.author.kind === "agent" ? " chat-agent" : ""}`} key={message.id} style={{ "--who": who } as React.CSSProperties}>
       {!sameSpeaker && <div className="chat-who">
+        {side !== "internal" && <span className="chat-avatar" aria-hidden="true">{initials(message.author.name)}</span>}
         <b><ActorName actor={message.author} /></b>
         <span>{message.author.role}{message.recipient.name && side !== "internal" ? ` · to ${message.recipient.name}` : ""}</span>
         {message.internal && <span className="msg-tag internal">Internal</span>}

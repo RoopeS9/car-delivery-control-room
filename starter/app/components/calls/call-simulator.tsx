@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 import { readToolArgument, slotLabel, slotValue, type CallJob, type CallRecord, type CallReview, type CallScenario, type RunStart } from "@/lib/present/call-types"
+import { personColor } from "@/lib/present/color"
 import { labelIn } from "@/lib/present/labels"
 import { fmtDateTime } from "@/lib/present/time"
 import { Icon } from "../icons"
@@ -151,9 +152,14 @@ export function CallSimulator({ scenarios, stored, orderIds, callees, drivers, o
       {scenario && <section className="call-view" aria-label="Call">
         <div className="call-view-head">
           <div>
-            <h2>{words(PURPOSE_WORDS, scenario.purpose)}{callees[scenario.id] ? ` with ${callees[scenario.id]}` : ""} · {orderIds[scenario.orderRef] ? <Link className="ref-link" href={`/orders/${orderIds[scenario.orderRef]}`}>{scenario.orderRef}</Link> : <span className="mono">{scenario.orderRef}</span>}</h2>
-            <p>{scenario.inbound ? `${words(ROLE_WORDS, scenario.role)} calls Road Desk` : `Road Desk calls the ${words(ROLE_WORDS, scenario.role).toLowerCase()}`}, {labelIn(scenario.mood).toLowerCase()}.
-              {drivers[scenario.id] && <> <Link className="studio-link" href={`/driver?driver=${encodeURIComponent(drivers[scenario.id])}&job=${scenario.orderRef}`}>Show the driver</Link></>}</p>
+            <h2>{words(PURPOSE_WORDS, scenario.purpose)}</h2>
+            <div className="chips call-view-chips">
+              {orderIds[scenario.orderRef] ? <Link className="chip-fact mono link" href={`/orders/${orderIds[scenario.orderRef]}`}><Icon name="arrow" size={13} />{scenario.orderRef}</Link> : <span className="chip-fact mono"><Icon name="arrow" size={13} />{scenario.orderRef}</span>}
+              <span className="chip-fact"><span className="who-dot" style={{ background: personColor(callees[scenario.id] ?? scenario.role) }} />{callees[scenario.id] ?? words(ROLE_WORDS, scenario.role)}</span>
+              <span className="chip-fact"><Icon name="phone" size={13} />{scenario.inbound ? "They call Road Desk" : "Road Desk calls them"}</span>
+              <span className="chip-fact"><Icon name={scenario.inbound ? "driver" : "building"} size={13} />{labelIn(scenario.mood)}</span>
+              {drivers[scenario.id] && <Link className="chip-fact link" href={`/driver?driver=${encodeURIComponent(drivers[scenario.id])}&job=${scenario.orderRef}`}><Icon name="driver" size={13} />Show the driver</Link>}
+            </div>
           </div>
           <div className="call-run">
             {!scenario.inbound && <button type="button" className="btn" disabled={!!running || !!live} title="A live call: Mira from Bahn calls, and you answer as the desk"
@@ -250,7 +256,7 @@ function CallRecordView({ call, review }: { call: CallRecord; review: CallReview
 /** The other party's phone during a desk call: the conversation as it was heard. */
 export function DeskPhone({ name, call }: { name: string; call: CallRecord | null }) {
   return <div className="desk-phone">
-    <header><span className="desk-avatar" aria-hidden="true">{name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span><div><b>{name}</b><small>{call ? `Call with Road Desk · ${labelIn(call.outcome).toLowerCase()}` : "No call yet"}</small></div></header>
+    <header><span className="desk-avatar" aria-hidden="true" style={{ background: personColor(name), color: "#fff" }}>{name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span><div><b>{name}</b><small>{call ? `Call with Road Desk · ${labelIn(call.outcome).toLowerCase()}` : "No call yet"}</small></div></header>
     <ol>{(call?.turns ?? []).map((turn) => <li key={turn.seq} className={turn.speaker === "CALLER" ? "them" : "me"}>{turn.text}</li>)}</ol>
     {!call && <p>Simulate the call to hear it from this side.</p>}
   </div>

@@ -112,6 +112,8 @@
 .sc-lines { display: grid; gap: 4px; font-size: 12.5px; color: var(--brown); }
 .sc-lines a { color: var(--muted); }
 .call-columns.with-card { grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) 300px; }
+.call-view-chips { margin-top: 8px; }
+.call-view-chips .chip-fact .who-dot { margin-right: 2px; }
 .call-card-col { display: grid; gap: 4px; align-content: start; padding: 14px 16px; border-radius: 12px; background: var(--tray); box-shadow: 0 0 0 1px var(--hair-soft); font-size: 12.5px; position: sticky; top: 20px; }
 .call-card-col h3 { font-size: 13px; font-weight: 600; color: var(--muted); }
 .call-card-col h4 { margin-top: 8px; font-size: 11.5px; font-weight: 600; color: var(--subtle); }

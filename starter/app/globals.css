@@ -412,11 +412,16 @@ a.tile:hover { box-shadow: var(--shadow-card-hover); }
 .chat-line.chat-internal { justify-self: center; justify-items: center; max-width: 80%; }
 .chat-who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; padding: 0 4px; font-size: 12.5px; color: var(--muted); }
 .chat-who b { font-size: 14px; font-weight: 700; color: var(--ink); }
-.chat-bubble { padding: 10px 14px; border-radius: 16px; background: var(--birch); box-shadow: var(--shadow-card); }
+/* Each speaker carries their colour (--who, set on the line): a swatch by the name, a tinted edge on their bubble. */
+.chat-avatar { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--who, var(--sand)); color: #fff; font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em; }
+.who-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--sand); }
+.chat-bubble { padding: 10px 14px; border-radius: 16px; background: var(--birch); box-shadow: var(--shadow-card); border-left: 3px solid var(--who, var(--sand)); }
+.chat-theirs .chat-bubble { background: color-mix(in srgb, var(--who, var(--sand)) 9%, var(--birch)); }
 .chat-theirs .chat-bubble { border-top-left-radius: 4px; }
-.chat-ours .chat-bubble { border-top-right-radius: 4px; background: var(--teal-bg); box-shadow: none; }
+.chat-ours .chat-bubble { border-top-right-radius: 4px; background: var(--teal-bg); box-shadow: none; border-left: 0; border-right: 3px solid var(--teal); }
 .chat-agent .chat-bubble { background: var(--teal-bg); outline: 1px dashed var(--teal); outline-offset: -1px; }
 .chat-internal .chat-bubble { background: transparent; border: 1px dashed var(--sand); box-shadow: none; font-style: italic; }
+.chat-who b a, .chat-who b { color: var(--who, var(--ink)); }
 .chat-when { padding: 0 4px; font-size: 12px; color: var(--subtle); font-variant-numeric: tabular-nums; }
 .chat .msg-body { font-size: 15px; line-height: 1.55; }
 .msg { display: grid; gap: 3px; padding: 10px 14px; border-radius: 10px; background: var(--canvas); max-width: 78ch; }

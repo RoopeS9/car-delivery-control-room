@@ -6,6 +6,7 @@ import type { FeedMessage, GpsData, ObdData } from "@/lib/cr/types"
 import type { SimObd } from "@/lib/sim/motion"
 import { fmtDateTime, fmtMoney, fmtRange } from "@/lib/present/time"
 import { Icon } from "../components/icons"
+import { personColor } from "@/lib/present/color"
 import { fetchFeed, sendMessage, shrinkImage, uploadPhoto } from "./channel"
 import type { DriverJob, ThreadMessage } from "./data"
 import styles from "./driver.module.css"
@@ -151,7 +152,7 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow, onJob }
 
   return <div className={styles.app}>
     <header className={styles.top}>
-      <span className={styles.avatar} aria-hidden="true">{driver.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span>
+      <span className={styles.avatar} aria-hidden="true" style={{ background: personColor(driver.name), color: "#fff" }}>{driver.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span>
       <div className={styles.topText}>
         <b>{driver.name}</b>
         {!onJob && <Link href="/driver">Switch driver</Link>}

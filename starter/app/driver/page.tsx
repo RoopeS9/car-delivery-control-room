@@ -3,6 +3,7 @@
 // with Bahn, photos, and Call Road Desk. Everything the driver writes or
 // photographs goes to the same agent and case and shows on the map.
 
+import { personColor } from "@/lib/present/color"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { simNowIso } from "@/lib/cr/clock"
@@ -66,7 +67,7 @@ function Picker({ drivers, current }: { drivers: Awaited<ReturnType<typeof listD
       <ul className={styles.pickerList}>
         {group.list.map((driver) => <li key={driver.id}>
           <Link href={`/driver?driver=${driver.id}`} className={`${styles.pickerItem}${driver.id === current ? " picked" : ""}`} aria-current={driver.id === current ? "page" : undefined}>
-            <span className={styles.avatar} aria-hidden="true">{initials(driver.name)}</span>
+            <span className={styles.avatar} aria-hidden="true" style={{ background: personColor(driver.name), color: "#fff" }}>{initials(driver.name)}</span>
             <span className={styles.pickerText}>
               <b>{driver.name}</b>
               <small>{driver.jobs.map((job) => `${job.vehicle}, ${job.route}`).join(" · ")}</small>

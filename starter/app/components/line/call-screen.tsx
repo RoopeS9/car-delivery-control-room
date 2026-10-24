@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Icon } from "../icons"
+import { personColor } from "@/lib/present/color"
 import { ClaimsList, Scorecard } from "../calls/review-parts"
 import type { CallRecord, CallReview } from "@/lib/present/call-types"
 import "./call-screen.css"
@@ -324,7 +325,7 @@ export function CallScreen({ target, onClose, autoStart = false, onResult }: {
   const inCall = phase === "checking" || phase === "composing" || phase === "connecting" || phase === "live"
   return <div className={`call-screen cs-${phase}`} aria-live="polite">
     <header className="cs-head">
-      <span className="cs-avatar" aria-hidden="true">{target.calleeName.split(/\s+/).filter((part) => /^[A-Z]/.test(part)).map((part) => part[0]).join("").slice(0, 2)}</span>
+      <span className="cs-avatar" aria-hidden="true" style={{ background: personColor(target.calleeName), color: "#fff" }}>{target.calleeName.split(/\s+/).filter((part) => /^[A-Z]/.test(part)).map((part) => part[0]).join("").slice(0, 2)}</span>
       <b>{target.calleeName}</b>
       <span className="cs-purpose">{target.purposeLabel} · <span className="mono">{target.orderRef}</span></span>
       <span className="cs-status">{phase === "live" && startedAt ? clock((Date.now() - startedAt) / 1000) : status || (phase === "idle" ? "Ready to call" : "")}</span>
