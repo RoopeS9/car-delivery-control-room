@@ -1,0 +1,2 @@
+{"arrived_at": "2026-10-21T07:00:00Z", "assignment_id": "asg-xd08ea06249d22f64", "id": "visit-x445b98caff86871d", "left_at": null, "order_id": "ord-00593", "outcome": "VEHICLE_NOT_FOUND", "site_id": "site-001", "verified_by_site": false}
+{"arrived_at": "2026-10-21T07:08:00Z", "assignment_id": "asg-xefb2b3b713e8e64a", "id": "visit-x7d972e39c431bb5b", "left_at": "2026-10-21T08:55:00Z", "order_id": "ord-00201", "outcome": "VEHICLE_NOT_FOUND", "site_id": "site-036", "verified_by_site": true}

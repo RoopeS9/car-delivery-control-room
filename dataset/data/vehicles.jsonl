@@ -1,0 +1,103 @@
+{"fuel": "electric", "id": "veh-00004", "make": "Porsche", "model": "Taycan", "model_year": 2021, "registration": "DEMO-FI-N8F7CH", "synthetic_vin": "SYNYWPRAZJJCKTSHY"}
+{"fuel": "hybrid", "id": "veh-00009", "make": "Toyota", "model": "RAV4", "model_year": 2025, "registration": null, "synthetic_vin": null}
+{"fuel": "hybrid", "id": "veh-00010", "make": "Mercedes-Benz", "model": "E-Class", "model_year": 2017, "registration": null, "synthetic_vin": "SYN64RKRZEMSTKZVW"}
+{"fuel": "petrol", "id": "veh-00014", "make": "Mercedes-Benz", "model": "S-Class", "model_year": 2023, "registration": "DEMO-FI-YK4NGH", "synthetic_vin": "SYN9G7VTZLRFZHLDK"}
+{"fuel": "electric", "id": "veh-00015", "make": "BMW", "model": "i4", "model_year": 2023, "registration": "DEMO-FI-4MNSTX", "synthetic_vin": "SYNKLAMSZ2SK8E2EG"}
+{"fuel": "petrol", "id": "veh-00020", "make": "Porsche", "model": "911 Carrera", "model_year": 2021, "registration": null, "synthetic_vin": "SYNXJKZCZM69JGY52"}
+{"fuel": "hybrid", "id": "veh-00023", "make": "Mercedes-Benz", "model": "GLC", "model_year": 2020, "registration": null, "synthetic_vin": "SYNU7EGGZ5Z5G6XVF"}
+{"fuel": "petrol", "id": "veh-00055", "make": "Bentley", "model": "Continental GT", "model_year": 2025, "registration": "DEMO-FI-HZJS33", "synthetic_vin": "SYN7KBHPZ3CCKPXYG"}
+{"fuel": "electric", "id": "veh-00071", "make": "Audi", "model": "Q8 e-tron", "model_year": 2024, "registration": null, "synthetic_vin": "SYNHU89YZ8GSW6CKB"}
+{"fuel": "electric", "id": "veh-00075", "make": "Volkswagen", "model": "ID.4", "model_year": 2025, "registration": null, "synthetic_vin": "SYN4HA6PZMPBALE58"}
+{"fuel": "petrol", "id": "veh-00089", "make": "BMW", "model": "M4", "model_year": 2024, "registration": "DEMO-FI-YERSAU", "synthetic_vin": "SYNB34VAZFDSDCBXB"}
+{"fuel": "electric", "id": "veh-00111", "make": "Audi", "model": "Q8 e-tron", "model_year": 2024, "registration": "DEMO-FI-RE3JEW", "synthetic_vin": "SYNY9SYFZFU95EP9V"}
+{"fuel": "petrol", "id": "veh-00118", "make": "Porsche", "model": "911 Carrera", "model_year": 2025, "registration": null, "synthetic_vin": "SYNMB5HXZ8F3ZZY38"}
+{"fuel": "hybrid", "id": "veh-00123", "make": "Mercedes-Benz", "model": "E-Class", "model_year": 2023, "registration": null, "synthetic_vin": "SYN9DMEFZM4ZR2GY9"}
+{"fuel": "petrol", "id": "veh-00145", "make": "Porsche", "model": "911 Carrera", "model_year": 2026, "registration": null, "synthetic_vin": "SYNAMKZEZBN8S8HME"}
+{"fuel": "electric", "id": "veh-00154", "make": "Audi", "model": "Q8 e-tron", "model_year": 2024, "registration": null, "synthetic_vin": "SYNR6EH6Z5NYKV33X"}
+{"fuel": "petrol", "id": "veh-00164", "make": "BMW", "model": "M4", "model_year": 2026, "registration": null, "synthetic_vin": "SYNFVBAJZMDHR8JAX"}
+{"fuel": "electric", "id": "veh-00177", "make": "Skoda", "model": "Enyaq", "model_year": 2023, "registration": "DEMO-FI-9JLDFB", "synthetic_vin": "SYNPT5B4ZFWN8HACN"}
+{"fuel": "hybrid", "id": "veh-00194", "make": "Volvo", "model": "V60", "model_year": 2024, "registration": null, "synthetic_vin": "SYNRVBZXZZFEZB7H6"}
+{"fuel": "hybrid", "id": "veh-00201", "make": "Ferrari", "model": "296 GTB", "model_year": 2024, "registration": null, "synthetic_vin": "SYNB9MGDZPBNPZNEL"}
+{"fuel": "petrol", "id": "veh-00222", "make": "BMW", "model": "M4", "model_year": 2024, "registration": "DEMO-FI-VFU9BZ", "synthetic_vin": "SYN2F9YYZ8AWKBC59"}
+{"fuel": "electric", "id": "veh-00240", "make": "Porsche", "model": "Taycan", "model_year": 2026, "registration": null, "synthetic_vin": "SYNS3CK3ZHHC6AYSX"}
+{"fuel": "petrol", "id": "veh-00257", "make": "Skoda", "model": "Octavia", "model_year": 2022, "registration": null, "synthetic_vin": "SYNML6SKZHKPF72JX"}
+{"fuel": "petrol", "id": "veh-00291", "make": "Bentley", "model": "Flying Spur", "model_year": 2022, "registration": null, "synthetic_vin": "SYNDEPP9Z8NABFKEH"}
+{"fuel": "petrol", "id": "veh-00299", "make": "BMW", "model": "M4", "model_year": 2026, "registration": null, "synthetic_vin": "SYNB89V5ZYE6E3FLX"}
+{"fuel": "hybrid", "id": "veh-00311", "make": "Mercedes-Benz", "model": "C-Class", "model_year": 2023, "registration": null, "synthetic_vin": "SYN2ZH5KZDKLVG3AP"}
+{"fuel": "petrol", "id": "veh-00322", "make": "Bentley", "model": "Continental GT", "model_year": 2021, "registration": null, "synthetic_vin": "SYNNWPB5ZZSFETNFP"}
+{"fuel": "electric", "id": "veh-00324", "make": "Mercedes-Benz", "model": "EQE", "model_year": 2024, "registration": "DEMO-SE-76BS6A", "synthetic_vin": "SYNJ2VEPZ8X5BPHPR"}
+{"fuel": "electric", "id": "veh-00326", "make": "Polestar", "model": "2", "model_year": 2024, "registration": null, "synthetic_vin": "SYN8LXYEZVFNG8RAK"}
+{"fuel": "petrol", "id": "veh-00335", "make": "Bentley", "model": "Flying Spur", "model_year": 2021, "registration": "DEMO-FI-73NBUU", "synthetic_vin": "SYNW3TXTZJVBR5RYU"}
+{"fuel": "hybrid", "id": "veh-00338", "make": "Ferrari", "model": "296 GTB", "model_year": 2022, "registration": null, "synthetic_vin": "SYNSSWE8ZSH3XMWH4"}
+{"fuel": "petrol", "id": "veh-00342", "make": "Ferrari", "model": "Roma", "model_year": 2021, "registration": null, "synthetic_vin": "SYN25VK8ZNHP2SHZ6"}
+{"fuel": "electric", "id": "veh-00347", "make": "Mercedes-Benz", "model": "EQE", "model_year": 2024, "registration": null, "synthetic_vin": "SYN62F8XZHXKK5G26"}
+{"fuel": "hybrid", "id": "veh-00360", "make": "BMW", "model": "X5", "model_year": 2023, "registration": null, "synthetic_vin": "SYN96CWMZLGEDEHXM"}
+{"fuel": "petrol", "id": "veh-00362", "make": "Porsche", "model": "911 Carrera", "model_year": 2021, "registration": null, "synthetic_vin": "SYNZRSYBZ4PAXH5N5"}
+{"fuel": "petrol", "id": "veh-00366", "make": "BMW", "model": "M4", "model_year": 2021, "registration": null, "synthetic_vin": "SYN228BDZ58TWP8F4"}
+{"fuel": "petrol", "id": "veh-00384", "make": "Volkswagen", "model": "Golf", "model_year": 2024, "registration": "DEMO-FI-ET8K64", "synthetic_vin": "SYN8F5BKZMRDN87FL"}
+{"fuel": "hybrid", "id": "veh-00399", "make": "Ferrari", "model": "296 GTB", "model_year": 2022, "registration": null, "synthetic_vin": "SYNVHVXPZXAXGNKTG"}
+{"fuel": "electric", "id": "veh-00404", "make": "Tesla", "model": "Model 3", "model_year": 2024, "registration": "DEMO-FI-3P3KYT", "synthetic_vin": "SYN4HAWAZDHJ2GXTN"}
+{"fuel": "electric", "id": "veh-00405", "make": "Volkswagen", "model": "ID.4", "model_year": 2022, "registration": null, "synthetic_vin": "SYN58US8ZYEHUCLTS"}
+{"fuel": "hybrid", "id": "veh-00412", "make": "Mercedes-Benz", "model": "C-Class", "model_year": 2025, "registration": null, "synthetic_vin": "SYNJX79BZJVXPZESB"}
+{"fuel": "petrol", "id": "veh-00413", "make": "Volkswagen", "model": "Golf", "model_year": 2023, "registration": "DEMO-FI-U25CKD", "synthetic_vin": "SYN43HJRZN97A756G"}
+{"fuel": "hybrid", "id": "veh-00419", "make": "Volvo", "model": "V60", "model_year": 2021, "registration": null, "synthetic_vin": "SYNYB5HBZ2PP8WFF2"}
+{"fuel": "petrol", "id": "veh-00437", "make": "Bentley", "model": "Flying Spur", "model_year": 2026, "registration": null, "synthetic_vin": "SYNPAG78Z3GDFDZ2Y"}
+{"fuel": "hybrid", "id": "veh-00439", "make": "Ferrari", "model": "296 GTB", "model_year": 2023, "registration": null, "synthetic_vin": "SYNR95S5ZHUD9RPMS"}
+{"fuel": "petrol", "id": "veh-00442", "make": "Bentley", "model": "Continental GT", "model_year": 2024, "registration": null, "synthetic_vin": "SYNVRBDJZMG5TCPRJ"}
+{"fuel": "hybrid", "id": "veh-00449", "make": "Toyota", "model": "Corolla", "model_year": 2021, "registration": null, "synthetic_vin": "SYN79WWRZ9JKVNM4S"}
+{"fuel": "petrol", "id": "veh-00452", "make": "Bentley", "model": "Continental GT", "model_year": 2022, "registration": "DEMO-FI-9NTWNM", "synthetic_vin": "SYNWVBFEZKGU2DM38"}
+{"fuel": "petrol", "id": "veh-00455", "make": "Audi", "model": "RS 6", "model_year": 2024, "registration": "DEMO-FI-UY4ST6", "synthetic_vin": "SYNY354BZMBHZGLD8"}
+{"fuel": "petrol", "id": "veh-00458", "make": "Ferrari", "model": "Roma", "model_year": 2023, "registration": null, "synthetic_vin": "SYNFPJTTZ56753PGS"}
+{"fuel": "hybrid", "id": "veh-00516", "make": "Volvo", "model": "V60", "model_year": 2026, "registration": "DEMO-FI-PV2HSD", "synthetic_vin": "SYNXFGXYZTRC6UN7H"}
+{"fuel": "hybrid", "id": "veh-00531", "make": "Porsche", "model": "Panamera", "model_year": 2025, "registration": null, "synthetic_vin": "SYNNEGNHZYF5ZH9FU"}
+{"fuel": "petrol", "id": "veh-00537", "make": "Bentley", "model": "Continental GT", "model_year": 2025, "registration": null, "synthetic_vin": "SYNHAPLXZSNY2NWGW"}
+{"fuel": "petrol", "id": "veh-00576", "make": "BMW", "model": "M4", "model_year": 2023, "registration": null, "synthetic_vin": "SYNT7DXLZ8EBF9BMX"}
+{"fuel": "petrol", "id": "veh-00578", "make": "Bentley", "model": "Continental GT", "model_year": 2020, "registration": null, "synthetic_vin": "SYNZBHUAZS792JBG3"}
+{"fuel": "hybrid", "id": "veh-00579", "make": "Mercedes-Benz", "model": "S-Class", "model_year": 2022, "registration": null, "synthetic_vin": "SYN6GF7GZXHK7BT7C"}
+{"fuel": "petrol", "id": "veh-00584", "make": "Bentley", "model": "Continental GT", "model_year": 2025, "registration": null, "synthetic_vin": "SYNSHJZ2Z7KK7GR6W"}
+{"fuel": "petrol", "id": "veh-00585", "make": "Ferrari", "model": "Roma", "model_year": 2024, "registration": null, "synthetic_vin": "SYNUDBRHZY5JW9NVH"}
+{"fuel": "petrol", "id": "veh-00593", "make": "BMW", "model": "M4", "model_year": 2022, "registration": "DEMO-FI-MRF24B", "synthetic_vin": "SYNH78NNZVFZVVEJJ"}
+{"fuel": "petrol", "id": "veh-00603", "make": "Volkswagen", "model": "Golf", "model_year": 2025, "registration": null, "synthetic_vin": "SYNRYSFBZ64HEXBWB"}
+{"fuel": "hybrid", "id": "veh-00612", "make": "Volvo", "model": "V60", "model_year": 2021, "registration": null, "synthetic_vin": "SYN99NKJZDJWGZ3HE"}
+{"fuel": "petrol", "id": "veh-00619", "make": "Ferrari", "model": "Roma", "model_year": 2021, "registration": "DEMO-FI-LR9VRY", "synthetic_vin": "SYNRKYVKZM7VHALHF"}
+{"fuel": "hybrid", "id": "veh-tradein-00455", "make": "Volvo", "model": "V60", "model_year": 2019, "registration": "DEMO-FI-97AJAF", "synthetic_vin": "SYN7JAXFZV9B9MLF8"}
+{"fuel": "hybrid", "id": "veh-tradein-00177", "make": "Volvo", "model": "V60", "model_year": 2023, "registration": "DEMO-FI-H6CRBC", "synthetic_vin": "SYNY5EB4Z8BMT84WH"}
+{"fuel": "hybrid", "id": "veh-tradein-00055", "make": "Volvo", "model": "V60", "model_year": 2022, "registration": "DEMO-FI-F8JJSF", "synthetic_vin": "SYN828JFZJGUZS5NL"}
+{"fuel": "petrol", "id": "veh-00656", "make": "Mercedes-Benz", "model": "S-Class", "model_year": 2021, "registration": "DEMO-FR-TDH7UB", "synthetic_vin": "SYNKU8HRZ6DXMYWH7"}
+{"fuel": "electric", "id": "veh-00666", "make": "Tesla", "model": "Model 3", "model_year": 2023, "registration": null, "synthetic_vin": "SYNXYMWEZWERW9TA6"}
+{"fuel": "petrol", "id": "veh-00671", "make": "Porsche", "model": "911 Carrera", "model_year": 2023, "registration": null, "synthetic_vin": "SYN9LYF6ZA72TG3JW"}
+{"fuel": "petrol", "id": "veh-00675", "make": "Bentley", "model": "Continental GT", "model_year": 2021, "registration": null, "synthetic_vin": "SYNSHD9MZYP44GHFB"}
+{"fuel": "hybrid", "id": "veh-00679", "make": "Volvo", "model": "V60", "model_year": 2020, "registration": null, "synthetic_vin": "SYN3VFRTZFPHNJ2JG"}
+{"fuel": "hybrid", "id": "veh-00689", "make": "Audi", "model": "Q5", "model_year": 2022, "registration": null, "synthetic_vin": "SYNWPK3FZJUBJ4GJJ"}
+{"fuel": "hybrid", "id": "veh-00692", "make": "Porsche", "model": "Panamera", "model_year": 2020, "registration": null, "synthetic_vin": "SYN9TZVCZMLTU5MUT"}
+{"fuel": "petrol", "id": "veh-00694", "make": "Mercedes-Benz", "model": "S-Class", "model_year": 2022, "registration": null, "synthetic_vin": "SYNBKBK2ZXKPU8X33"}
+{"fuel": "hybrid", "id": "veh-00697", "make": "Mercedes-Benz", "model": "C-Class", "model_year": 2023, "registration": null, "synthetic_vin": "SYNZ7GV4ZBCHGUNPL"}
+{"fuel": "hybrid", "id": "veh-00702", "make": "Toyota", "model": "Corolla", "model_year": 2025, "registration": "DEMO-FI-K9R2B5", "synthetic_vin": "SYNK5M8RZ3T7V2B9L"}
+{"fuel": "petrol", "id": "veh-00710", "make": "Porsche", "model": "911 Carrera", "model_year": 2024, "registration": null, "synthetic_vin": "SYNDD2X9ZRKLX5YUK"}
+{"fuel": "hybrid", "id": "veh-00719", "make": "BMW", "model": "5 Series", "model_year": 2023, "registration": "DEMO-FI-TUH8SK", "synthetic_vin": "SYNJST4FZSN9CWS2V"}
+{"fuel": "electric", "id": "veh-00725", "make": "Porsche", "model": "Taycan", "model_year": 2025, "registration": "DEMO-FI-VX9RZ2", "synthetic_vin": "SYN7SRNCZVVBM3U7J"}
+{"fuel": "electric", "id": "veh-00735", "make": "Porsche", "model": "Taycan", "model_year": 2026, "registration": null, "synthetic_vin": "SYNEFE2TZPP8FF483"}
+{"fuel": "electric", "id": "veh-00747", "make": "Porsche", "model": "Taycan", "model_year": 2023, "registration": "DEMO-FI-GM7S9U", "synthetic_vin": "SYNH38U6Z2DBF5FHW"}
+{"fuel": "hybrid", "id": "veh-00806", "make": "Ferrari", "model": "296 GTB", "model_year": 2022, "registration": "DEMO-FI-NJMSM4", "synthetic_vin": "SYNGC5PVZCYFYMCW8"}
+{"fuel": "electric", "id": "veh-00837", "make": "Porsche", "model": "Taycan", "model_year": 2020, "registration": "DEMO-FI-UVXD9R", "synthetic_vin": "SYNR2ZGPZ3EWD9CRF"}
+{"fuel": "petrol", "id": "veh-00904", "make": "Audi", "model": "RS 6", "model_year": 2022, "registration": "DEMO-FI-X2PHV7", "synthetic_vin": "SYNKJEKKZD54GKCHW"}
+{"fuel": "petrol", "id": "veh-00917", "make": "Mercedes-Benz", "model": "S-Class", "model_year": 2024, "registration": "DEMO-FI-F8YA8G", "synthetic_vin": "SYNCHUG6ZRWEA5A5Z"}
+{"fuel": "petrol", "id": "veh-00941", "make": "Porsche", "model": "Macan", "model_year": 2025, "registration": null, "synthetic_vin": "SYN5CGJWZJYMMC7HM"}
+{"fuel": "petrol", "id": "veh-00958", "make": "BMW", "model": "M4", "model_year": 2024, "registration": "DEMO-FI-V6KDW4", "synthetic_vin": "SYNV5CAHZ4LJ9N7ME"}
+{"fuel": "petrol", "id": "veh-00961", "make": "Audi", "model": "RS 6", "model_year": 2024, "registration": "DEMO-FI-TKXPG6", "synthetic_vin": "SYNPXA8YZTNHP7DWM"}
+{"fuel": "petrol", "id": "veh-00987", "make": "Porsche", "model": "911 Carrera", "model_year": 2021, "registration": null, "synthetic_vin": "SYNRK7KLZUYMFTDTU"}
+{"fuel": "petrol", "id": "veh-00992", "make": "Porsche", "model": "911 Carrera", "model_year": 2025, "registration": null, "synthetic_vin": "SYNACECWZHBSMF28W"}
+{"fuel": "petrol", "id": "veh-01010", "make": "Porsche", "model": "911 Carrera", "model_year": 2022, "registration": null, "synthetic_vin": "SYNZ5BBPZC4NL36SS"}
+{"fuel": "petrol", "id": "veh-01011", "make": "Audi", "model": "RS 6", "model_year": 2021, "registration": null, "synthetic_vin": "SYNTJUDTZBV6CTL3U"}
+{"fuel": "hybrid", "id": "veh-01013", "make": "Ferrari", "model": "296 GTB", "model_year": 2026, "registration": "DEMO-FI-VAJWJA", "synthetic_vin": "SYNYMSV8Z6MEZ5NB2"}
+{"fuel": "hybrid", "id": "veh-01022", "make": "Mercedes-Benz", "model": "S-Class", "model_year": 2024, "registration": null, "synthetic_vin": "SYNHZH9NZTYUFCCVP"}
+{"fuel": "petrol", "id": "veh-01024", "make": "Porsche", "model": "Macan", "model_year": 2016, "registration": null, "synthetic_vin": "SYNL8TA8ZYSFXUNBJ"}
+{"fuel": "petrol", "id": "veh-01027", "make": "Porsche", "model": "Macan", "model_year": 2025, "registration": null, "synthetic_vin": "SYN3DH9KZC4E4MJ66"}
+{"fuel": "petrol", "id": "veh-01035", "make": "Porsche", "model": "911 Carrera", "model_year": 2024, "registration": null, "synthetic_vin": "SYNF4A2YZZFUC9EUJ"}
+{"fuel": "petrol", "id": "veh-01038", "make": "Audi", "model": "RS 6", "model_year": 2026, "registration": "DEMO-DE-27NFFT", "synthetic_vin": "SYNL6TU9ZT7SNZU6E"}
+{"fuel": "electric", "id": "veh-01042", "make": "BMW", "model": "i5", "model_year": 2024, "registration": null, "synthetic_vin": "SYNSY82UZFW2NR5SG"}
+{"fuel": "petrol", "id": "veh-01044", "make": "BMW", "model": "M4", "model_year": 2025, "registration": "DEMO-BE-B6VR9W", "synthetic_vin": "SYNCE7WDZMTFPETE2"}
+{"fuel": "electric", "id": "veh-01048", "make": "Tesla", "model": "Model Y", "model_year": 2024, "registration": null, "synthetic_vin": "SYNJM6P8ZGNM4GMSP"}
+{"fuel": "electric", "id": "veh-01051", "make": "Polestar", "model": "2", "model_year": 2022, "registration": null, "synthetic_vin": "SYN9CHYPZH49DP7Z6"}
+{"fuel": "hybrid", "id": "veh-01053", "make": "Ferrari", "model": "296 GTB", "model_year": 2022, "registration": null, "synthetic_vin": "SYNJPSYSZ4ZGFNJM9"}
+{"fuel": "electric", "id": "veh-01056", "make": "Tesla", "model": "Model 3", "model_year": 2024, "registration": "DEMO-AT-R5V9XZ", "synthetic_vin": "SYNZWSXFZHFYJEY5Y"}

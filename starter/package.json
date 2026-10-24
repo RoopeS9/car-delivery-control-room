@@ -1,0 +1,34 @@
+{
+  "name": "car-delivery-control-room-starter",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "db:push": "drizzle-kit push",
+    "db:seed": "tsx scripts/seed.ts",
+    "attachments:seed": "tsx scripts/seed-attachments.ts",
+    "attachments:smoke": "tsx scripts/smoke-attachments.ts",
+    "smoke": "tsx scripts/smoke.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1155.0",
+    "@aws-sdk/s3-request-presigner": "^3.1155.0",
+    "dotenv": "^18.0.8",
+    "drizzle-orm": "^0.45.4",
+    "next": "^16.4.2",
+    "postgres": "^3.4.9",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15",
+    "typescript": "7.0.2"
+  }
+}

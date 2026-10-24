@@ -1,0 +1,11 @@
+{"id": "ops-support", "kind": "HUMAN_ROLE", "title": "Support desk"}
+{"id": "ops-readiness", "kind": "HUMAN_ROLE", "title": "Readiness desk"}
+{"id": "ops-planning", "kind": "HUMAN_ROLE", "title": "Transport planning"}
+{"id": "ops-dispatch", "kind": "HUMAN_ROLE", "title": "Driver marketplace"}
+{"id": "ops-import", "kind": "HUMAN_ROLE", "title": "Import operations"}
+{"id": "ops-travel", "kind": "HUMAN_ROLE", "title": "Driver travel"}
+{"id": "ops-shift", "kind": "HUMAN_ROLE", "title": "Shift lead"}
+{"id": "ops-intake", "kind": "HUMAN_ROLE", "title": "Order intake"}
+{"id": "ops-evidence", "kind": "HUMAN_ROLE", "title": "Handover evidence"}
+{"id": "ops-finance", "kind": "HUMAN_ROLE", "title": "Cancellation and payment review"}
+{"id": "ops-expenses", "kind": "HUMAN_ROLE", "title": "Driver expense review"}

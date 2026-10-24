@@ -1,0 +1,4 @@
+{"id": "dispatch-agent", "kind": "AUTOMATED_ACTOR", "scope": "publish_reviewed_market_offers", "title": "Dispatch agent"}
+{"id": "ops-copilot", "kind": "AUTOMATED_ACTOR", "scope": "case_research_and_draft_actions", "title": "Operations copilot"}
+{"id": "travel-agent", "kind": "AUTOMATED_ACTOR", "scope": "quotes_and_booking_proposals", "title": "Travel planning agent"}
+{"id": "monitor-agent", "kind": "AUTOMATED_ACTOR", "scope": "risk_detection_and_follow_up_proposals", "title": "Journey monitor"}
