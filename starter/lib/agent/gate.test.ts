@@ -183,7 +183,7 @@ describe("M1: an OUTDATED proposal does not execute", () => {
     }))
     const decided = await decideProposal(caseRow.id, row.id, { decision: "approve", decided_by: "ops-shift" })
     assert.equal(decided.status, "OUTDATED")
-    assert.equal(decided.outdated?.[0]?.now, "BOOKED")
+    assert.equal(decided.outdated?.[0]?.now, "booked", "plain words for the card")
     assert.equal((await listEffects({ caseId: caseRow.id })).length, 0, "nothing was booked")
     await assert.rejects(decideProposal(caseRow.id, row.id, { decision: "reject", decided_by: "ops-shift", note: "x" }), DecisionError)
     assert.equal((await getCase(caseRow.id))?.status, "AGENT_WORKING", "the agent redrafts")

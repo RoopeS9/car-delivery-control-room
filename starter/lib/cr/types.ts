@@ -100,6 +100,7 @@ export type Assumption =
   | { kind: "car_codes"; codes: string[]; label: string }
 
 /** Why a card became OUTDATED: each assumption that no longer holds, and what is true now. */
+/** One assumption rechecked. `now` is what is true now, in plain words for the card; show it after `assumption.label`. */
 export type AssumptionCheck = { assumption: Assumption; holds: boolean; now: string }
 
 /**
