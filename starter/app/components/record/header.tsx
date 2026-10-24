@@ -1,7 +1,6 @@
 "use client"
 
 import Image from "next/image"
-import { attentionTone } from "@/lib/present/tone-rule"
 import Link from "next/link"
 import type { RecordView, Tile } from "@/lib/present/types"
 import { fmtDay } from "@/lib/present/time"
@@ -31,8 +30,10 @@ export function RecordHero({ view, compact = false }: { view: RecordView; compac
       {header.routeKind === "IMPORT" && <span className="chip-fact"><Icon name="ferry" size={13} />Import</span>}
     </div>
     <div className="story">
-      <p className={`story-headline tone-${attentionTone(view.attention, story.tone)}`}>{story.headline}</p>
-      {story.detail && <p className="story-detail">{story.detail}</p>}
+      <p className={`story-headline tone-${story.tone}`}>{story.headline}</p>
+      {story.facts.length > 0 && <dl className="story-facts">{story.facts.map((item) => <div key={item.label + item.value} className={`story-fact tone-${item.tone}`}>
+        <dt>{item.label}</dt><dd><b>{item.value}</b>{item.note && <span>{item.note}</span>}</dd>
+      </div>)}</dl>}
     </div>
   </>
 }

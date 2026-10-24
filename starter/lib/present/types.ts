@@ -517,11 +517,17 @@ export type RecordHeader = {
 }
 
 /** The situation in plain words: one sentence of context, one headline, one line of dates. */
+/** One labelled fact under the headline: the value in bold, a short note beside it. */
+export type StoryFact = { label: string; value: string; note: string | null; tone: Tone }
+
 export type Story = {
   intro: string
   headline: string
   tone: Tone
+  /** The facts as one sentence, for places that have room for a line only (the map). */
   detail: string | null
+  /** The same facts structured, for the order page. */
+  facts: StoryFact[]
 }
 
 export type Tile = { label: string; value: string; hint: string | null; tone: Tone; href?: string | null }

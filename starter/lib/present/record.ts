@@ -11,7 +11,7 @@ import { describeEvent } from "./events"
 import { humanize, label, labelIn, laneLabel } from "./labels"
 import { dayKey, fmtDateTime, fmtDay, fmtDayHeading, fmtMoney, fmtRange, fmtWeekday, isBefore, relativeTo } from "./time"
 import type {
-  AccessView, Actor, AlertView, AssignmentView, AttentionItem, ClaimView, ContactView, CustodyView, DocumentView, ExpenseView, Fact,
+  AccessView, Actor, AlertView, AssignmentView, AttentionItem, ClaimView, StoryFact, ContactView, CustodyView, DocumentView, ExpenseView, Fact,
   HistoryDay, IncidentView, JourneyGroup, JourneyLeg, JourneyStep, JourneyView, MessageView, NotificationView, OfferView,
   KeyDate, OptionView, Place, ProofView, ProposalView, RecordHeader, RecordView, ReservationView, SiteView, Story, ThreadView, Tile, Tone,
   TrackingView, WorkItemView,
@@ -738,19 +738,20 @@ function dayWord(iso: string | null, snapshotAt: string | null, zone: string | n
   return `on ${fmtWeekday(iso, zone)}`
 }
 
-/** The lane's headline, then the open exception when the attention list holds one. */
+/** The lane's headline and facts, then the open exception when the attention list holds one. */
 function buildStory(bundle: Bundle, keyDates: KeyDate[], assignments: AssignmentView[], offers: OfferView[], journey: JourneyView, attention: AttentionItem[]): Story {
   const story = laneStory(bundle, keyDates, assignments, offers, journey)
   const open = attention.find((item) => item.tone === "danger" || item.tone === "warn") ?? null
   if (!open) return story
   // The lane sentence already says a moving car has no position; do not say it twice.
   if (open.kind === "check" && story.detail?.includes("No driver-app position")) return story
-  // Red is for a person's decision only (the map's rule); an alert being watched keeps the lane's own colour.
-  // A work item whose next check is still ahead is scheduled, not a decision waiting now: it keeps the lane colour.
+  // Red is for a person's decision due now (the map's rule); an alert being watched, or a work item whose next check
+  // is still ahead, keeps the lane's own colour.
   const dueNow = (item: AttentionItem) => !(item.kind === "work" && item.at && bundle.snapshotAt && item.at > bundle.snapshotAt)
   const tone: Tone = attention.some((item) => needsPersonItem(item) && item.tone === "danger" && dueNow(item)) ? "danger" : story.tone
   const exception = `Open: ${open.title}.`
-  return { ...story, tone, detail: story.detail ? `${story.detail} ${exception}` : exception }
+  const openFact: StoryFact = { label: needsPersonItem(open) ? "Needs you" : "Open", value: open.title.replace(/^Open alert: /, ""), note: open.detail ?? null, tone: needsPersonItem(open) && dueNow(open) ? "danger" : "warn" }
+  return { ...story, tone, detail: story.detail ? `${story.detail} ${exception}` : exception, facts: [...story.facts, openFact] }
 }
 
 function laneStory(bundle: Bundle, keyDates: KeyDate[], assignments: AssignmentView[], offers: OfferView[], journey: JourneyView): Story {
@@ -767,52 +768,73 @@ function laneStory(bundle: Bundle, keyDates: KeyDate[], assignments: AssignmentV
   const rel = (iso: string | null | undefined) => relativeTo(iso, snapshotAt)?.text ?? null
   const range = (item: KeyDate | null) => item ? fmtRange(item.start, item.end, item.zone) : null
   const intro = `${bundle.customer.name} ordered it on ${fmtDay(order.createdAt)} for ${from.city} to ${to.city}${order.routeKind === "IMPORT" ? ", an import" : ""}.`
+  const fact = (label: string, value: string | null, note: string | null = null, tone: Tone = "neutral"): StoryFact[] => value ? [{ label, value, note, tone }] : []
+  const sentence = (facts: StoryFact[]) => facts.length ? facts.map((item) => `${item.label} ${item.value}${item.note ? ` (${item.note})` : ""}`).join(" · ") + "." : null
   const lane = order.lane
   if (lane === "cancelled") {
     const cancelled = date("cancelled")
-    return { intro, headline: `Cancelled ${cancelled ? dayWord(cancelled.start, snapshotAt, null) : ""}.`.replace(" .", "."), tone: "neutral", detail: cancelled ? `Cancelled ${fmtDateTime(cancelled.start)}.` : null }
+    const facts = fact("Cancelled", cancelled ? fmtDateTime(cancelled.start) : null)
+    return { intro, headline: `Cancelled ${cancelled ? dayWord(cancelled.start, snapshotAt, null) : ""}.`.replace(" .", "."), tone: "neutral", detail: sentence(facts), facts }
   }
   if (lane === "delivered" && delivered) {
-    const within = promise?.note?.startsWith("delivered within") ? "Within the promised window." : promise?.note?.startsWith("delivered after") ? "After the promised window." : null
+    const within = promise?.note?.startsWith("delivered within") ? "within the promised window" : promise?.note?.startsWith("delivered after") ? "after the promised window" : null
     const tradeIn = journey.groups.find((group) => group.role === "TRADE_IN")
     const returning = tradeIn?.legs.some((leg) => leg.status === "IN_PROGRESS" || leg.status === "ASSIGNED")
-    return {
-      intro, headline: `Delivered ${dayWord(delivered.start, snapshotAt, delivered.zone)} at ${fmtClockIn(delivered.start, delivered.zone)}.`, tone: "ok",
-      detail: [within, returning ? "The trade-in is still on its way back." : null].filter(Boolean).join(" ") || null,
-    }
+    const facts = [
+      ...fact("Delivered", fmtDateTime(delivered.start, delivered.zone), within, within?.startsWith("after") ? "warn" : "ok"),
+      ...fact("Promise", range(promise)),
+      ...fact("Driver", driver),
+      ...(returning ? fact("Trade-in", "still on its way back") : []),
+    ]
+    return { intro, headline: `Delivered ${dayWord(delivered.start, snapshotAt, delivered.zone)} at ${fmtClockIn(delivered.start, delivered.zone)}.`, tone: "ok", detail: sentence(facts), facts }
   }
   if (lane === "moving") {
     const late = eta?.tone === "danger" || promise?.tone === "danger"
     const headline = driver ? `${driver} is driving it from ${from.city} to ${to.city}.` : `It is on the road from ${from.city} to ${to.city}.`
-    const detail = eta
-      ? `ETA ${fmtDateTime(eta.start, eta.zone)}${eta.note ? ` (${eta.note.replace(/^stale signal received /, "driver app, ").replace(/; unverified$/, "")})` : " (driver app)"}${promise ? ` · promised by ${fmtClockIn(promise.end ?? promise.start, promise.zone)}` : ""}.${late ? " That is after the promise." : ""}`
-      : promise ? `Promised ${range(promise)}. No driver-app position in this packet.` : "No promise or position recorded."
-    return { intro, headline: late ? `Running late to ${to.city}.` : headline, tone: late ? "danger" : "accent", detail }
+    const margin = eta && promise ? Math.round((Date.parse(promise.end ?? promise.start) - Date.parse(eta.start)) / 60000) : null
+    const marginText = margin == null ? null : margin < 0 ? `${-margin} min after the promise` : margin < 60 ? `${margin} min to spare` : `${Math.round(margin / 60)} h to spare`
+    const facts = [
+      ...fact("ETA", eta ? fmtDateTime(eta.start, eta.zone) : null, eta?.note?.replace(/^stale signal received /, "driver app, stale, ").replace(/^coarse signal received /, "driver app, coarse, ").replace(/; unverified$/, "") ?? null, eta?.tone === "danger" ? "warn" : eta?.tone ?? "neutral"),
+      ...fact("Promise", promise ? `by ${fmtDateTime(promise.end ?? promise.start, promise.zone)}` : null, marginText, margin != null && margin < 0 ? "danger" : margin != null && margin < 30 ? "warn" : "neutral"),
+      ...(!eta ? fact("Position", "none from the driver app in this packet", null, "warn") : []),
+    ]
+    // Running late is a signal to watch; a person is pulled in by a decision, not by a tight margin.
+    return { intro, headline: late ? `${headline.slice(0, -1)}, running late.` : headline, tone: late ? "warn" : "accent", detail: sentence(facts), facts }
   }
   if (lane === "booked") {
     const slotPassed = slot?.tone === "warn"
     const headline = driver
-      ? slotPassed ? `${driver} was due to collect it, nothing is recorded.` : `${driver} collects it ${slot ? dayWord(slot.start, snapshotAt, slot.zone) : "soon"}.`
+      ? slotPassed ? `${driver} was due to collect it, nothing is recorded.` : `${driver} collects it ${slot ? dayWord(slot.start, snapshotAt, slot.zone) : "soon"} in ${from.city}.`
       : "A driver is booked."
-    const detail = [slot ? `Pickup ${range(slot)}${rel(slot.start) ? `, ${rel(slot.start)}` : ""}` : null, promise ? `delivery promised ${range(promise)}` : null].filter(Boolean).join(" · ")
-    return { intro, headline, tone: slotPassed ? "danger" : "warn", detail: detail ? `${detail}.` : null }
+    const facts = [
+      ...fact("Pickup slot", range(slot), rel(slot?.start), slotPassed ? "danger" : "neutral"),
+      ...fact("Promise", range(promise), rel(promise?.start)),
+      ...fact("Driver", driver, active ? active.statusLabel.toLowerCase() : null),
+    ]
+    return { intro, headline, tone: slotPassed ? "danger" : "warn", detail: sentence(facts), facts }
   }
   if (lane === "market") {
     const offer = offers.find((item) => item.status === "PUBLISHED") ?? null
     const cutoffPassed = !!(offer?.expiresAt && snapshotAt && isBefore(offer.expiresAt, snapshotAt))
     const headline = cutoffPassed ? "Offer cutoff passed, still nobody." : "Looking for a driver."
-    const detail = [offer ? `Offer published ${rel(offer.publishedAt) ?? ""}${offer.fee ? ` at ${offer.fee}` : ""}` : "No live offer", slot ? `pickup slot ${range(slot)}${rel(slot.start) ? `, ${rel(slot.start)}` : ""}` : null].filter(Boolean).join(" · ")
-    return { intro, headline, tone: cutoffPassed || slot?.tone === "warn" ? "danger" : "warn", detail: `${detail}.` }
+    const facts = [
+      ...fact("Offer", offer ? `${offer.fee ?? "no fee"}` : "none live", offer ? `published ${rel(offer.publishedAt) ?? ""}`.trim() : null, cutoffPassed ? "danger" : offer ? "accent" : "warn"),
+      ...fact("Pickup slot", range(slot), rel(slot?.start), slot?.tone === "warn" ? "danger" : "neutral"),
+    ]
+    return { intro, headline, tone: cutoffPassed || slot?.tone === "warn" ? "danger" : "warn", detail: sentence(facts), facts }
   }
   if (lane === "ready") {
-    return { intro, headline: "Ready to post. Nobody is driving it.", tone: "warn", detail: slot ? `Pickup slot ${range(slot)}${rel(slot.start) ? `, ${rel(slot.start)}` : ""}.` : null }
+    const facts = fact("Pickup slot", range(slot), rel(slot?.start))
+    return { intro, headline: "Ready to post. Nobody is driving it.", tone: "warn", detail: sentence(facts), facts }
   }
   const requested = date("requested_pickup")
   const waiting = bundle.conversations.find((thread) => thread.status === "OPEN" && str(thread.details.waiting_on))
-  const detail = waiting
-    ? `Waiting on ${labelIn(str(waiting.details.waiting_on))}.${requested ? ` Requested pickup ${range(requested)}.` : ""}`
-    : requested ? `Requested pickup ${range(requested)}.` : `Created ${rel(order.createdAt) ?? fmtDay(order.createdAt)}, inputs still being prepared.`
-  return { intro, headline: "Still being prepared.", tone: "warn", detail }
+  const facts = [
+    ...fact("Waiting on", waiting ? labelIn(str(waiting.details.waiting_on)) : null, null, "warn"),
+    ...fact("Requested pickup", range(requested), rel(requested?.start)),
+    ...(!waiting && !requested ? fact("Created", rel(order.createdAt) ?? fmtDay(order.createdAt), "inputs still being prepared") : []),
+  ]
+  return { intro, headline: "Still being prepared.", tone: "warn", detail: sentence(facts), facts }
 }
 
 function fmtClockIn(iso: string, zone: string | null): string {

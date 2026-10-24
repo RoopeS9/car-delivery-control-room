@@ -311,6 +311,18 @@ ul, ol { padding: 0; list-style: none; }
 .story-headline.tone-ok { color: var(--green-ink); }
 .story-headline.tone-accent { color: var(--teal-ink); }
 .story-detail { margin-top: 6px; font-size: clamp(16px, 2vw, 19px); line-height: 1.35; color: var(--ink); max-width: 56ch; }
+/* The facts under the headline: a label in small caps, the value in bold, a note beside it; the edge carries the tone. */
+.story-facts { display: flex; flex-wrap: wrap; gap: 10px 12px; margin-top: 14px; }
+.story-fact { display: grid; gap: 3px; min-width: 160px; padding: 10px 14px; border-radius: 10px; background: var(--canvas); border-left: 3px solid var(--sand); }
+.story-fact dt { font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--subtle); }
+.story-fact dd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 15px; line-height: 1.35; }
+.story-fact dd b { font-weight: 700; color: var(--ink); }
+.story-fact dd span { font-size: 13px; color: var(--muted); }
+.story-fact.tone-danger { border-left-color: var(--red); }
+.story-fact.tone-danger dd b { color: var(--red-ink); }
+.story-fact.tone-warn { border-left-color: var(--orange); }
+.story-fact.tone-ok { border-left-color: var(--green); }
+.story-fact.tone-accent { border-left-color: var(--teal); }
 
 .panel { margin-top: 26px; padding: 14px 18px; border-radius: var(--radius-lg); background: var(--canvas); }
 .panel-facts { padding: 16px 18px; }
