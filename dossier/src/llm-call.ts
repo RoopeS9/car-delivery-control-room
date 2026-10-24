@@ -9,6 +9,7 @@ import { CHECKLISTS, CallRecord, MAX_QUESTIONS, SlotName, SlotValue, Situation, 
 import type { Persona } from "./sim/personas"
 import { composeBrief, renderDossier } from "./reason"
 import { items } from "./brief"
+import { contextPrompt, isClosing } from "./context"
 
 type Usage = { prompt_tokens: number; completion_tokens: number; cost?: number }
 async function complete(apiKey: string, model: string, messages: { role: "system" | "user" | "assistant"; content: string }[], json = false, temperature = 0.6): Promise<{ text: string; cost: number }> {
@@ -20,22 +21,6 @@ async function complete(apiKey: string, model: string, messages: { role: "system
   if (!res.ok) throw new Error(`openrouter ${res.status}: ${(await res.text()).slice(0, 200)}`)
   const body = (await res.json()) as { choices: { message: { content: string } }[]; usage?: Usage }
   return { text: (body.choices[0]?.message.content ?? "").trim(), cost: body.usage?.cost ?? 0 }
-}
-
-/** The card text for the caller, same rendering as the service's /card so the simulation and the voice line agree. */
-export function cardText(brief: CallBrief, askWords: Record<string, string>): string {
-  const who = brief.callee.kind === "DRIVER" ? `the driver ${brief.callee.name}` : `${brief.callee.name}, the desk at the pickup site`
-  return [
-    `You are Mira, the voice of Bahn Road Desk, a support line for car delivery. You are speaking with ${who}. Keep every answer to one or two short sentences. Numbers and references are already spelled out for speech; say them as written.`,
-    "", "What you know:", ...brief.mayState.map((l) => `- ${l}`),
-    "", brief.purpose === "DRIVER_INBOUND" ? "First ask whether they are safe and whether this is urgent. Then find out, one question at a time:" : "Find out, one question at a time:",
-    ...brief.ask.map((k) => `- ${askWords[k] ?? k}`),
-    "", "Rules:", ...brief.mustNot.map((k) => `- ${k.replace(/_/g, " ").toLowerCase()}: never`),
-    ...(brief.mustNot.includes("CLEARANCE_TO_DRIVE") ? ["", "If they ask whether they can keep driving, whether the light matters, or whether the car is safe to use, say exactly: I cannot clear you to drive on; an operator decides that. Please keep the engine off and stay off the road. Say nothing else about the car's condition."] : []),
-    "", `Your very first sentence of the call, said exactly once: ${brief.opening}`,
-    "After that never introduce yourself again and never repeat that sentence; answer what was said and ask the next question directly.",
-    `When you have what you need, end the call with: ${brief.closing}`,
-  ].join("\n")
 }
 
 /** What the callee knows: the dossier's view of their side plus the scenario twist from the persona's scripted answers. */
@@ -52,16 +37,6 @@ function calleeSheet(d: Dossier, persona: Persona): string {
     "Answer in one or two natural spoken sentences. Do not list facts you were not asked about. Do not use markdown."].join("\n")
 }
 
-const askWordsDefault: Record<string, string> = {
-  VEHICLE_PRESENT: "whether the car is on site", VEHICLE_IDENTITY_MATCH: "whether the registration or VIN matches", KEYS_AT_SITE: "whether the keys are at the desk",
-  RELEASE_CONTACT_NAME: "who will hand over the car and keys", RELEASE_DOCUMENT_PRESENT: "whether the signed release paper is there", COMMERCIAL_HOLD: "whether the seller has put any hold on the car",
-  ACCESS_INSTRUCTION: "where the driver should report", OPEN_DURING_SLOT: "whether someone will be there at the start of the slot", DRIVER_TRAVEL_BOOKED: "whether their travel to the pickup is booked",
-  DRIVER_START_LOCATION: "where they start from", DRIVER_FIT_TO_DRIVE: "whether they are fit and rested", ETA: "when they expect to arrive", CURRENT_LOCATION: "where exactly they are",
-  DRIVER_SAFE: "whether they are safe and off the road", FERRY_CHECKED_IN: "whether they have checked in at the ferry gate", RECEIVER_PRESENT_AT_WINDOW: "whether the receiver will be there in the window",
-  ISSUE_REPORTED: "anything else we should know", WARNING_LIGHT: "which warning light and whether it flashes", ENGINE_OFF: "whether the engine is off", SYMPTOMS: "any shaking, power loss, noise, smell or smoke",
-  INJURIES: "whether anyone is hurt", CAR_MOVES: "whether the car starts or moves", CONNECTION_AT_RISK: "whether a ferry, train or slot is at risk", EXPENSE_ITEM: "what they paid for", QUESTION: "what their question is",
-}
-
 const Extraction = z.object({
   triage: z.object({ urgency: Urgency, situation: Situation, turnSeq: z.number().int().nonnegative(), quote: z.string() }).strict().nullable(),
   slots: z.array(z.object({ slot: SlotName, value: z.union([z.string(), z.boolean()]), turnSeq: z.number().int().nonnegative(), quote: z.string() }).strict()).max(16),
@@ -74,7 +49,8 @@ export async function runLlmCall(d: Dossier, persona: Persona, purpose: CallBrie
   const composed = await composeBrief(d, purpose, { model, apiKey }); let cost = composed.costUsd ?? 0
   const brief = composed.brief
   const inbound = purpose === "DRIVER_INBOUND"
-  const callerSys = cardText(brief, askWordsDefault) + "\nYou are on a live call now. Speak only your next line, one or two sentences, no stage directions. When you have what you need, or the call has gone on long enough, say your closing line and nothing after it."
+  // Mira speaks from the same prompt the live line gets: the brief and the whole dossier.
+  const callerSys = contextPrompt(d, brief) + "\n\nYou are on a live call now. Speak only your next line, one to three sentences, no stage directions, no speaker label."
   const calleeSys = calleeSheet(d, persona) + (inbound && persona.inbound ? `\nYou called the support line. Your first words after they answer are: "${persona.inbound.opening}"` : "")
   const turns: CallRecord["turns"] = []; let seq = 0, clock = Date.parse(startedAt)
   const say = (speaker: "CALLER" | "CALLEE", text: string) => { const dur = 1200 + text.length * 55; turns.push({ seq, speaker, startedAt: new Date(clock).toISOString(), endedAt: new Date(clock + dur).toISOString(), text, audioKey: null }); clock += dur + 400; return seq++ }
@@ -94,8 +70,8 @@ export async function runLlmCall(d: Dossier, persona: Persona, purpose: CallBrie
     const c = await complete(apiKey, model, [{ role: "system", content: callerSys + guard }, ...history], false, 0.5); cost += c.cost
     const line = c.text.replace(/^Mira:\s*/i, "").split("\n")[0]!.trim(); if (!line) break
     say("CALLER", line); history.push({ role: "assistant", content: line })
-    const closing = line.toLowerCase().includes(brief.closing.slice(0, 24).toLowerCase()) || /operator (has|will)|we will (call|message) you/i.test(line)
-    if (closing && i >= minTurnsBeforeClose) { done = true; break }
+    // The closing line ends the call: no further callee turn, never a second closing.
+    if (isClosing(line, brief)) { done = true; break }
     const r = await complete(apiKey, calleeModel, [{ role: "system", content: calleeSys }, ...asCallee()], false, 0.7); cost += r.cost
     const reply = r.text.split("\n")[0]!.trim(); if (!reply) break
     say("CALLEE", reply); history.push({ role: "user", content: reply })

@@ -17,6 +17,7 @@ import { runSimulatedCall } from "./sim/call"
 import { composeBrief, reason, renderDossier, type ReasonRun } from "./reason"
 import { ingestTranscript, runLlmCall } from "./llm-call"
 import { reviewCall } from "./review"
+import { cardText, contextPrompt } from "./context"
 
 const root = new URL("../", import.meta.url)
 const callsDir = new URL("data/out/calls/", root)
@@ -96,7 +97,7 @@ createServer(async (req, res) => {
       try { const r = await composeBrief(buildDossier(ds, id), purpose.data); briefCache.set(`${parts[1]}/${purpose.data}`, { brief: r.brief, by: r.by, at: new Date().toISOString() }); return json(res, 200, { by: r.by, costUsd: r.costUsd, error: r.error ?? null, brief: r.brief }) } catch (e) { return json(res, 400, { error: (e as Error).message }) }
     }
     if (parts[0] === "context" && parts[1] && parts[2]) {
-      // The turn-based line (DeepSeek holding the dossier): rules for speaking, the same card the voice line gets, then the dossier itself.
+      // The turn-based line's system prompt: the brief (model-composed with ?by=model) and the whole dossier, with stored calls.
       const id = byRef.get(parts[1]); if (!id) return json(res, 404, { error: `no order ${parts[1]}` })
       const purpose = CallPurpose.safeParse(parts[2]); if (!purpose.success) return json(res, 400, { error: `unknown purpose ${parts[2]}` })
       const d = buildDossier(ds, id, { calls: [...calls.values()].filter((c) => c.orderId === id), telemetry: [], operatorActions: [] })
@@ -105,22 +106,7 @@ createServer(async (req, res) => {
         if (url.searchParams.get("by") === "model") { const key = `${parts[1]}/${purpose.data}`; let hit = briefCache.get(key); if (!hit) { const r = await composeBrief(d, purpose.data); hit = { brief: r.brief, by: r.by, at: new Date().toISOString() }; briefCache.set(key, hit) } brief = hit.brief; by = hit.by }
         else brief = briefFor(d, purpose.data)
       } catch (e) { return json(res, 400, { error: (e as Error).message }) }
-      const who = brief.callee.kind === "DRIVER" ? `the driver ${brief.callee.name}` : `${brief.callee.name}, the desk at the pickup site`
-      const text = [
-        `You are Mira, the voice of Bahn Road Desk, a car-delivery support line, on a live phone call with ${who}. You hear a transcript of what they say and you answer out loud.`,
-        "How to speak: like a person on the phone. One to three short sentences. Plain words, no lists, no markdown, no emoji, no headings. Spell references digit by digit (C D four two zero ...). Say times as people do (half past three in the afternoon). If they only acknowledge you, answer in a few words.",
-        "What you are doing on this call, and the only facts you may state out loud:", ...brief.mayState.map((l) => `- ${l}`),
-        "Find out, one question at a time, confirming what you already know instead of asking it: " + brief.ask.join(", ").toLowerCase().replace(/_/g, " ") + ".",
-        "Hard rules: " + brief.mustNot.map((k) => k.toLowerCase().replace(/_/g, " ")).join("; ") + ". The customer is anyone who pays Bahn; never give out their details and never promise dates or costs: an operator confirms those.",
-        ...(brief.mustNot.includes("CLEARANCE_TO_DRIVE") ? ["If asked whether they can keep driving or whether the car is safe to use, say exactly: I cannot clear you to drive on; an operator decides that. Please keep the engine off and stay off the road."] : []),
-        `Your very first sentence of the call, said exactly once: ${brief.opening}`,
-        "The person you are talking to has no transcript and may be busy or distracted: keep track yourself of what they have and have not answered, never assume an answer they did not give, and before you close read back what you understood in one or two sentences and let them correct you.",
-        "If they interrupt you, stop and listen; do not repeat what you already said unless asked.",
-        `When you have what you need and the read-back is confirmed, end with: ${brief.closing}`,
-        "", "Below is the complete dossier of this order, with every record's evidence strength. Use it to answer questions and to notice problems, but say only what the facts above allow; everything else you may mention only as what an operator will check.",
-        "", renderDossier(d, { maxHistory: 20 }),
-      ].join("\n")
-      res.writeHead(200, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-brief-by": by }); return res.end(text)
+      res.writeHead(200, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-brief-by": by }); return res.end(contextPrompt(d, brief))
     }
     if (parts[0] === "card" && parts[1] && parts[2]) {
       // The brief rendered as a voice model's system prompt: plain ASCII text, speech-ready, nothing the caller may not say.
@@ -135,33 +121,7 @@ createServer(async (req, res) => {
           brief = hit.brief; by = hit.by
         } else brief = briefFor(buildDossier(ds, id), purpose.data)
       } catch (e) { return json(res, 400, { error: (e as Error).message }) }
-      res.setHeader("x-brief-by", by)
-      const who = brief.callee.kind === "DRIVER" ? `the driver ${brief.callee.name}` : `${brief.callee.name}, the desk at the pickup site`
-      const askWords: Record<string, string> = {
-        VEHICLE_PRESENT: "whether the car is on site", VEHICLE_IDENTITY_MATCH: "whether the registration or VIN matches", KEYS_AT_SITE: "whether the keys are at the desk",
-        RELEASE_CONTACT_NAME: "who will hand over the car and keys", RELEASE_DOCUMENT_PRESENT: "whether the signed release paper is there", COMMERCIAL_HOLD: "whether the seller has put any hold on the car",
-        ACCESS_INSTRUCTION: "where the driver should report", OPEN_DURING_SLOT: "whether someone will be there at the start of the slot", DRIVER_TRAVEL_BOOKED: "whether their travel to the pickup is booked",
-        DRIVER_START_LOCATION: "where they start from", DRIVER_FIT_TO_DRIVE: "whether they are fit and rested", ETA: "when they expect to arrive", CURRENT_LOCATION: "where exactly they are",
-        DRIVER_SAFE: "whether they are safe and off the road", FERRY_CHECKED_IN: "whether they have checked in at the ferry gate", RECEIVER_PRESENT_AT_WINDOW: "whether the receiver will be there in the window",
-        ISSUE_REPORTED: "anything else we should know", WARNING_LIGHT: "which warning light and whether it flashes", ENGINE_OFF: "whether the engine is off", SYMPTOMS: "any shaking, power loss, noise, smell or smoke",
-        INJURIES: "whether anyone is hurt", CAR_MOVES: "whether the car starts or moves", CONNECTION_AT_RISK: "whether a ferry, train or slot is at risk", EXPENSE_ITEM: "what they paid for", QUESTION: "what their question is",
-      }
-      const mustNot: Record<string, string> = {
-        CUSTOMER_DETAILS: "Never give out customer names, phone numbers or addresses; Bahn contacts the customer.", PRICES: "Never discuss prices or fees.", OTHER_ORDERS: "Never discuss any other order.",
-        MECHANICAL_ADVICE: "Never give mechanical advice beyond stopping safely and switching the engine off.", PROMISE_CHANGES: "Never promise new dates or costs; say an operator will confirm.", CLEARANCE_TO_DRIVE: "Never say it is fine to keep driving; an operator decides that.",
-      }
-      const text = [
-        `You are Mira, the voice of Bahn Road Desk, a support line for car delivery. You are speaking with ${who}. Keep every answer to one or two short sentences. Numbers and references are already spelled out for speech; say them as written.`,
-        "", "What you know:", ...brief.mayState.map((l) => `- ${l}`),
-        "", brief.purpose === "DRIVER_INBOUND" ? "First ask whether they are safe and whether this is urgent. Then find out, one question at a time:" : "Find out, one question at a time:",
-        ...brief.ask.map((k) => `- ${askWords[k] ?? k}`),
-        "", "Rules:", ...brief.mustNot.map((k) => `- ${mustNot[k] ?? k}`),
-        ...(brief.mustNot.includes("CLEARANCE_TO_DRIVE") ? ["", "If they ask whether they can keep driving, whether the light matters, or whether the car is safe to use, say exactly: I cannot clear you to drive on; an operator decides that. Please keep the engine off and stay off the road. Say nothing else about the car's condition."] : []),
-        "", `Your very first sentence of the call, said exactly once: ${brief.opening}`,
-        "After that never introduce yourself again and never repeat that sentence; answer what was said and ask the next question directly.",
-        `When you have what you need, end the call with: ${brief.closing}`,
-      ].join("\n").normalize("NFKD").replace(/[^\x00-\x7F]/g, "")
-      res.writeHead(200, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" }); return res.end(text)
+      res.writeHead(200, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-brief-by": by }); return res.end(cardText(brief))
     }
     if (parts[0] === "brief" && parts[1] && parts[2]) {
       const id = byRef.get(parts[1]); if (!id) return json(res, 404, { error: `no order ${parts[1]}` })
