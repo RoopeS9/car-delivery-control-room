@@ -136,6 +136,10 @@
 
 /* ---- trails and tracks */
 .trail { stroke: var(--c-trail); stroke-linecap: round; fill: none; }
+/* Every moving car's route, always drawn: 1 px, quiet, the covered part a little brighter. */
+.route-ahead, .route-done { fill: none; stroke: var(--c-track); stroke-linecap: round; stroke-linejoin: round; }
+.route-ahead { stroke-opacity: 0.38; }
+.route-done { stroke: var(--c-fine); stroke-opacity: 0.7; }
 .track { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .track-ahead { stroke: var(--c-track); stroke-opacity: 0.7; }
 .track-done { stroke: var(--c-track-done); stroke-opacity: 0.9; }

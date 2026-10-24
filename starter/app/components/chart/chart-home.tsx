@@ -91,6 +91,18 @@ function fan(index: number): [number, number] {
   return [Math.cos(angle) * radius, Math.sin(angle) * radius]
 }
 
+/** Index of the route point nearest to a position, so a track can be split where the car is. */
+function nearestIndex(coords: [number, number][], lat: number, lng: number): number {
+  let best = Infinity
+  let nearest = 0
+  const squeeze = Math.cos(lat * Math.PI / 180)
+  coords.forEach((point, index) => {
+    const distance = (point[0] - lat) ** 2 + ((point[1] - lng) * squeeze) ** 2
+    if (distance < best) { best = distance; nearest = index }
+  })
+  return nearest
+}
+
 type Glide = { from: [number, number]; to: [number, number]; start: number }
 
 export function ChartHome({ initial }: { initial: ChartView }) {
@@ -100,6 +112,7 @@ export function ChartHome({ initial }: { initial: ChartView }) {
   const layers = useRef<{ trails: LayerGroup; route: LayerGroup; ports: LayerGroup; nodes: LayerGroup } | null>(null)
   const tiles = useRef<{ base: TileLayer; marks: TileLayer } | null>(null)
   const markers = useRef(new Map<string, { marker: Marker; html: string; trail: Polyline | null; tip: string }>())
+  const tracks = useRef(new Map<string, { done: Polyline; ahead: Polyline }>())
   const glides = useRef(new Map<string, Glide>())
   const sigs = useRef(new Map<string, string>())
   const pulses = useRef(new Map<string, number>())
@@ -289,13 +302,13 @@ export function ChartHome({ initial }: { initial: ChartView }) {
 
     // One layering for every mark: berths, then harbours, then vessels; within each, more urgent on top; the selection above all.
     const rank = { decide: 300, agent: 200, waiting: 100, fine: 0 }
-    const layer = { berth: 100, harbour: 500, vessel: 1000 }
+    const layer = { berth: 100, still: 400, harbour: 500, vessel: 1000 }
     const zFor = (kind: keyof typeof layer, attention: ChartNode["attention"], isSelected = false) => layer[kind] + rank[attention] + (isSelected ? 5000 : 0)
     for (const node of nodes) {
       const isSelected = node.orderId === selectedId
       const select = (event?: { originalEvent?: Event }) => { event?.originalEvent?.stopPropagation(); setSelectedId(node.orderId) }
       if (node.kind === "vessel") {
-        place(node.orderId, [node.lat, node.lng], vesselHtml(node, isSelected), tipHtml(node), 26, [13, 13], zFor("vessel", node.attention, isSelected), select, node.trail, node.orderId)
+        place(node.orderId, [node.lat, node.lng], vesselHtml(node, isSelected), tipHtml(node), 26, [13, 13], zFor(node.heading != null && (node.speedKmh ?? 0) > 0 && !node.stale ? "vessel" : "still", node.attention, isSelected), select, null, node.orderId)
       }
     }
     // Below FAN_ZOOM, cities whose berths would overlap on screen share one harbour mark (greedy, most urgent city first).
@@ -367,7 +380,33 @@ export function ChartHome({ initial }: { initial: ChartView }) {
     }
   }, [ready, nodes, zoom, selectedId])
 
-  // ---- the route track: only for the hovered or selected node
+  // ---- every moving car's whole route, always: quiet, brighter behind the car
+  useEffect(() => {
+    const leaflet = L.current
+    if (!ready || !leaflet || !layers.current) return
+    const keep = new Set<string>()
+    for (const node of nodes) {
+      const route = view.routes[node.orderId]
+      if (node.kind !== "vessel" || !route) continue
+      keep.add(node.orderId)
+      const coords = route.parts.flatMap((part) => part.coords)
+      const split = nearestIndex(coords, node.lat, node.lng)
+      const done = [...coords.slice(0, split + 1), [node.lat, node.lng] as [number, number]]
+      const ahead = [[node.lat, node.lng] as [number, number], ...coords.slice(split + 1)]
+      const known = tracks.current.get(node.orderId)
+      if (known) { known.done.setLatLngs(done); known.ahead.setLatLngs(ahead); continue }
+      tracks.current.set(node.orderId, {
+        ahead: leaflet.polyline(ahead, { pane: "trails", className: "route-ahead", weight: 1, interactive: false }).addTo(layers.current.trails),
+        done: leaflet.polyline(done, { pane: "trails", className: "route-done", weight: 1, interactive: false }).addTo(layers.current.trails),
+      })
+    }
+    for (const [id, track] of tracks.current) {
+      if (keep.has(id)) continue
+      track.done.remove(); track.ahead.remove(); tracks.current.delete(id)
+    }
+  }, [ready, nodes, view.routes])
+
+  // ---- the route track: brightened for the hovered or selected node, with its endpoints named
   const trackId = hoverId ?? selectedId
   useEffect(() => {
     const leaflet = L.current
@@ -379,14 +418,7 @@ export function ChartHome({ initial }: { initial: ChartView }) {
     if (!route || !node) return
     // Split the track where the car is: the part behind it is drawn brighter.
     const all = route.parts.flatMap((part) => part.coords.map((coord) => ({ coord, kind: part.kind })))
-    let nearest = 0
-    if (node.kind === "vessel") {
-      let best = Infinity
-      all.forEach((point, index) => {
-        const distance = (point.coord[0] - node.lat) ** 2 + ((point.coord[1] - node.lng) * Math.cos(node.lat * Math.PI / 180)) ** 2
-        if (distance < best) { best = distance; nearest = index }
-      })
-    }
+    const nearest = node.kind === "vessel" ? nearestIndex(all.map((point) => point.coord), node.lat, node.lng) : 0
     let offset = 0
     for (const part of route.parts) {
       const start = offset
