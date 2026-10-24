@@ -120,10 +120,15 @@ function card(row: QueueRow, source: string): ChartCard {
 const PERSON_SOURCES = new Set(["Work item", "Incident", "Support inbox", "Earlier agent proposal"])
 
 /** A queue row that is a decision waiting for a person, as opposed to a signal worth watching. */
+/** What the person is needed for: the agent's headline, else the operator item among the records' reasons. */
+function personHeadline(row: QueueRow): string {
+  if (row.origin === "agent") return row.headline
+  return row.reasons.find((reason) => PERSON_SOURCES.has(reason.source))?.text ?? row.headline
+}
+
 export function needsPerson(row: QueueRow): boolean {
   if (row.origin === "agent") return true
-  const source = row.reasons[0]?.source ?? null
-  return source != null && PERSON_SOURCES.has(source)
+  return row.reasons.some((reason) => PERSON_SOURCES.has(reason.source))
 }
 
 /** "Mon 10:00" in a zone. */
@@ -210,7 +215,7 @@ export function buildChart(input: { bundles: Bundle[]; fleet: FleetCar[]; sample
       orderId: bundle.order.id, reference: bundle.order.reference, vehicle, make: primary?.vehicle.make ?? null,
       customer: bundle.customer.name, driver, from: from?.city ?? "Unknown", to: to?.city ?? "Unknown",
       lane, laneLabel: laneLabel(lane), attention, tone,
-      headline: found?.row.headline ?? (attention === "watch" ? watchReason : null), ask: found?.row.ask ?? null,
+      headline: found ? (attention === "decide" ? personHeadline(found.row) : found.attention === "watch" && watchReason ? watchReason : found.row.headline) : attention === "watch" ? watchReason : null, ask: found?.row.ask ?? null,
       watchReason, fromName: from?.name ?? from?.city ?? "Pickup", toName: to?.name ?? to?.city ?? "Delivery", promiseText,
     }
     const last = lastFix
@@ -278,7 +283,7 @@ export function buildChart(input: { bundles: Bundle[]; fleet: FleetCar[]; sample
 
   return {
     simNow: now, snapshotAt, nodes, routes, ports, counts,
-    needs: queue.decide.filter(needsPerson).map((row) => card(row, row.origin === "agent" ? "Road agent" : "From the records")),
+    needs: queue.decide.filter(needsPerson).map((row) => ({ ...card(row, row.origin === "agent" ? "Road agent" : "From the records"), headline: personHeadline(row) })),
     handled: queue.handled.map((row) => card(row, "Road agent")),
     quiet: { agentWorking: queue.agentWorking.length, waiting: queue.waiting.length, routine: queue.routine.length },
   }

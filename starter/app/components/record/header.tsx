@@ -1,6 +1,7 @@
 "use client"
 
 import Image from "next/image"
+import { attentionTone } from "@/lib/present/tone-rule"
 import Link from "next/link"
 import type { RecordView, Tile } from "@/lib/present/types"
 import { Icon } from "../icons"
@@ -25,7 +26,7 @@ export function RecordHero({ view, compact = false }: { view: RecordView; compac
     </div>
     <p className="intro">{story.intro}</p>
     <div className="story">
-      <p className={`story-headline tone-${story.tone}`}>{story.headline}</p>
+      <p className={`story-headline tone-${attentionTone(view.attention, story.tone)}`}>{story.headline}</p>
       {story.detail && <p className="story-detail">{story.detail}</p>}
     </div>
   </>

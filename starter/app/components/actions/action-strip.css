@@ -15,3 +15,15 @@
 .action-strip.compact .as-btn { font-size: 12.5px; padding: 4px 10px; min-height: 30px; }
 .action-strip.compact .as-actions { gap: 6px; }
 .action-strip.compact .as-human { cursor: help; }
+
+/* One line, always: compact pills, the route truncates first. */
+.action-strip { flex-wrap: nowrap; gap: 12px; padding: 8px 10px 8px 14px; }
+.as-route { flex: 1; min-width: 0; flex-wrap: nowrap; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.as-route .icon { vertical-align: -2px; margin: 0 4px; }
+.as-actions { flex-wrap: nowrap; flex: none; gap: 6px; }
+.as-btn { flex-direction: row; align-items: center; gap: 5px; min-height: 30px; padding: 0 12px; font-size: 12.5px; white-space: nowrap; }
+.as-who { font-size: 11px; font-weight: 400; color: var(--subtle); }
+.action-strip.compact { flex-wrap: wrap; }
+.action-strip.compact .as-route { flex-basis: 100%; }
+.action-strip.compact .as-who { display: none; }
+.action-strip.compact .as-btn { padding: 0 10px; }

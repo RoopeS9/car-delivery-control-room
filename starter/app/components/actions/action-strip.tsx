@@ -28,10 +28,10 @@ export function ActionStrip({ orderId, compact = false }: { orderId: string; com
         ? <button type="button" key={action.label} className="as-btn as-agent" title={`Mira, Bahn's assistant, calls ${action.who ?? "them"} on the VoiceChat line; you answer as them`}
           onClick={() => setCall({ orderRef: strip.reference, purpose: action.purpose ?? "CALL", cardUrl: action.cardUrl, calleeName: "Mira from Bahn", purposeLabel: action.label,
             youAre: `You answer as ${action.who ?? "the other party"}. Mira, Bahn's assistant, is calling you.` })}>
-          <Icon name="message" size={13} />{action.label}
+          <Icon name="phone" size={13} />{action.label}
         </button>
-        : <Link key={action.label} className="as-btn as-human" href={action.href} title={action.reason ?? undefined}>
-          <span>{action.label}</span>{action.reason && !compact && <small>{action.reason}</small>}
+        : <Link key={action.label} className="as-btn as-human" href={action.href} title={action.reason ? `A person does this: ${action.reason}` : undefined}>
+          {action.label}<span className="as-who" aria-hidden="true">· a person</span><span className="sr-only">{action.reason ? `, a person does this: ${action.reason}` : ""}</span>
         </Link>)}
     </div>}
     {call && <CallOverlay target={call} onClose={() => setCall(null)} />}

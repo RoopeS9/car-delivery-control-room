@@ -19,6 +19,7 @@ import { deriveKeyDates, latestTracking, milestones } from "./attention"
 import { type Bundle, rows, str } from "./bundle"
 import { label, labelIn } from "./labels"
 import { buildRecordView } from "./record"
+import { attentionTone, needsPersonItem } from "./tone-rule"
 import { isBefore, minutesBetween } from "./time"
 import type { DossierItem, DossierView, StripPoint, Strength, WatchItem } from "./dossier-types"
 import type { Tone } from "./types"
@@ -277,7 +278,7 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
   }
   const open = view.attention.filter((item) => item.kind !== "case")
   // Only an operator item is a need (red); an open alert or a conversation is a signal and goes to Watching (amber).
-  const pressing = open.find((item) => (item.tone === "danger" || item.tone === "warn") && ["work", "incident", "inbox", "proposal"].includes(item.kind))
+  const pressing = open.find((item) => (item.tone === "danger" || item.tone === "warn") && needsPersonItem(item)) ?? open.find(needsPersonItem)
   // The path ends at the conversation: the case's call, the alert's thread, else the liveliest open thread.
   const liveThread = [...view.threads].filter((thread) => thread.status !== "CLOSED" && thread.status !== "RESOLVED").sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0] ?? view.threads[0] ?? null
   const threadAnchor = liveThread ? `#thread-${liveThread.id}` : "#timeline"
@@ -444,7 +445,7 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
     orderId: bundle.order.id, reference: bundle.order.reference,
     vehicle: header.vehicle?.title ?? "Vehicle not linked", make: primary?.vehicle.make ?? null,
     customer: bundle.customer.name, driver, from: header.from.city, to: header.to.city, laneLabel: header.laneLabel, zone, simNow: now,
-    headline, tone: need ? "danger" : view.story.tone,
+    headline, tone: need ? "danger" : attentionTone(view.attention, view.story.tone),
     need, fault, strip, progress, watching: shownWatching, conversationHref: need?.href ?? `/orders/${bundle.order.id}${view.calls[0] ? `#call-${view.calls[0].id}` : threadAnchor}`, recent: recentLines.slice(0, 3), ahead, behind, records, recordsFromService: !!typed,
   }
 }

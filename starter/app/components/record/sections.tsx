@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { needsPersonItem } from "@/lib/present/tone-rule"
 import { useState } from "react"
 import type { AttentionItem, JourneyGroup, JourneyLeg, JourneyStep, ProposalView, RecordView, ThreadView } from "@/lib/present/types"
 import { fmtClock, fmtDateTime, fmtDay, relativeTo } from "@/lib/present/time"
@@ -22,20 +23,33 @@ function capitalise(text: string): string {
 
 export function AttentionPanel({ view }: { view: RecordView }) {
   const items = view.attention
+  // Same rule as the map: only an operator item or an agent's card is a need; alerts and conversations are watched.
+  const needs = items.filter(needsPersonItem)
+  const watching = items.filter((item) => !needsPersonItem(item))
   if (items.length === 0) return <div className="panel quiet" id="attention">
     <Icon name="note" />
     <span>Nothing in the records is waiting on a person. <small>Checked: alerts, incidents, work items, conversations, agent proposals, claims, custody and a moving car's position. Not checked: proofs, documents and endpoint details beyond a booked car's pickup contact and access.</small></span>
   </div>
-  return <div className="panel" id="attention">
-    <div className="panel-head">Needs a person <span className="num">{items.length}</span></div>
-    <ol className="panel-rows">{items.map((item) => <li className="panel-row" key={`${item.kind}-${item.recordId}`}>
-      <Icon name={ATTENTION_ICON[item.kind]} className={`tone-${item.tone}`} />
+  const row = (item: (typeof items)[number], watched: boolean) => {
+    const tone = watched && item.tone === "danger" ? "warn" : item.tone
+    return <li className="panel-row" key={`${item.kind}-${item.recordId}`}>
+      <Icon name={ATTENTION_ICON[item.kind]} className={`tone-${tone}`} />
       <div>
-        <div className={`panel-row-title tone-${item.tone}`}>{item.title}</div>
+        <div className={`panel-row-title tone-${tone}`}>{item.title}</div>
         {item.detail && <div className="panel-row-detail">{item.detail}</div>}
       </div>
       <div className="panel-row-side">{item.owner ?? "No owner"}{item.at && item.atLabel ? <><br />{capitalise(item.atLabel)} <When at={item.at} snapshotAt={view.snapshotAt} relative withZone={false} /></> : null}</div>
-    </li>)}</ol>
+    </li>
+  }
+  return <div className="panel" id="attention">
+    {needs.length > 0 && <>
+      <div className="panel-head">Needs a person <span className="num">{needs.length}</span></div>
+      <ol className="panel-rows">{needs.map((item) => row(item, false))}</ol>
+    </>}
+    {watching.length > 0 && <>
+      <div className="panel-head panel-head-watch">Watching <span className="num">{watching.length}</span></div>
+      <ol className="panel-rows">{watching.map((item) => row(item, true))}</ol>
+    </>}
   </div>
 }
 
