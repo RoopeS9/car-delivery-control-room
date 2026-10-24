@@ -14,6 +14,7 @@ import {
 import { AGENT_ID } from "./config"
 import { activeDriverId, activeOrderForDriver, driverName, loadOrderFacts, type End, type OrderFacts } from "./context"
 import { decideProposal, logOutcome, refreshProposal, type DecisionOutcome } from "./gate"
+import { operatorPhrase } from "./timeline"
 import { runTurn, withCaseLock, type TurnResult } from "./loop"
 import type { FollowUp } from "./tools"
 
@@ -189,9 +190,10 @@ export async function askAgent(request: AskAgentRequest): Promise<{ caseId: stri
     recipientType: "agent", recipientId: AGENT_ID, body: request.text.trim(),
   })
   const target = caseRow
+  const asker = await operatorPhrase(request.asked_by)
   const result = await withCaseLock(target.id, () => runTurn({
-    caseId: target.id, audience: "operator", trigger: "ask", input: `${request.asked_by} asks: "${request.text.trim()}"`,
-    counterpart: { type: "operator", id: request.asked_by, name: request.asked_by }, replyChannel: "operator_chat",
+    caseId: target.id, audience: "operator", trigger: "ask", input: `${asker.charAt(0).toUpperCase()}${asker.slice(1)} asks: "${request.text.trim()}"`,
+    counterpart: { type: "operator", id: request.asked_by, name: asker }, replyChannel: "operator_chat",
   }))
   if (created) await updateCase(target.id, result.error ? { status: "RESOLVED" } : { status: "HANDLED_BY_AGENT", summary: `Answered: ${request.text.slice(0, 160)}` })
   return { caseId: target.id, result }

@@ -20,6 +20,7 @@ import {
   type DecisionResponse, type DraftMessage, type HandoverPacket, type ProposalChange, type ProposalOption, type SourceRef,
 } from "@/lib/cr/types"
 import { AGENT_ID } from "./config"
+import { operatorPhrase } from "./timeline"
 import { activeDriverId, loadOrderFacts, type OrderFacts } from "./context"
 
 // ---------------------------------------------------------------- tool policy
@@ -323,7 +324,7 @@ export async function executeProposal(proposalId: string, options: { by: string;
     // "I'll handle it": the person did it outside the system and logged what happened.
     const event = await appendEvent({
       caseId: proposal.caseId, orderId: proposal.orderId, actorType: "operator", actorId: options.by, kind: "effect", channel: "internal",
-      body: `Done by ${options.by === proposal.decidedBy ? "the operator" : options.by}: ${proposal.title}. Outcome: ${options.outcome}`,
+      body: `Done by ${await operatorPhrase(options.by)}: ${proposal.title}. Outcome: ${options.outcome}`,
       data: { proposal_id: proposal.id, outcome: options.outcome, handled_outside: true },
     })
     effectIds.push(event.id)
@@ -415,7 +416,8 @@ export async function decideProposal(caseId: string, proposalId: string, request
   }
 
   if (request.decision === "handle") {
-    const nextStep = `${by} does this outside the system, then logs what happened.`
+    const who = await operatorPhrase(by)
+    const nextStep = `${who.charAt(0).toUpperCase()}${who.slice(1)} does this outside the system, then logs what happened.`
     const updated = await transitionProposal(proposal.id, ["PENDING"], {
       status: edited ? "EDITED_AND_APPROVED" : "APPROVED", decidedBy: by, decidedAt: now, decisionNote: note,
       chosenOptionId: option?.id ?? null, editedDraftMessage: edited, nextStep,
@@ -427,7 +429,7 @@ export async function decideProposal(caseId: string, proposalId: string, request
       data: { proposal_id: proposal.id, decision: "handle", option_id: option?.id ?? null },
     })
     const caseRow = await updateCase(caseId, {
-      status: (await pendingLeft(caseId)) ? "NEEDS_DECISION" : "WAITING_EXTERNAL", owner: by, waitingOn: `${by} to log what happened`, nextStep,
+      status: (await pendingLeft(caseId)) ? "NEEDS_DECISION" : "WAITING_EXTERNAL", owner: by, waitingOn: `${who} to log what happened`, nextStep,
       nextCheckAt: new Date(now.getTime() + HOUR / 2),
     })
     return { proposal_id: proposal.id, status: updated.status, next_step: nextStep, case_status: caseRow!.status, followUp: null }
