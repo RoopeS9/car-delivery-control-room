@@ -9,6 +9,7 @@ import { Icon } from "./icons"
 export const MARK_ICON: Record<string, string> = {
   alert: "alert", owned_alert: "alert", work: "work", incident: "incident", waiting: "waiting", conversation: "message",
   proposal: "proposal", claim: "alert", custody: "key", check: "note", inbox: "message",
+  decision: "proposal", case: "bot",
 }
 
 /** One order on a board or in a list: car, reference, customer, route, the decisive date and the work tray. */

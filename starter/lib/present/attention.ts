@@ -5,6 +5,7 @@
 import {
   type Bundle, bool, finalDeliveryPoint, num, obj, originPickupPoint, recordedAt, rows, str, strings,
 } from "./bundle"
+import { caseAttention } from "./cases"
 import { label, labelIn } from "./labels"
 import { fmtDateTime, isBefore, relativeTo } from "./time"
 import type { AttentionItem, KeyDate, Tone, WindowView } from "./types"
@@ -206,7 +207,9 @@ const OPEN_WORK = new Set(["OPEN", "NEEDS_EXTERNAL_INPUT", "IN_PROGRESS", "WAITI
 export function deriveAttention(bundle: Bundle): AttentionItem[] {
   const { snapshotAt, dir } = bundle
   const lane = bundle.order.lane
-  const items: AttentionItem[] = []
+  // Our road agent's cases come first: a waiting decision card is the clearest
+  // reason for a person to open the order.
+  const items: AttentionItem[] = caseAttention(bundle)
 
   for (const alert of bundle.alerts) {
     const severe = alert.severity === "critical" || alert.severity === "high"

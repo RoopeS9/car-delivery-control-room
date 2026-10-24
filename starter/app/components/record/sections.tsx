@@ -11,6 +11,7 @@ import { OrderFiles } from "./files"
 const ATTENTION_ICON: Record<AttentionItem["kind"], string> = {
   alert: "alert", owned_alert: "alert", work: "work", incident: "incident", waiting: "waiting", conversation: "message",
   proposal: "proposal", claim: "alert", custody: "key", check: "note", inbox: "inbox",
+  decision: "proposal", case: "bot",
 }
 
 function capitalise(text: string): string {

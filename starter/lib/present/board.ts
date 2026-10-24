@@ -7,6 +7,7 @@ import type { AttentionKind, BoardCard, WorkLine } from "./types"
 const ICONS: Record<AttentionKind, WorkLine["icon"]> = {
   alert: "alert", owned_alert: "alert", work: "work", incident: "incident", waiting: "waiting", conversation: "waiting",
   proposal: "proposal", claim: "alert", custody: "work", check: "note", inbox: "waiting",
+  decision: "proposal", case: "bot",
 }
 
 const MAX_LINES = 2

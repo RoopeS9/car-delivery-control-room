@@ -33,6 +33,10 @@ export type Place = {
 export type AttentionKind =
   | "alert" | "owned_alert" | "work" | "incident" | "waiting" | "conversation" | "proposal"
   | "claim" | "custody" | "check" | "inbox"
+  /** A decision card from our road agent, waiting on a person. */
+  | "decision"
+  /** One of our cases that is open but has no card waiting (agent working, or waiting on someone outside). */
+  | "case"
 
 export type AttentionItem = {
   kind: AttentionKind
@@ -63,7 +67,7 @@ export type KeyDate = {
   note: string | null
 }
 
-export type WorkLine = { icon: "driver" | "offer" | "alert" | "work" | "waiting" | "proposal" | "incident" | "note"; text: string; tone: Tone }
+export type WorkLine = { icon: "driver" | "offer" | "alert" | "work" | "waiting" | "proposal" | "incident" | "note" | "bot"; text: string; tone: Tone }
 
 export type BoardCard = {
   id: string
@@ -552,6 +556,28 @@ export type RecordView = {
   inboxHints: { id: string; state: string; stateLabel: string; category: string; channel: string; owner: string | null; waitingOn: string | null; basis: string | null; confirmed: boolean; candidates: OrderRef[]; linked: OrderRef[] }[]
   otherRecords: { collection: string; label: string; count: number }[]
   sections: { id: string; label: string; count: number | null }[]
+  /** Our cases on this order, newest first, each with its decision cards. */
+  cases: CaseView[]
+  /** Dataset messages and events merged with our case timeline, oldest first. */
+  timeline: TimelineEntry[]
+  /** The simulated clock when the view was built. Live "x min ago" is measured from here. */
+  simNow: string
+  /** Latest simulated OBD and GPS, when the car has reported. */
+  telemetry: TelemetryStripView | null
+  /** The delivery promise as it stands now: the dataset window unless the customer agreed to a change. */
+  promise: PromiseView | null
+}
+
+/** From lib/cr/effective.ts. A proposed change is pending until the customer answers. */
+export type PromiseView = {
+  text: string
+  basis: string
+  source: SourceChip
+  /** The customer agreed to a change, so this is no longer the dataset's window. */
+  changed: boolean
+  pending: { effectId: string; text: string; proposedAt: string; basis: string }[]
+  history: { at: string; text: string; state: string; basis: string }[]
+  caseId: string | null
 }
 
 export type EntityKind = "driver" | "customer" | "site"
@@ -612,3 +638,270 @@ export type InboxView = { snapshotAt: string | null; threads: InboxThreadView[];
 
 export type EntityListItem = { id: string; title: string; subtitle: string | null; count: number; href: string }
 export type EntityList = { kind: EntityKind; kindLabel: string; items: EntityListItem[] }
+
+// ---------------------------------------------------------------- cases (team Random)
+
+/** Where one fact came from, printed as a chip: "Driver, app chat · 08:22". */
+export type SourceChip = { kind: string; id: string; label: string; at: string | null; href?: string | null }
+
+export type DraftView = {
+  /** The draft as the agent stored it; an edit sends this back with a new body. */
+  original: import("@/lib/cr/types").DraftMessage
+  toName: string
+  /** "customer", "pickup site", "driver". */
+  toRole: string
+  isCustomer: boolean
+  channelLabel: string
+  subject: string | null
+  body: string
+}
+
+export type DecisionCardView = {
+  id: string
+  caseId: string
+  actionType: string
+  actionLabel: string
+  title: string
+  rationale: string
+  status: string
+  statusLabel: string
+  tone: Tone
+  pending: boolean
+  whatHappened: string | null
+  facts: { text: string; sources: SourceChip[] }[]
+  agentDid: string[]
+  unknowns: string[]
+  recommendation: string | null
+  alternatives: string[]
+  changes: { label: string; before: string | null; after: string }[]
+  draft: DraftView | null
+  /** The operator's version, when they edited the draft before approving. */
+  editedDraft: DraftView | null
+  options: { id: string; label: string; description: string | null; recommended: boolean }[]
+  evidence: SourceChip[]
+  nextIfApproved: string
+  nextIfRejected: string
+  createdAt: string
+  createdBy: string
+  /** Why this needs a person: the autonomy rule that applies to the action type. */
+  approvalRule: string
+  decision: {
+    by: string; at: string | null; note: string | null; option: string | null; nextStep: string | null; executedAt: string | null
+    /** `operator` when a person said "I'll handle it", `instruction` when they told the agent what to do instead. */
+    mode: string | null
+    /** The one line the operator logged after handling it. */
+    outcome: string | null
+    /** After an unknown outcome: whether the check found that it happened. */
+    reconciled: boolean | null
+  } | null
+  /** A person said "I'll handle it" and has not logged what happened yet. */
+  awaitingOutcome: boolean
+  /** Something new came in from outside (driver, site, customer, car) after this card was drafted. */
+  factsChanged: { at: string; what: string } | null
+  /** OUTDATED: the records the card relied on changed before it could run (PLAN 4.2b). */
+  outdated: { changed: { label: string; expected: string | null; actual: string | null }[] } | null
+  /** UNKNOWN_OUTCOME: an outside action may or may not have happened. */
+  unknownOutcome: boolean
+  /** 1 for a first draft; later revisions replace a card that went out of date. */
+  revision: number
+  /** What changed in the version this card replaces, when it is a redraft. */
+  replaces: { changed: { label: string; expected: string | null; actual: string | null }[] } | null
+  /** "Choose" cards from the agent (escalations, "couldn't finish"): the option is the decision. */
+  choiceOnly: boolean
+}
+
+export type CaseView = {
+  id: string
+  kind: string
+  kindLabel: string
+  status: string
+  statusLabel: string
+  tone: Tone
+  urgency: string
+  urgencyLabel: string
+  title: string
+  summary: string
+  channelLabel: string
+  openedAt: string
+  updatedAt: string
+  resolvedAt: string | null
+  owner: string | null
+  waitingOn: string | null
+  /** What happens next and who does it. */
+  nextStep: string | null
+  nextCheckAt: string | null
+  nextCheckLabel: string | null
+  overdue: boolean
+  /** The agent's last run on this case failed or is still running. */
+  lastRun: "RUNNING" | "DONE" | "ERROR" | null
+  /** Dataset records this case takes over (work items, incidents, alerts). */
+  sources: SourceChip[]
+  pending: DecisionCardView[]
+  /** Out-of-date cards the agent is redrafting, and actions whose outcome is unknown. */
+  outdated: DecisionCardView[]
+  unknown: DecisionCardView[]
+  decided: DecisionCardView[]
+}
+
+export type TimelineEntry = {
+  id: string
+  at: string
+  actorName: string
+  actorRole: string | null
+  actorKind: string
+  /** message, voice, photo, safety, lookup, proposal, decision, effect, telemetry, event, note */
+  kind: string
+  text: string
+  /** "App chat to Hamburg Prestige Cars", "Voice call", "OBD dongle (simulated)". */
+  channelLabel: string | null
+  /** Where the line comes from, so a reader can tell a record from a live event. */
+  source: SourceChip
+  tone: Tone
+  /** `record` for the dataset snapshot, `live` for events after it. */
+  origin: "record" | "live"
+  internal: boolean
+  caseId: string | null
+  /** A photo sent on this line, served from /orders/:id/photos/:eventId (or a public path). */
+  photo: { src: string; subject: string | null } | null
+}
+
+/** The car's latest OBD reading and phone position, for the strip on a case. */
+export type TelemetryStripView = {
+  at: string | null
+  ageLabel: string | null
+  /** Older than 10 minutes of simulated time. */
+  stale: boolean
+  mil: "OFF" | "ON" | "FLASHING" | null
+  values: { label: string; value: string; tone: Tone }[]
+  codes: { code: string; title: string | null; severity: string | null; tone: Tone }[]
+  position: { label: string; ageLabel: string | null } | null
+  simulated: boolean
+  /** Electric cars report little over standard OBD2. */
+  electric: boolean
+}
+
+// ---------------------------------------------------------------- queue (home)
+
+export type QueueRow = {
+  orderId: string
+  reference: string
+  vehicle: string
+  vehicleMake: string | null
+  route: string
+  customer: string
+  /** `agent`: one of our cases with the agent's work behind it. `records`: the starter's recorded reasons, no agent analysis. */
+  origin: "agent" | "records"
+  caseId: string | null
+  /** One line: what happened. */
+  headline: string
+  /** The decision waiting, or the next action. */
+  ask: string | null
+  tone: Tone
+  /** Lower sorts first: the most urgent row leads its section. */
+  rank: number
+  urgencyLabel: string | null
+  statusLabel: string
+  /** "Road agent", a desk title, or "Owner not recorded". */
+  who: string
+  whoKind: "agent" | "person" | "nobody"
+  /** The moment the age is measured from. */
+  since: string | null
+  sinceLabel: string
+  /** For a records row: the reasons the records give, each with its source. */
+  reasons: { text: string; detail: string | null; source: string; href: string }[]
+  /** Waiting rows: who we wait on and when we look again. */
+  waitingOn: string | null
+  nextCheckAt: string | null
+  nextCheckLabel: string | null
+  /** The next check time has passed. */
+  overdue: boolean
+  /** Other open items on the same order, in a few words. */
+  more: string | null
+}
+
+export type QueueView = {
+  snapshotAt: string | null
+  simNow: string
+  /** Needs your decision: cards, escalations, overdue follow-ups and urgent records, most urgent first. */
+  decide: QueueRow[]
+  /** Records rows with only routine open items (open threads, unverified pickup details). Folded under the decide section. */
+  routine: QueueRow[]
+  agentWorking: QueueRow[]
+  waiting: QueueRow[]
+  /** Closed by the agent (or resolved) in the last 24 h of simulated time. */
+  handled: QueueRow[]
+  /** Orders with nothing open in the records and no open case. */
+  quietCount: number
+  total: number
+}
+
+// ---------------------------------------------------------------- map
+
+export type MapMarkerState = "decide" | "agent" | "waiting" | "fine"
+
+export type MapMarker = {
+  orderId: string
+  reference: string
+  vehicle: string
+  vehicleMake: string | null
+  route: string
+  customer: string
+  driver: string | null
+  lat: number
+  lng: number
+  /** When the simulated phone reported this position. */
+  at: string
+  ageLabel: string
+  /** No position for a while: drawn hollow with "last seen". */
+  stale: boolean
+  state: MapMarkerState
+  stateLabel: string
+  tone: Tone
+  caseId: string | null
+  caseTitle: string | null
+  ask: string | null
+  speedKmh: number | null
+  placeLabel: string | null
+  /** Always true in this prototype; shown on every position. */
+  simulated: boolean
+}
+
+export type MapView = {
+  simNow: string
+  markers: MapMarker[]
+  /** Moving orders without any simulated position yet. */
+  unplaced: { orderId: string; reference: string; vehicle: string; route: string }[]
+  staleAfterMinutes: number
+}
+
+// ---------------------------------------------------------------- agent page
+
+/** A run of text in a playbook line. Tool names and codes are already in plain words. */
+export type InlineRun = { text: string; bold?: boolean; italic?: boolean; term?: boolean }
+export type PlaybookBlock =
+  | { type: "h2"; text: string }
+  | { type: "p"; runs: InlineRun[] }
+  | { type: "ol" | "ul"; items: InlineRun[][] }
+
+export type PlaybookView = { slug: string; title: string; intro: string | null; blocks: PlaybookBlock[] }
+
+export type AutonomyView = {
+  actionType: string
+  label: string
+  meaning: string
+  level: string
+  levelLabel: string
+  locked: boolean
+  updatedBy: string | null
+  updatedAt: string | null
+}
+
+export type ActivityView = { id: string; at: string; orderId: string; reference: string; text: string; kind: string; channelLabel: string | null }
+
+export type AgentPageView = {
+  simNow: string
+  playbooks: PlaybookView[]
+  autonomy: AutonomyView[]
+  activity: ActivityView[]
+  runs: { count: number; toolCalls: number; costUsd: number | null; lastAt: string | null }
+}
