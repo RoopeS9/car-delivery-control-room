@@ -54,7 +54,8 @@ export async function recordMilestone(request: MilestoneRequest): Promise<Milest
   if (index > steps.indexOf("COLLECTED") && !collected) throw new ChannelError(409, "Record the collection first.")
   const receiver = request.receiverName?.trim().slice(0, 120) || null
   if (request.milestone === "DELIVERED" && !receiver) throw new ChannelError(400, "Write who took the car and keys.")
-  const keys = typeof request.keys === "number" && Number.isFinite(request.keys) && request.keys >= 0 && request.keys <= 9 ? Math.round(request.keys) : null
+  const counted = request.milestone === "COLLECTED" || request.milestone === "DELIVERED"
+  const keys = counted && typeof request.keys === "number" && Number.isFinite(request.keys) && request.keys >= 0 && request.keys <= 9 ? Math.round(request.keys) : null
 
   const driverName = facts.driverNames.get(request.driverId) ?? "The driver"
   const where = request.milestone === "ARRIVED_PICKUP" || request.milestone === "COLLECTED" ? placeName(facts.pickup)

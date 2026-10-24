@@ -174,7 +174,8 @@ export const TOOL_DEFINITIONS: Record<ToolName, Anthropic.Tool> = {
     input_schema: obj({
       title: text("Short headline, e.g. 'Warning light, car stopped on the A1 near Bremen'."),
       summary: text("Where the case stands now."),
-      kind: { type: "string", enum: [...CASE_KINDS] },
+      // HANDOVER is opened by the driver's handover report, never chosen by the agent.
+      kind: { type: "string", enum: CASE_KINDS.filter((kind) => kind !== "HANDOVER") },
       urgency: { type: "string", enum: [...URGENCIES] },
     }),
   },
@@ -550,7 +551,7 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
     const updated = await updateCase(state.caseRow.id, {
       title: str(input.title).slice(0, 140) || state.caseRow.title,
       summary: str(input.summary).slice(0, 600),
-      kind: CASE_KINDS.includes(kind) ? kind : state.caseRow.kind,
+      kind: CASE_KINDS.includes(kind) && kind !== "HANDOVER" && state.caseRow.kind !== "HANDOVER" ? kind : state.caseRow.kind,
       urgency: URGENCIES.includes(urgency) ? urgency : state.caseRow.urgency,
     })
     if (updated) state.caseRow = updated
