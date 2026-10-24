@@ -21,7 +21,7 @@ export function ActionStrip({ orderId, compact = false }: { orderId: string; com
   }, [orderId])
   if (!strip) return null
   return <div className={`action-strip${compact ? " compact" : ""}`} role="group" aria-label="Operator actions">
-    {compact ? strip.when && <p className="as-route">{strip.when.charAt(0).toUpperCase() + strip.when.slice(1)}</p>
+    {compact ? null
       : <p className="as-route"><b>{strip.from}</b><Icon name="arrow" size={13} /><b>{strip.to}</b>{strip.when && <span> · {strip.when}</span>}</p>}
     {strip.actions.length > 0 && <div className="as-actions">
       {strip.actions.map((action) => action.agentMay && action.cardUrl

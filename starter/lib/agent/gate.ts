@@ -22,11 +22,11 @@ import {
   LOCKED_ACTIONS, type ActionType, type Assumption, type AssumptionCheck, type Audience, type AutonomyLevel, type CaseKind,
   type CaseStatus, type CustomerAnswerRequest, type DecisionRequest, type DecisionResponse, type DraftMessage, type EffectAuthority,
   type EffectKind, type EffectState, type HandoverPacket, type LogOutcomeRequest, type ProposalChange, type ProposalOption, type SourceRef,
-  type WaitingFor, type BookingSelection,
+  type WaitingFor, type BookingSelection, type Urgency,
 } from "@/lib/cr/types"
 import { AGENT_ID } from "./config"
 import { activeDriverId, loadOrderFacts, type OrderFacts } from "./context"
-import { SAFETY_TEMPLATES } from "./drivability"
+import { SAFETY_TEMPLATES, findClearance } from "./drivability"
 import { mockProviderBook } from "./mocks"
 import { operatorPhrase } from "./timeline"
 
@@ -318,6 +318,17 @@ async function anchorAssumptions(ctx: GateContext, assumptions: Assumption[]): P
 }
 
 export async function submitProposal(ctx: GateContext, input: ProposalInput): Promise<{ proposal: ProposalRow; level: AutonomyLevel; executed: boolean }> {
+  // One question once. A card an operator is already looking at is not duplicated; a card they rejected on this case
+  // is not asked again in other words: the agent works out a different step from the reason, or waits.
+  const twinOf = (row: ProposalRow) => row.actionType === input.action_type && (row.title.trim().toLowerCase() === input.title.trim().toLowerCase()
+    || (row.draftMessage && input.draft_message && row.draftMessage.to_type === resolveDraft(input.draft_message, ctx.facts)?.to_type && ["CONTACT_CUSTOMER", "CONTACT_SITE_AS_CUSTOMER", "CLEAR_TO_CONTINUE"].includes(row.actionType)))
+  const existing = await listProposals({ caseId: ctx.caseRow.id })
+  const pendingTwin = existing.find((row) => row.status === "PENDING" && twinOf(row))
+  if (pendingTwin) return { proposal: pendingTwin, level: "ASK_FIRST", executed: false }
+  const rejectedTwin = existing.filter((row) => row.status === "REJECTED" && twinOf(row)).at(-1)
+  if (rejectedTwin && rejectedTwin.decidedAt && simNow().getTime() - rejectedTwin.decidedAt.getTime() < 4 * 3600_000) {
+    throw new DecisionError(409, `An operator rejected "${rejectedTwin.title}" on this case${rejectedTwin.decisionNote ? ` (${rejectedTwin.decisionNote})` : ""}. Do not propose it again: work out a different next step from their reason, or put the case into a wait with wait_for.`)
+  }
   await requireReconciledBookings(ctx.facts.id, input.action_type)
   if (input.action_type === "BOOK_TRAVEL" && input.draft_message) throw new DecisionError(400, "A travel booking card approves its selected quote. Propose a customer message separately.")
   if (input.action_type === "BOOK_TRAVEL" || input.booking_selection) await verifyBookingSelection(ctx.caseRow.id, ctx.facts, input.action_type, input.booking_selection)
@@ -394,7 +405,7 @@ function windowOf(proposal: ProposalRow): { start_utc: string | null; end_utc: s
   return { start_utc: value.start_utc ?? null, end_utc: value.end_utc ?? null, text: change ? `${change.label}: ${change.after}` : proposal.title }
 }
 
-type CaseAfter = { status: CaseStatus; waitingOn: string | null; waitingFor: WaitingFor | null; nextAction: string; checkInMinutes: number | null }
+type CaseAfter = { status: CaseStatus; waitingOn: string | null; waitingFor: WaitingFor | null; nextAction: string; checkInMinutes: number | null; urgency?: Urgency }
 
 /** Carry out the action's effects (all simulated). Returns where the case stands, or an unknown outcome. */
 async function performEffects(proposal: ProposalRow, actor: Actor): Promise<{ after: CaseAfter; result: Record<string, unknown>; unknown?: string }> {
@@ -423,7 +434,9 @@ async function performEffects(proposal: ProposalRow, actor: Actor): Promise<{ af
     case "CONTACT_CUSTOMER":
     case "CONTACT_SITE_AS_CUSTOMER":
       await sendDraft()
-      return { after: { status: "WAITING_EXTERNAL", waitingOn: `${draft?.to_name ?? "the customer"}'s answer`, waitingFor: "customer", nextAction: next, checkInMinutes: 30 }, result: { event_ids: ids } }
+      // The message is out and a person decided to wait for the answer: the case parks at normal urgency. The answer
+      // (or two hours of silence) brings it back to an operator; the agent has nothing to do meanwhile.
+      return { after: { status: "WAITING_EXTERNAL", waitingOn: `${draft?.to_name ?? "the customer"}'s answer`, waitingFor: "customer", nextAction: `Waiting for ${draft?.to_name ?? "the customer"} to answer. ${next}`, checkInMinutes: 120, urgency: "NORMAL" }, result: { event_ids: ids, parked: true } }
     case "UPDATE_ETA": {
       const window = windowOf(proposal)
       const eta = await effect(proposal, "ETA_ESTIMATE", "RECORDED", { text: window.text, estimate_utc: window.end_utc ?? window.start_utc, start_utc: window.start_utc, end_utc: window.end_utc, basis: proposal.rationale }, authority)
@@ -464,16 +477,24 @@ async function performEffects(proposal: ProposalRow, actor: Actor): Promise<{ af
       return { after: { status: "RESOLVED", waitingOn: null, waitingFor: null, nextAction: next, checkInMinutes: null }, result: { event_ids: ids, effect_id: decision.id } }
     }
     case "CLEAR_TO_CONTINUE": {
-      const instruction = await effect(proposal, "DRIVER_INSTRUCTION", "RECORDED", { text: draft?.body ?? proposal.title, cleared_to_continue: true }, authority, { driver_id: draft?.to_id ?? null })
+      // An operator who rewrote the message into something that does not clear the driver ("wait for the seller")
+      // gave an instruction, not a clearance: the driver stays stopped, the case stays open, the agent reads it as the
+      // operator's decision.
+      const cleared = !proposal.editedDraftMessage || Boolean(findClearance(draft?.body ?? ""))
+      const instruction = await effect(proposal, "DRIVER_INSTRUCTION", "RECORDED", { text: draft?.body ?? proposal.title, cleared_to_continue: cleared }, authority, { driver_id: draft?.to_id ?? null })
       if (draft) {
         // Attributed to the operator who approved it, never to the agent.
         const event = await appendEvent({
           caseId: proposal.caseId, orderId: proposal.orderId, actorType: "operator", actorId: proposal.decidedBy, kind: "message", channel: "driver_chat",
-          recipientType: "driver", recipientId: draft.to_id, body: draft.body, data: { proposal_id: proposal.id, effect_id: instruction.id, cleared_to_continue: true },
+          recipientType: "driver", recipientId: draft.to_id, body: draft.body, data: { proposal_id: proposal.id, effect_id: instruction.id, cleared_to_continue: cleared },
         })
         ids.push(event.id)
       }
-      return { after: { status: "RESOLVED", waitingOn: null, waitingFor: null, nextAction: next, checkInMinutes: null }, result: { event_ids: ids, effect_id: instruction.id } }
+      if (!cleared) {
+        await note(`The operator did not clear the driver; they sent an instruction instead: "${draft?.body ?? ""}". The driver stays stopped.`, { effect_id: instruction.id, cleared_to_continue: false })
+        return { after: { status: "AGENT_WORKING", waitingOn: "the agent", waitingFor: "agent", nextAction: "The agent continues from the operator's instruction to the driver.", checkInMinutes: 3 }, result: { event_ids: ids, effect_id: instruction.id, cleared: false, instruction: draft?.body ?? "" } }
+      }
+      return { after: { status: "RESOLVED", waitingOn: null, waitingFor: null, nextAction: next, checkInMinutes: null }, result: { event_ids: ids, effect_id: instruction.id, cleared: true } }
     }
     case "REASSIGN_DRIVER": {
       const handed = await effect(proposal, "OUTCOME_LOGGED", "RECORDED", { text: "Handed to dispatch to find another driver." }, authority)
@@ -493,7 +514,7 @@ async function finishCase(caseId: string, after: CaseAfter, owner: string | null
   const stillPending = (await listProposals({ caseId, statuses: ["PENDING"] })).length > 0
   await updateCase(caseId, stillPending
     ? { status: "NEEDS_DECISION", waitingOn: "an operator's decision", waitingFor: "operator", nextAction: "An operator decides on the next card.", nextCheckAt: later(15), owner: null }
-    : { status: after.status, waitingOn: after.waitingOn, waitingFor: after.waitingFor, nextAction: after.nextAction, nextCheckAt: after.checkInMinutes ? later(after.checkInMinutes) : null, owner })
+    : { status: after.status, waitingOn: after.waitingOn, waitingFor: after.waitingFor, nextAction: after.nextAction, nextCheckAt: after.checkInMinutes ? later(after.checkInMinutes) : null, owner, ...(after.urgency ? { urgency: after.urgency, followUps: 0 } : {}) })
 }
 
 /** Mark a card OUTDATED: nothing runs; the case shows what changed and the agent redrafts. */

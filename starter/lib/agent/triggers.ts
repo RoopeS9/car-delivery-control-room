@@ -29,16 +29,39 @@ export class ChannelError extends Error {
 
 type OnText = ((text: string) => void) | undefined
 
-async function openCase(orderId: string, match: (row: CaseRow) => boolean, create: () => Promise<CaseRow>): Promise<CaseRow> {
+async function openCase(orderId: string, match: (row: CaseRow) => boolean, create: () => Promise<CaseRow>): Promise<CaseRow & { resumedFrom: CaseRow | null }> {
   const open = await listCases({ orderId, statuses: [...OPEN_CASE_STATUSES] })
   const existing = open.find(match)
   if (existing) {
     if (existing.status === "WAITING_EXTERNAL") {
-      return (await updateCase(existing.id, { status: "AGENT_WORKING", waitingOn: "the agent", waitingFor: "agent", nextAction: "The agent reads the new message." })) ?? existing
+      const resumed = (await updateCase(existing.id, { status: "AGENT_WORKING", waitingOn: "the agent", waitingFor: "agent", nextAction: "The agent reads the new message." })) ?? existing
+      return { ...resumed, resumedFrom: existing }
     }
-    return existing
+    return { ...existing, resumedFrom: null }
   }
-  return create()
+  return { ...(await create()), resumedFrom: null }
+}
+
+/**
+ * The party a case was deliberately waiting on has written back. The agent has answered them; now the person who
+ * decided to wait gets the ping: the case goes to "Needs your decision" with the reply in its next action, unless the
+ * agent already put a card in front of them or closed the case.
+ */
+async function pingOnAwaitedReply(caseRow: CaseRow & { resumedFrom: CaseRow | null }, who: string, text: string, parties: readonly string[]) {
+  const before = caseRow.resumedFrom
+  if (!before || !before.waitingFor || !parties.includes(before.waitingFor)) return
+  const after = await getCase(caseRow.id)
+  if (!after || !OPEN_CASE_STATUSES.includes(after.status) || after.status === "NEEDS_DECISION") return
+  await appendEvent({
+    caseId: caseRow.id, orderId: caseRow.orderId, actorType: "system", actorId: "road-desk", kind: "note", channel: "internal",
+    body: `${who} answered while the case was waiting on ${before.waitingOn ?? "them"}. Flagged for an operator.`,
+  })
+  await updateCase(caseRow.id, {
+    status: "NEEDS_DECISION", owner: null, waitingFor: "operator", waitingOn: "an operator to read the reply",
+    urgency: after.urgency === "LOW" || after.urgency === "NORMAL" ? "HIGH" : after.urgency,
+    nextAction: `${who} replied: "${text.slice(0, 200)}${text.length > 200 ? "…" : ""}". Read it and decide what happens next, or tell the agent.`,
+    nextCheckAt: new Date(simNow().getTime() + 15 * 60000),
+  })
 }
 
 // ---------------------------------------------------------------- driver
@@ -107,7 +130,7 @@ export async function prepareSiteMessage(request: SiteMessageRequest): Promise<P
 export async function handleSiteMessage(prepared: PreparedSiteMessage, onText?: OnText): Promise<{ caseId: string; result: TurnResult }> {
   return withRuntimeWork("site message handling", async () => {
     const { facts, end, contactId, name, request } = prepared
-    const caseRow = await openCase(facts.id, (row) => row.kind === "SITE_QUESTION" || row.channelOpened === "site_chat", () => createCase({
+    const caseRow = await openCase(facts.id, (row) => (row.status === "WAITING_EXTERNAL" && (row.waitingFor === "site" || row.waitingFor === "customer")) || row.kind === "SITE_QUESTION" || row.channelOpened === "site_chat", () => createCase({
       orderId: facts.id, kind: "SITE_QUESTION", status: "AGENT_WORKING", urgency: "NORMAL", title: `Question from ${name}`,
       summary: request.text.slice(0, 200), channelOpened: "site_chat", owner: "agent", driverId: activeDriverId(facts),
     }))
@@ -121,6 +144,7 @@ export async function handleSiteMessage(prepared: PreparedSiteMessage, onText?: 
       input: `${name} (${end} place) wrote: "${request.text.trim()}"`,
       counterpart: { type: "site", id: contactId, name }, replyChannel: "site_chat", onText,
     }))
+    await pingOnAwaitedReply(caseRow, name, request.text.trim(), ["site", "customer"])
     return { caseId: caseRow.id, result }
   })
 }
@@ -242,6 +266,9 @@ function followUpsFor(caseId: string, proposalId: string, outcome: DecisionOutco
   if (followUp.kind === "outdated") return [{ kind: "analysis", caseId, reason: outdatedReason(followUp.proposal.title, followUp.proposal.revision, outcome.outdated) }]
   if (followUp.proposal.status === "UNKNOWN_OUTCOME") return []
   if (followUp.proposal.actionType === "OPERATOR_DECISION" && followUp.proposal.chosenOptionId === "take_over") return []
+  // A message to the customer or their site went out: a person chose to wait for the answer. Nothing wakes the agent
+  // until it comes (the site channel pings the operator) or the wait runs out (the tick does).
+  if (followUp.kind === "approved" && followUp.proposal.executionResult?.parked === true) return []
   return [{ kind: "decision", caseId, proposalId, outcome: followUp.kind === "approved" || followUp.kind === "outcome" || followUp.kind === "customer_answer" ? "approved" : "rejected", note: followUp.kind === "customer_answer" ? followUp.text : null }]
 }
 
@@ -306,6 +333,9 @@ async function decisionInput(caseRow: CaseRow, proposalId: string, note: string 
   }
   if (proposal.status === "FAILED") {
     return { trigger: "decision", input: `An operator checked the booking from ${what}: it does not exist; nothing was booked. Do not retry blindly: look for fresh options and propose again only with a current quote. ${CONTINUE}` }
+  }
+  if (proposal.actionType === "CLEAR_TO_CONTINUE" && proposal.executionResult?.cleared === false) {
+    return { trigger: "instruct", input: `The operator did NOT clear the driver. Instead of the clearance they sent the driver this message: "${String(proposal.executionResult.instruction ?? "")}". That is the operator's decision. Never propose clearing the driver again on this case unless an operator asks for it. If their message says we are waiting on someone (the seller, a workshop, the customer, a recovery provider), put the case into that wait with wait_for (who, the next action, a check-in of at least 60 minutes) and propose nothing else; if it needs something done first, do only that. The driver stays stopped. End with one line for the operators.` }
   }
   if (outcomeText) {
     return { trigger: "decision", input: `Operator logged an outcome for ${what}: "${outcomeText}". ${CONTINUE} Typical next steps: check new timings against later deadlines (ferry check-in, the delivery promise) and propose a travel change or a customer update where one is at risk.` }

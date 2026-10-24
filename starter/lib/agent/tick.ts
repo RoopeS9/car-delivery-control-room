@@ -67,6 +67,16 @@ async function followUp(row: CaseRow): Promise<"reminded" | "escalated" | null> 
     return "escalated"
   }
   const who = row.waitingOn ?? "the other party"
+  if (row.followUps === 0) {
+    // First lapse: note it and look again later. A seller or a provider answering an email in two hours is not an
+    // emergency; the second lapse is.
+    await appendEvent({
+      caseId: row.id, orderId: row.orderId, actorType: "system", actorId: "road-desk", kind: "note", channel: "internal",
+      body: `No answer from ${who} since ${utcTime(since)}. Still waiting; a person is told if there is none by the next check.`,
+    })
+    await updateCase(row.id, { followUps: 1, nextCheckAt: new Date(simNow().getTime() + 120 * MINUTE) })
+    return "reminded"
+  }
   await appendEvent({
     caseId: row.id, orderId: row.orderId, actorType: "system", actorId: "road-desk", kind: "note", channel: "internal",
     body: `No answer from ${who} since ${utcTime(since)}. The follow-up time passed; handing this to a person.`,

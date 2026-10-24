@@ -91,6 +91,12 @@ export function Dossier({ node, onClose }: { node: ChartNode; onClose: () => voi
       </section>}
 
 
+      <section className="ds-sec" aria-label="Recent">
+        <h3>Recent</h3>
+        {view.recent.length === 0 ? <p className="ds-quiet">Nobody has said or done anything on this order yet.</p>
+          : <ul className="recent">{view.recent.map((item) => <li key={item.id}><time dateTime={item.at}>{at(item.at)}</time><span>{item.text}</span></li>)}</ul>}
+      </section>
+
       {view.watching.length > 0 && <section className="ds-sec" aria-label="Watching">
         <h3>Watching</h3>
         <ul className="watch">{view.watching.map((item) => <li key={item.id} className={`watch-${item.tone}`}>
@@ -103,12 +109,6 @@ export function Dossier({ node, onClose }: { node: ChartNode; onClose: () => voi
           </details>
         </li>)}</ul>
       </section>}
-
-      <section className="ds-sec" aria-label="Recent">
-        <h3>Recent</h3>
-        {view.recent.length === 0 ? <p className="ds-quiet">Nobody has said or done anything on this order yet.</p>
-          : <ul className="recent">{view.recent.map((item) => <li key={item.id}><time dateTime={item.at}>{at(item.at)}</time><span>{item.text}</span></li>)}</ul>}
-      </section>
 
       <details className="ds-fold">
         <summary><Icon name="chevron" size={12} />Full history <span className="num">{view.ahead.length + view.behind.length}</span></summary>

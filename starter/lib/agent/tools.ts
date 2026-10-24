@@ -19,6 +19,7 @@ import { checkTool, recordedTravelSelection, submitProposal, validateProposal, t
 import { cityCoords, matchWarningLights, playbook, playbooks, troubleCode } from "./knowledge"
 import { findNearbyHelp, searchTravelOptions, type HelpKind, type TravelKind } from "./mocks"
 import { orderTimeline, renderLines } from "./timeline"
+import { describePhoto } from "./vision"
 
 export type FollowUp =
   | { kind: "analysis"; caseId: string; reason: string }
@@ -275,6 +276,17 @@ async function sendToDriver(state: TurnState, input: { body: string; channel: "d
  * operator can approve it on purpose (PLAN.md 4.2, drivability screen).
  */
 export async function holdForClearance(state: GateContext, text: string, reason: string | null) {
+  // An operator already said no to clearing this driver: the question is not asked again on this case. The driver
+  // got the fixed "an operator has to confirm" line; the refusal is noted, and the agent reads it in the case notes.
+  const rejected = (await listProposals({ caseId: state.caseRow.id, statuses: ["REJECTED"] })).filter((row) => row.actionType === "CLEAR_TO_CONTINUE").at(-1)
+  if (rejected) {
+    await appendEvent({
+      caseId: state.caseRow.id, orderId: state.facts.id, actorType: "system", actorId: "gate", kind: "tool_call", channel: "internal",
+      body: `Drivability screen held back a message that reads as permission to drive on${reason ? ` (${reason})` : ""}. An operator already rejected clearing the driver on this case (${rejected.decisionNote ?? "no reason given"}), so no new card: the driver stays stopped.`,
+      data: { refused: true, rule: "drivability_screen", text, rejected_proposal_id: rejected.id },
+    })
+    return
+  }
   await appendEvent({
     caseId: state.caseRow.id, orderId: state.facts.id, actorType: "system", actorId: "gate", kind: "tool_call", channel: "internal",
     body: `Drivability screen held back a message that reads as permission to drive on${reason ? ` (${reason})` : ""}. It is now a card for an operator.`,
@@ -452,12 +464,16 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
     }
     if (!data) return { content: "The photo has no image data.", isError: true }
     const source: SourceRef = { kind: "cr_events", id: event.id, label: `Photo from the driver, ${utcTime(event.at)}`, at: event.at.toISOString() }
+    // The picture is read by a vision model and reaches the agent as words: the agent's own model takes no images.
+    const seen = await describePhoto(photo.media_type, data, photo.caption ?? event.body)
+    if (seen) state.costUsd += seen.costUsd
     return {
-      content: [
-        { type: "image", source: { type: "base64", media_type: photo.media_type, data } },
-        { type: "text", text: json({ sent: utcTime(event.at), subject: photo.subject ?? null, caption: photo.caption ?? event.body, note: "Describe only what is visible. A photo is evidence of what it shows, not a diagnosis.", source }) },
-      ],
-      log: { kind: "lookup", body: `Looked at the driver's photo${photo.subject ? ` of the ${photo.subject}` : ""}`, sources: [source] },
+      content: json({
+        sent: utcTime(event.at), subject: photo.subject ?? null, caption: photo.caption ?? event.body,
+        description: seen?.text ?? "The photo could not be read right now (no vision model answered). Ask the driver to describe what they see.",
+        note: "What is visible in the photo, described by a vision model. A photo is evidence of what it shows, not a diagnosis.", source,
+      }),
+      log: { kind: "lookup", body: `Looked at the driver's photo${photo.subject ? ` of the ${photo.subject}` : ""}${seen ? "" : " (could not be read)"}`, sources: [source] },
     }
   },
 

@@ -24,6 +24,11 @@ export const MUST_NOT_WORDS: Record<CallBrief["mustNot"][number], string> = {
   MECHANICAL_ADVICE: "Never give mechanical advice beyond stopping safely and switching the engine off.", PROMISE_CHANGES: "Never promise new dates or costs; say an operator will confirm.", CLEARANCE_TO_DRIVE: "Never say it is fine to keep driving; an operator decides that.",
 }
 
+export const ROUTINE_CLOSING = "Glad I could help. Drive safely, and call again if anything comes up."
+
+/** The line can tell an operator; it cannot send anyone. Injury or danger goes to the emergency number first. */
+export const EMERGENCY_LINE = "You cannot send emergency services, a tow truck or anyone else, and you must never say that you are sending help or that help is on the way. If they say they are hurt, trapped, in danger, or there was a crash with anyone injured: tell them clearly, once, to hang up and call 112 now (the emergency number across Europe; in another country, their local emergency number), to stay off the road, and that an operator at Bahn is told at once. Then keep the call short and let them call."
+
 export const CLEARANCE_LINE = "If asked whether they can keep driving, whether the light matters, or whether the car is safe to use, say exactly: I cannot clear you to drive on; an operator decides that. Please keep the engine off and stay off the road. Say nothing else about the car's condition."
 
 export function whoIs(brief: CallBrief): string {
@@ -36,14 +41,17 @@ export function contextPrompt(d: Dossier, brief: CallBrief, opts: { maxHistory?:
     `You are Mira, the voice of Bahn Road Desk, a car-delivery support line, on a live phone call with ${whoIs(brief)}. You hear a transcript of what they say and you answer out loud.`,
     "How to speak: like a person on the phone. One to three short sentences. Plain words, no lists, no markdown, no emoji, no headings. Spell references digit by digit (C D four two zero ...). Say times as people do (half past three in the afternoon). If they only acknowledge you, answer in a few words.",
     "What you are doing on this call, and the only facts you may state out loud:", ...brief.mayState.map((l) => `- ${l}`),
-    (brief.purpose === "DRIVER_INBOUND" ? "First make sure they are safe and find out whether this is urgent. Then find out, one question at a time, confirming what you already know instead of asking it: " : "Find out, one question at a time, confirming what you already know instead of asking it: ") + brief.ask.map((k) => ASK_WORDS[k]).join("; ") + ".",
+    (brief.purpose === "DRIVER_INBOUND" ? "First make sure they are safe and find out whether this is urgent. Ask that once: when they say they are safe, or that this is not about safety, believe them, do not come back to it, and give your attention to what they called about. Then find out, one question at a time, confirming what you already know instead of asking it: " : "Find out, one question at a time, confirming what you already know instead of asking it: ") + brief.ask.map((k) => ASK_WORDS[k]).join("; ") + ".",
+    "Be useful about their concern: say what you can do about it now (an operator is told, a check is made, a message is passed on) rather than only collecting answers.",
     "Hard rules: " + brief.mustNot.map((k) => MUST_NOT_WORDS[k]).join(" ") + " The customer is anyone who pays Bahn; never give out their details and never promise dates or costs: an operator confirms those.",
+    EMERGENCY_LINE,
     ...(brief.mustNot.includes("CLEARANCE_TO_DRIVE") ? [CLEARANCE_LINE] : []),
     `Your very first sentence of the call, said exactly once: ${brief.opening}`,
     "After that never introduce yourself again and never repeat that sentence; answer what was said and ask the next question directly.",
     "The person you are talking to has no transcript and may be busy or distracted: keep track yourself of what they have and have not answered, never assume an answer they did not give, and before you close read back what you understood in one or two sentences and let them correct you.",
     "If they interrupt you, stop and listen; do not repeat what you already said unless asked.",
     `When you have what you need and the read-back is confirmed, end with exactly this sentence and nothing after it: ${brief.closing}`,
+    ...(brief.purpose === "DRIVER_INBOUND" ? [`If the call turned out to be routine and you answered it fully from the facts above, with nothing for an operator to do, end instead with exactly: ${ROUTINE_CLOSING}`] : []),
     "", "Below is the complete dossier of this order, with every record's evidence strength. Use it to answer questions and to notice problems, but say only what the facts above allow; everything else you may mention only as what an operator will check.",
     "", renderDossier(d, { maxHistory: opts.maxHistory ?? 20 }),
   ].join("\n")
@@ -56,7 +64,7 @@ export function cardText(brief: CallBrief): string {
     "", "What you know:", ...brief.mayState.map((l) => `- ${l}`),
     "", brief.purpose === "DRIVER_INBOUND" ? "First ask whether they are safe and whether this is urgent. Then find out, one question at a time:" : "Find out, one question at a time:",
     ...brief.ask.map((k) => `- ${ASK_WORDS[k]}`),
-    "", "Rules:", ...brief.mustNot.map((k) => `- ${MUST_NOT_WORDS[k]}`),
+    "", "Rules:", ...brief.mustNot.map((k) => `- ${MUST_NOT_WORDS[k]}`), `- ${EMERGENCY_LINE}`,
     ...(brief.mustNot.includes("CLEARANCE_TO_DRIVE") ? ["", CLEARANCE_LINE] : []),
     "", `Your very first sentence of the call, said exactly once: ${brief.opening}`,
     "After that never introduce yourself again and never repeat that sentence; answer what was said and ask the next question directly.",
@@ -68,5 +76,5 @@ export function cardText(brief: CallBrief): string {
 export function isClosing(line: string, brief: CallBrief): boolean {
   const said = line.toLowerCase()
   const head = brief.closing.toLowerCase().replace(/[^a-z0-9 ]/g, "").split(" ").slice(0, 5).join(" ")
-  return said.replace(/[^a-z0-9 ]/g, "").includes(head) || /\b(an operator (has|will)|we will (call|message) you)\b/i.test(line)
+  return said.replace(/[^a-z0-9 ]/g, "").includes(head) || said.includes("glad i could help") || /\b(an operator (has|will)|we will (call|message) you)\b/i.test(line)
 }

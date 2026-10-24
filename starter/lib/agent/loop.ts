@@ -140,11 +140,12 @@ class ReplyGate {
     this.release(text)
   }
 
-  /** Wait until the reply has been screened and released (or held). */
-  async finish(): Promise<void> {
+  /** Wait until the reply has been screened and released (or held). On a failed turn the narration stays private. */
+  async finish(errored = false): Promise<void> {
     this.call = ""
-    // The model wrote its reply and then only closed or updated the case: send that text.
-    if (!this.written.trim() && this.narration.trim()) this.release(this.narration)
+    // The model wrote its reply and then only closed or updated the case: send that text. Text written before a tool
+    // call in a turn that then failed is the model's own notes ("let me read the records"), never a reply.
+    if (!errored && !this.written.trim() && this.narration.trim()) this.release(this.narration)
     await this.chain
   }
 
@@ -429,7 +430,7 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
     } catch (caught) {
       error = caught instanceof Error ? caught.message : String(caught)
     }
-    await gate.finish()
+    await gate.finish(Boolean(error))
     const nothingHappened = !state.sideEffects && !gate.text.trim()
     if (!error || attempt === 1 || !nothingHappened || error.includes("step limit")) break
     await appendEvent({
@@ -440,7 +441,7 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
   }
   usage.cost_usd += gate.costUsd + state.costUsd
 
-  if (gate.blocked) await holdForClearance(state, gate.written.trim(), gate.blocked.reason)
+  if (gate.blocked && !error) await holdForClearance(state, gate.written.trim(), gate.blocked.reason)
 
   let reply = gate.text
   if (error && toPerson && !reply.trim() && !holdsReply) {
