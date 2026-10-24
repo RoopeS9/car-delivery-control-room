@@ -103,6 +103,36 @@ Checked / changed / rejected:
   converter") in the latency test: the interviewer prompt must hold to
   safety-only advice.
 
+## 2026-10-24 · RoopeS + Claude Code (local) · second plan review
+
+Asked: assess a plan review from another LLM (nine holes) and fold in the good
+parts.
+
+Got: Claude agreed with eight of the nine points and partly agreed with
+point 9. It also owned one mistake of its own: the scenario scripts stated
+conclusions the evidence didn't yet support ("the 26 Oct delivery is at risk"
+before any recovery estimate; "he has not started" where the data only shows
+no recorded start).
+
+Checked / changed / rejected:
+- Reversed our earlier "road cases only" queue decision: one queue for every
+  order needing a person, in three sections (needs your decision / agent
+  working / waiting). The judges score the control room, not a support module.
+- Added follow-up state (next action, waiting on, next check), a follow-up
+  trigger, a watchdog and failure handling; a new failure scenario F (driver
+  goes silent on CD-420537, whose app had really stopped reporting at 08:02).
+- Separated operator approval from customer agreement (promise states), and
+  made approvals bound to a revision, rechecked before execution and executed
+  once, with an "outcome unknown" reconciliation state.
+- Added channel boundaries: per-audience context, server-side identity
+  check, a drivability screen on outbound driver messages, template-only
+  safety instructions.
+- One reading layer over the dataset plus executed changes, and links from
+  cases to imported work items so they don't duplicate.
+- Cut: about 15 trouble codes instead of 40, only decision-relevant OBD
+  signals, simulated driver for the video only. Kept the map and voice.
+- Reserved 40 s of the video for the process story.
+
 ## 2026-10-24 ~12:15 UTC · Claude Code (stream A agent) · M0 foundation
 
 Asked: do M0 (shared contract) since `lib/cr/` did not exist, then move on to
