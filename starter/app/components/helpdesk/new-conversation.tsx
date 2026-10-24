@@ -1,6 +1,5 @@
 "use client"
 
-import { useRouter } from "next/navigation"
 import { useMemo, useState } from "react"
 import type { RecordView } from "@/lib/present/types"
 import { label } from "@/lib/present/labels"
@@ -29,7 +28,6 @@ export function partiesOf(view: RecordView): Party[] {
 
 /** Opens a conversation with one party on the order: who, over what, about what, then the composer with drafts. */
 export function NewConversation({ view, orderId, onOpened, onCancel }: { view: RecordView; orderId: string; onOpened: () => void; onCancel: () => void }) {
-  const router = useRouter()
   const parties = useMemo(() => partiesOf(view), [view])
   const [party, setParty] = useState<Party>(parties[0] ?? { type: "customer", id: view.header.customer.id, name: view.header.customer.name, role: "customer" })
   const [channel, setChannel] = useState(CHANNELS[party.type][0])
@@ -45,7 +43,7 @@ export function NewConversation({ view, orderId, onOpened, onCancel }: { view: R
     </div>
     <Composer to={party.name} channelLabel={label(channel)} autoFocus openingPrompt
       suggest={(intent) => postJson<Draft>(`/api/orders/${encodeURIComponent(orderId)}/conversations`, { ...base, draft: true, intent })}
-      send={(body, internal, language) => postJson<{ conversation: { id: string } }>(`/api/orders/${encodeURIComponent(orderId)}/conversations`, { ...base, body, language, internal }).then((opened) => { onOpened(); router.push(`/inbox#${opened.conversation.id}`) })}
+      send={(body, internal, language) => postJson<{ conversation: { id: string } }>(`/api/orders/${encodeURIComponent(orderId)}/conversations`, { ...base, body, language, internal }).then((opened) => { window.history.replaceState(null, "", `#thread-${opened.conversation.id}`); onOpened() })}
       />
   </div>
 }

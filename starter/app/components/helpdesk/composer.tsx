@@ -72,7 +72,7 @@ export function Composer({ to, channelLabel, suggest, send, onSent, autoFocus = 
       <button type="button" role="tab" aria-selected={!internal} onClick={() => setInternal(false)}><Icon name="message" size={13} />{openingPrompt ? "Opening message" : `Reply${to ? ` to ${to}` : ""}`}<small>{channelLabel}</small></button>
       <button type="button" role="tab" aria-selected={internal} onClick={() => setInternal(true)}><Icon name="note" size={13} />Internal note<small>desk only</small></button>
     </div>
-    {draft && <div className="drafts" aria-label="Drafts from the dossier">
+    {draft && <div className="drafts" aria-label="Suggested replies">
       <p className="drafts-summary"><Icon name="bot" size={13} /><span>{draft.summary}</span></p>
       <ul className="drafts-list">
         {draft.suggestions.map((suggestion, index) => <li key={index} className="draft">
@@ -91,8 +91,8 @@ export function Composer({ to, channelLabel, suggest, send, onSent, autoFocus = 
       placeholder={internal ? "What the desk should know about this thread. The other party never sees this." : openingPrompt ? "Why the desk is writing, and what you need from them." : `Write to ${to ?? "them"}, or ask for drafts first.`}
       aria-label={internal ? "Internal note" : "Reply"} disabled={sending} />
     <div className="composer-foot">
-      <button type="button" className="btn" onClick={() => void askDrafts()} disabled={drafting || sending} title="Drafts written from this order's dossier and the thread. You pick, edit and send.">
-        <Icon name="bot" size={14} />{drafting ? "Reading the dossier…" : draft ? "Other drafts" : "Drafts from the dossier"}
+      <button type="button" className="btn" onClick={() => void askDrafts()} disabled={drafting || sending} title="Replies suggested from this order's dossier and the thread. You pick, edit and send.">
+        <Icon name="bot" size={14} />{drafting ? "Reading the dossier…" : draft ? "Other suggestions" : "Suggested reply"}
       </button>
       <span className="composer-hint">{error ? <span className="composer-error" role="alert">{error}</span> : sent ? <span className="composer-sent"><Icon name="check" size={12} />{sent}</span> : "Ctrl+Enter sends"}</span>
       <button type="button" className="btn primary" onClick={() => void submit()} disabled={!text.trim() || sending}>

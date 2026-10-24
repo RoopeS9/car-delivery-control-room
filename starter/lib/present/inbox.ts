@@ -26,7 +26,8 @@ export function buildInboxView(threads: Row[], messages: Row[], dir: Directory, 
     const lastKind = lastPublic ? dir.resolve(lastPublic.author_id, lastPublic.author_type).kind : null
     return {
       id, source: (thread.source === "order" ? "order" : "inbox") as "order" | "inbox",
-      unanswered: status === "OPEN" && lastKind !== null && lastKind !== "operator" && lastKind !== "agent",
+      // Only a thread with someone on the other side can wait on us; an internal case workspace never does.
+      unanswered: status === "OPEN" && counterparty !== null && lastKind !== null && lastKind !== "operator" && lastKind !== "agent",
       category: str(thread.category) ?? "", categoryLabel: label(str(thread.category)) || humanize(str(thread.category)),
       channel: str(thread.channel) ?? "", channelLabel: label(str(thread.channel)) || humanize(str(thread.channel)),
       status, statusLabel: label(status), tone: (status === "OPEN" ? "accent" : "neutral") as Tone,

@@ -746,7 +746,9 @@ function buildStory(bundle: Bundle, keyDates: KeyDate[], assignments: Assignment
   // The lane sentence already says a moving car has no position; do not say it twice.
   if (open.kind === "check" && story.detail?.includes("No driver-app position")) return story
   // Red is for a person's decision only (the map's rule); an alert being watched keeps the lane's own colour.
-  const tone: Tone = attention.some((item) => needsPersonItem(item) && item.tone === "danger") ? "danger" : story.tone
+  // A work item whose next check is still ahead is scheduled, not a decision waiting now: it keeps the lane colour.
+  const dueNow = (item: AttentionItem) => !(item.kind === "work" && item.at && bundle.snapshotAt && item.at > bundle.snapshotAt)
+  const tone: Tone = attention.some((item) => needsPersonItem(item) && item.tone === "danger" && dueNow(item)) ? "danger" : story.tone
   const exception = `Open: ${open.title}.`
   return { ...story, tone, detail: story.detail ? `${story.detail} ${exception}` : exception }
 }

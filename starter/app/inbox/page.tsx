@@ -95,7 +95,7 @@ export default function InboxPage() {
         return <li key={item.id}>
           <button type="button" className={`mail-row${item.id === selected ? " active" : ""}${item.unanswered ? " unanswered" : ""}`} onClick={() => choose(item.id)} aria-current={item.id === selected ? "true" : undefined}>
             <span className="mail-row-top">
-              <span className="mail-row-who">{item.counterparty?.name ?? "Unknown sender"}<small>{item.counterparty?.role ?? ""}</small></span>
+              <span className="mail-row-who">{item.counterparty?.name ?? (item.channel === "case_workspace" ? "Internal case workspace" : "Unknown sender")}<small>{item.counterparty?.role ?? (item.channel === "case_workspace" ? "desk notes" : "")}</small></span>
               <span className="mail-row-when">{fmtDay(item.updatedAt)}</span>
             </span>
             <span className="mail-row-subject">{item.categoryLabel}</span>
@@ -138,7 +138,7 @@ function Thread({ thread, onBack, onChange }: { thread: InboxThreadView; onBack:
   return <article>
     <button type="button" className="mail-back" onClick={onBack}><Icon name="chevron" size={13} style={{ transform: "rotate(180deg)" }} /> All conversations</button>
     <header className="mail-head">
-      <h2>{thread.categoryLabel}{thread.counterparty ? <> with {thread.counterparty.name}</> : null}</h2>
+      <h2>{thread.categoryLabel}{thread.counterparty ? <> with {thread.counterparty.name}</> : thread.channel === "case_workspace" ? <> (internal workspace)</> : null}</h2>
       <div className="chips">
         {thread.unanswered ? <Chip tone="danger" dot>Waiting on us</Chip> : thread.status === "OPEN" ? <Chip tone="accent">Open</Chip> : <Chip tone="neutral">{thread.statusLabel}</Chip>}
         {order ? <Chip tone="neutral">Order {order.reference}</Chip> : <Chip tone={thread.linkTone}>{thread.linkStateLabel}</Chip>}
