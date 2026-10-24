@@ -155,9 +155,13 @@ export function buildQueue(bundles: Bundle[], snapshotAt: string | null, now: st
     const timing = bundle ? changedTiming(bundle) : null
     if (timing) row.more = [row.more, timing].filter(Boolean).join(" · ")
   }
-  // Decisions read in the order they were raised, the earliest at the top (the team's call: a queue, not a ranking).
+  // Decisions read in the order they were raised, the earliest at the top (the team's call: a queue, not a ranking),
+  // in bands: decisions the agent prepared on a live case first (a card is ready; red ones before the rest), then what
+  // the records raised (red first). Otherwise a driver waiting on the motorway for a clearance sat under two-day-old
+  // record items with no card behind them.
   const earliestFirst = (a: QueueRow, b: QueueRow) => String(a.since ?? "~").localeCompare(String(b.since ?? "~")) || a.rank - b.rank
-  view.decide.sort(earliestFirst)
+  const band = (row: QueueRow) => (row.origin === "agent" ? 0 : 2) + (row.tone === "danger" ? 0 : 1)
+  view.decide.sort((a, b) => band(a) - band(b) || earliestFirst(a, b))
   view.routine.sort(urgentFirst)
   view.agentWorking.sort(newestFirst)
   view.waiting.sort(soonestCheck)
