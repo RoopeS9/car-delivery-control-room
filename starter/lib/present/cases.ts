@@ -251,7 +251,8 @@ function draftView(draft: DraftMessage | null | undefined, bodyOverride?: string
   return {
     original: draft, toName: draft.to_name, toRole: DRAFT_ROLES[draft.to_type] ?? draft.to_type, isCustomer: draft.to_type === "customer",
     channelLabel: DRAFT_CHANNELS[draft.channel] ?? label(draft.channel), subject: draft.subject ?? null,
-    body: bodyOverride ?? draft.body,
+    // A preamble the model wrote for the operator ("here is the draft…", a rule) is not part of the message.
+    body: (bodyOverride ?? draft.body).replace(/^[^\n]*(?:draft|held for|approval)[^\n]*:?\s*\n+(?:-{3,}\s*\n+)?/i, "").replace(/\n+-{3,}[\s\S]*$/, "").trim() || (bodyOverride ?? draft.body),
   }
 }
 
