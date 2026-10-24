@@ -5,7 +5,7 @@ import type { RecordView } from "@/lib/present/types"
 import { CasePanel } from "./case/case-panel"
 import { OrderJourneyBar } from "./chart/journey-bar"
 import { MakeMark } from "./queue"
-import { RecordHero, Tiles } from "./record/header"
+import { RecordHero } from "./record/header"
 import { RecordsPanel } from "./record/records"
 import { ActivitySection, AttentionPanel, ConversationsSection, DecisionsSection, EvidenceSection, RouteStrip } from "./record/sections"
 
@@ -33,7 +33,6 @@ export function OrderPane({ detail, onChange }: { detail: Detail; onChange: () =
     <div className="order-divider"><h2>The order</h2><p>Everything below is from the order record.</p></div>
     <RecordHero view={view} compact />
     <AttentionPanel view={view} />
-    <Tiles tiles={view.tiles} />
     <ConversationsSection view={view} onChange={onChange} />
     <EvidenceSection view={view} />
     <DecisionsSection view={view} />
@@ -44,7 +43,6 @@ export function OrderPane({ detail, onChange }: { detail: Detail; onChange: () =
     <OrderJourneyBar orderId={detail.order.id} />
     <RouteStrip view={view} />
     <AttentionPanel view={view} />
-    <Tiles tiles={view.tiles} />
     <ConversationsSection view={view} onChange={onChange} />
     <EvidenceSection view={view} />
     <DecisionsSection view={view} />

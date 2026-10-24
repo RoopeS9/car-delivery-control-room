@@ -44,7 +44,8 @@ function knownIds(ds: Dataset, orderId: string, asOf: string, overlay: Parameter
   return out
 }
 
-const ID_LIKE = /\b(?:[a-z]{2,10}-x[0-9a-f]{8,}|(?:drv|cus|site|asg|msg|conv|alert|doc|inc|res|tw|addr|veh|ord|ep|tel|evt|case|prop|call)-[a-z0-9]{3,})\b/gi
+// Record ids: a collection prefix with a hex tail ("res-x16b8…") or a number ("drv-055"), or an app id ("case-7367eeb07655"). Plain hyphenated words are not ids.
+const ID_LIKE = /\b(?:[a-z]{2,10}-x[0-9a-f]{6,}|(?:drv|cus|site|asg|msg|conv|alert|doc|inc|res|tw|addr|veh|ord|ep|tel|evt|win|track)-\d{2,}|(?:case|prop|evt|tel|call)-[0-9a-f]{8,})\b/gi
 
 /** Reads one finished report. Dossier ids are checked against a rebuild as of each step (no model, a few ms). */
 export function judgeRun(ds: Dataset, r: RunReport): RunVerdict {
