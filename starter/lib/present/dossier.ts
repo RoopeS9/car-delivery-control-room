@@ -386,7 +386,12 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
       const drawn = polylineKm(part.coords)
       const along = drawn > 0 ? polylineKm(part.coords.slice(0, best.index + 1)) / drawn : 0
       const covered = part.startKm + part.km * along
-      progress = { fraction: Math.max(0, Math.min(1, covered / car.pathKm)), remainingKm: Math.max(0, Math.round(car.pathKm - covered)), basis: "simulated phone position along the route", stops, segments }
+      const fraction = Math.max(0, Math.min(1, covered / car.pathKm))
+      // The simulated track is drawn, not measured: the km to go are the share of the planned distance the route card
+      // shows, so the bar and the card never disagree.
+      const leg = (bundle.related.transport_segments ?? []).find((row) => row.id === car.segmentId)
+      const planned = typeof leg?.details.distance_km === "number" ? leg.details.distance_km : 0
+      progress = { fraction, remainingKm: Math.max(0, Math.round(planned > 0 ? (1 - fraction) * planned : car.pathKm - covered)), basis: "simulated phone position along the route", stops, segments }
     }
   }
   if (!progress && moving) {
