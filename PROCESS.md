@@ -360,3 +360,153 @@ scripted tests could not show:
   dataset's cities, results are now placed around the reported position.
 - 45 tests, typecheck, smoke and build pass. Not done yet: the voice
   triggers (`call_urgent`, `call_ended`), which wait for the voice stream.
+## 2026-10-24 12:50 UTC · local Claude Code agent (worktree, branch voice/core) · V voice
+
+Asked: build stream V from PLAN.md 4.6: interviewer, transcript tables,
+voice routes, `<CallScreen>`, a test page and a text harness. Mid-task the
+coordinator added four rules: template-only safety lines, a drivability
+screen on every utterance, honest goodbyes (a time only when stored as
+`next_check_at`), and a reply deadline ending in `no_response`.
+
+Got:
+- `lib/voice/`: the urgency-first interviewer (Sonnet 5.5, effort low,
+  context preloaded through `lib/present/load.ts`). It streams the spoken
+  reply sentence by sentence, then a strict `record_call_state` tool call
+  with urgency and quote, situation, and slots
+  `{ value, turn_id, quote, confidence }`. Server-side phases cover the
+  checklist, read-back and closing. Also: safety templates with ids, the
+  `screenDriverUtterance` screen, a TTS cache (memory plus disk), STT, and
+  `VoiceProvider` (OpenRouter, plus a browser fallback).
+- Tables `cr_calls` and `cr_call_turns`, pushed with `db:push` (the plan
+  showed only `CREATE` statements). The drizzle schema is now
+  `["./lib/schema.ts", "./lib/*/schema.ts"]`.
+- Routes `/api/voice/calls`, `/turns` (server-sent events), `/end`,
+  `GET /calls/:id`, `/api/voice/speak`, plus one extra route,
+  `GET /calls/:id/audio/:turnId`, for the case page's play button.
+- `app/driver/voice/call-screen.tsx` (hands-free VAD, push-to-talk,
+  half-duplex, captions, urgency badge, mute, filler, speechSynthesis
+  fallback) and the test page `/driver/voice/test`.
+- `npm run voice:test` (four scripted calls plus screen cases, saved to
+  `traces/voice-*.json`) and `npm run voice:prerender`.
+
+Checked by running it:
+- Real requests before choosing formats: `/audio/transcriptions` accepts
+  `format: "webm"` from Chrome's MediaRecorder (also ogg, wav, m4a). A webm
+  clip labelled as mp3 returns a 400.
+- Haiku 5.5 thinks by default and spent all 700 output tokens on thinking,
+  so no text came back. It accepts `thinking: {type: "disabled"}`; Sonnet
+  5.5 refuses that ("reasoning is mandatory") and takes `effort` instead.
+- Streamed responses through OpenRouter carry no `usage.cost`; non-streamed
+  ones do. Spend is estimated from tokens. Measured rates: Haiku $1/$5 and
+  Sonnet $2/$10 per million tokens, ElevenLabs about $0.04 per 1,000
+  characters.
+- The harness passes all checks on Sonnet: urgency right for each script,
+  urgency question first, slots filled with quotes from their own turn,
+  read-back confirmed, emergency templates first, `call_urgent`/`call_ended`
+  recorded, `next_check_at` stored, and no mechanical, drivability, meta or
+  free-worded safety text spoken. Median latency: model first text
+  0.9–1.2 s, first screened sentence 1.9–2.3 s.
+- An HTTP smoke run on port 3001 with a real webm clip: STT text of record
+  stored beside the live text, clips in the object store, every route answering.
+
+Changed / rejected:
+- Rejected Haiku 5.5 as the interviewer, even for the harness. With
+  thinking off it spoke its instructions aloud ("This is URGENT…", "Answer
+  from the facts: … then ask the first missing item"). The harness uses
+  Sonnet as the interviewer; Haiku only runs the screen classifier.
+- The first screen prompt blocked a correct read-back as DRIVABILITY and our
+  own "your case is at the top of our list" as PROMISE. Rewrote it with
+  allow examples and kept both sentences as regression cases. An empty or
+  unclear classifier answer once counted as ALLOW; now it fails closed for
+  driving-related sentences.
+- My free-text-to-template safety mapping replaced a whole read-back with
+  "Please switch the engine off." because it mentioned "engine off". It now
+  only maps instructions (imperatives or "you should").
+- A safety template is not repeated within two turns (the emergency run said
+  "behind the barrier" three times).
+- After a read-back, the fixed "Thanks, that's noted." plays at once, then
+  the fixed closing, instead of the model's acknowledgement, which tended to
+  repeat the next step.
+- Added beyond the plan's columns: `cr_calls.state` jsonb (phase, context
+  facts with sources, urgency quote, triggers, spend), `cr_calls.next_check_at`,
+  and `cr_call_turns.flags` jsonb (safety templates used, screen results,
+  raw model text, timing, silence).
+- Audio: per-turn clips go to the object store (`voice/calls/<id>/…`), with a
+  local-disk fallback (`.voice-cache/clips`). TTS cache is in
+  `starter/.voice-cache/tts` (gitignored). No whole-call recording, so
+  `recording_key` stays null.
+- Stream A has no call trigger route yet. Voice POSTs
+  `{ trigger, callId, orderRef, urgency }` to `VOICE_AGENT_TRIGGER_PATH`
+  (default `/api/agent/call`). It gets a 404 today and records the trigger
+  on the call (TODO in `lib/voice/triggers.ts`).
+- Scripts import `lib/db.ts`, which imports `server-only` (not an installed
+  package). `scripts/voice-register.mjs` resolves it to an empty module for
+  tsx. Shared files touched: `drizzle.config.ts`, `package.json` (two
+  scripts plus `@anthropic-ai/sdk`), `.gitignore` (`.voice-cache/`), and
+  `.env.example` (VOICE_ lines).
+- Not verified: a live microphone call in Chrome. The browser extension
+  was not connected in this session, so the call screen is only typechecked,
+  built and rendered on the server.
+
+## 2026-10-24 13:05 UTC · local Claude Code agent (worktree, branch voice/core) · V voice, review fixes
+
+Asked: the coordinator reviewed `traces/voice-warning-light.json` and found
+two problems. Every scripted check had passed. The first one came from a
+human-style read of the transcript, not from any check.
+1. The driver said "No smoke, but a bit of a petrol smell" and the
+   interviewer moved on. A fuel smell is a safety signal.
+2. After "Is there anything else we should know?" and "No, that's
+   everything.", the interviewer said "Sorry, could you tell me a little more
+   about what's happening?" before the read-back.
+
+Got (cause of 2): the model returned no speakable text on that turn, even
+after the engine's own "now say your reply" follow-up. My empty-reply rule
+then filled the gap with the generic re-prompt. Neither the step logic nor
+the error fallback caused it (no engine error on that turn).
+
+Changed:
+- **Safety signals detected in the extraction step.** The strict
+  `record_call_state` schema now has a required `safety_signal` field
+  (`NONE`, `FUEL_SMELL`, `BURNING_SMELL`, `SMOKE`, `FIRE`, `FLUID_LEAK`,
+  `OVERHEATING`, plus quote and turn), so a paraphrase like "smells like gas"
+  is caught. The prompt also explains negation ("no smoke" is not a signal).
+  - The prompt tells the model to lead its reply with the template tags. If
+    it doesn't, the server speaks the templates in the same turn
+    (`LEAVE_CAR_BARRIER`, with `CALL_112` for smoke or fire).
+  - The server raises urgency to at least URGENT (EMERGENCY for smoke or
+    fire) and records a `safety_signal` slot with quote and turn.
+  - The read-back note puts the signal first.
+  - After a signal the model must never ask the driver to start, move or get
+    back into the car. A run showed it asking "when you turn the key, does
+    the car start?" after the petrol smell, an item that isn't in the
+    warning-light checklist. It may now ask only listed missing items.
+- **Empty replies decided from the interview state.** If the model says
+  nothing of its own, the server reads back when the checklist is complete,
+  otherwise it asks the next missing item with a fixed question
+  (`SPOKEN_QUESTIONS`). The generic re-prompt is gone, and so is the
+  engine's follow-up call. A plain "no, nothing else" after the
+  anything-else question closes that slot deterministically.
+- **Harness.** Scenario A now expects `safety_signal` and checks four things:
+  - the agent turn right after the petrol smell speaks the leave-the-car
+    template
+  - the slot has its quote and turn
+  - urgency is at least URGENT
+  - the read-back leads with the signal
+
+  A new script, `burning-smell`, has a driver mention "a burning smell"
+  partway through a battery-light call, with the same checks. A new check
+  fails any re-prompt after an answered turn, and any question repeated
+  after the driver's answer filled that slot. (A first version flagged a
+  legitimate repeat where the scripted driver hadn't answered, so it now
+  looks at the slot.)
+
+Checked by running it: all five scripts pass. Scenario A came from a rerun
+after the last prompt change; the other four are from the full run just
+before it. In the new scenario A trace the server's empty-reply path fired
+once and asked the next item ("asked light after an empty reply"), not a
+vague re-prompt. Spend for these fixes was $0.41 (two targeted runs and one
+full run). `npm run typecheck` and `npm run build` pass.
+
+Lesson: the scripted checks tested what we had thought of. Reading the
+transcript as a person found the petrol smell. Both findings are now
+assertions.

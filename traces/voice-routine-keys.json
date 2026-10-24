@@ -1,0 +1,418 @@
+{
+  "scenario": "routine-keys",
+  "title": "Scenario C: routine question about the keys (ROUTINE)",
+  "model": "anthropic/claude-sonnet-5.5",
+  "ranAt": "2026-10-24T13:02:32.739Z",
+  "checks": [
+    {
+      "name": "urgency",
+      "ok": true,
+      "detail": "got ROUTINE, quote \"all fine, nothing urgent\""
+    },
+    {
+      "name": "urgency points at a driver turn",
+      "ok": true,
+      "detail": "call-1cc76bdc53-1"
+    },
+    {
+      "name": "first agent turn is the urgency question",
+      "ok": true,
+      "detail": "Road Desk here. First: are you safe, and is this urgent?"
+    },
+    {
+      "name": "call ended",
+      "ok": true,
+      "detail": "end_reason completed"
+    },
+    {
+      "name": "slot question",
+      "ok": true,
+      "detail": "\"where to leave the keys when delivering the car\" from call-1cc76bdc53-1, quote \"where do I leave the keys when I deliver the car?\""
+    },
+    {
+      "name": "slot quotes come from their turn",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "read-back happened",
+      "ok": true,
+      "detail": "So: you're fine and it's not urgent, you're asking where to leave the keys at the delivery place in Helsinki, you haven't spoken to anyone there yet, and there's nothing else. Is that right?"
+    },
+    {
+      "name": "read-back reads the facts back",
+      "ok": true,
+      "detail": "So: you're fine and it's not urgent, you're asking where to leave the keys at the delivery place in Helsinki, you haven't spoken to anyone there yet, and there's nothing else. Is that right?"
+    },
+    {
+      "name": "read-back confirmed",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "said /reception/i",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "urgent call fired call_urgent",
+      "ok": true,
+      "detail": "call_ended"
+    },
+    {
+      "name": "call_ended recorded",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no mechanical advice, drivability or promises spoken",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no reasoning or labels spoken",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no re-prompt or repeated question after the driver answered",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every agent turn went through the screen",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every safety instruction is a template",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "call": {
+    "id": "call-1cc76bdc53",
+    "caseId": null,
+    "orderId": "ord-00145",
+    "orderRef": "CD-420145",
+    "driverId": "drv-130",
+    "driverName": "Kasper Carvell",
+    "direction": "DRIVER_INITIATED",
+    "startedAt": "2026-10-21T09:01:30.876Z",
+    "endedAt": "2026-10-21T09:01:48.558Z",
+    "urgency": "ROUTINE",
+    "urgencyTurnId": "call-1cc76bdc53-1",
+    "urgencyQuote": "all fine, nothing urgent",
+    "situation": "KEYS_ACCESS",
+    "slots": {
+      "site": {
+        "quote": "It's about the delivery place in Helsinki.",
+        "value": "delivery place in Helsinki",
+        "turn_id": "call-1cc76bdc53-3",
+        "confidence": 0.95
+      },
+      "question": {
+        "quote": "where do I leave the keys when I deliver the car?",
+        "value": "where to leave the keys when delivering the car",
+        "turn_id": "call-1cc76bdc53-1",
+        "confidence": 0.95
+      },
+      "anything_else": {
+        "quote": "No, that's all, thanks.",
+        "value": "nothing else",
+        "turn_id": "call-1cc76bdc53-7",
+        "confidence": 0.95
+      },
+      "contact_on_site": {
+        "quote": "No, I haven't spoken to anyone there yet.",
+        "value": "no, has not spoken to anyone at the delivery place",
+        "turn_id": "call-1cc76bdc53-5",
+        "confidence": 0.95
+      }
+    },
+    "slotLabels": {
+      "site": "Which site",
+      "question": "Question",
+      "anything_else": "Anything else",
+      "contact_on_site": "Person on site"
+    },
+    "missing": [],
+    "readbackConfirmed": true,
+    "endReason": "completed",
+    "recordingKey": null,
+    "nextCheckAt": null,
+    "phase": "ended",
+    "context": [
+      {
+        "at": null,
+        "key": "driver",
+        "text": "Driver: Kasper Carvell.",
+        "source": "Driver record"
+      },
+      {
+        "at": "2026-10-13T05:00:04.445627Z",
+        "key": "assignment",
+        "text": "Assignment status in progress, journey started 21 Oct 05:22 UTC.",
+        "source": "Work assignment"
+      },
+      {
+        "at": null,
+        "key": "vehicle",
+        "text": "Car: 2026 Porsche 911 Carrera, petrol.",
+        "source": "Order vehicle record"
+      },
+      {
+        "at": "2026-10-12T13:07:56.118244Z",
+        "key": "route",
+        "text": "Route: Varnela Lahti, Lahti to Kavornia Helsinki, Helsinki.",
+        "source": "Active transport plan"
+      },
+      {
+        "at": "2026-10-21T07:15:00.000Z",
+        "key": "picked_up",
+        "text": "Car collected 21 Oct 07:15 UTC.",
+        "source": "Collection event"
+      },
+      {
+        "at": null,
+        "key": "promise",
+        "text": "Customer delivery promise: 21 Oct 11:00–16:00 EEST.",
+        "source": "Time window, source customer"
+      },
+      {
+        "at": "2026-10-21T08:32:00Z",
+        "key": "tracking",
+        "text": "Last app position report 21 Oct 08:32 UTC: 96 km to go, app ETA 21 Oct 11:32 UTC. Location quality coarse, no exact position.",
+        "source": "Tracking observation, driver app"
+      },
+      {
+        "at": "2026-10-12T12:48:00Z",
+        "key": "delivery_access",
+        "text": "Delivery access note: Reception must receive the keys and sign the vehicle handover. (status: needs verification).",
+        "source": "Order endpoint detail, stated by managed site profile"
+      },
+      {
+        "at": null,
+        "key": "delivery_hours",
+        "text": "Delivery site opening hours (local time): sat closed, sun closed, mon–fri 09:00-18:00.",
+        "source": "Site profile"
+      }
+    ],
+    "triggers": [
+      {
+        "at": "2026-10-21T09:01:48.558Z",
+        "note": "No server origin (text harness); recorded only.",
+        "status": null,
+        "trigger": "call_ended",
+        "delivered": false
+      }
+    ],
+    "spend": {
+      "llm": 0.0325146,
+      "stt": 0,
+      "tts": 0
+    },
+    "turns": [
+      {
+        "id": "call-1cc76bdc53-0",
+        "seq": 0,
+        "speaker": "agent",
+        "startedAt": "2026-10-21T09:01:30.876Z",
+        "endedAt": "2026-10-21T09:01:30.876Z",
+        "textLive": "Road Desk here. First: are you safe, and is this urgent?",
+        "textFinal": "Road Desk here. First: are you safe, and is this urgent?",
+        "sttModel": null,
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {
+          "phase": "urgency"
+        }
+      },
+      {
+        "id": "call-1cc76bdc53-1",
+        "seq": 1,
+        "speaker": "driver",
+        "startedAt": "2026-10-21T09:01:30.890Z",
+        "endedAt": "2026-10-21T09:01:30.890Z",
+        "textLive": "Yes, all fine, nothing urgent. I just have a question: where do I leave the keys when I deliver the car?",
+        "textFinal": "Yes, all fine, nothing urgent. I just have a question: where do I leave the keys when I deliver the car?",
+        "sttModel": "live-only",
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {}
+      },
+      {
+        "id": "call-1cc76bdc53-2",
+        "seq": 2,
+        "speaker": "agent",
+        "startedAt": "2026-10-21T09:01:34.573Z",
+        "endedAt": "2026-10-21T09:01:34.573Z",
+        "textLive": "Reception should receive the keys and sign the vehicle handover, though that isn't confirmed yet. Is this about the delivery place in Helsinki?",
+        "textFinal": "Reception should receive the keys and sign the vehicle handover, though that isn't confirmed yet. Is this about the delivery place in Helsinki?",
+        "sttModel": null,
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {
+          "phase": "urgency",
+          "timing": {
+            "model": "anthropic/claude-sonnet-5.5",
+            "total": 3682,
+            "firstSentence": 2239,
+            "modelFirstText": 1076
+          },
+          "rawText": "Reception should receive the keys and sign the vehicle handover, though that isn't confirmed yet. Is this about the delivery place in Helsinki?",
+          "screened": [],
+          "safetyTemplates": []
+        }
+      },
+      {
+        "id": "call-1cc76bdc53-3",
+        "seq": 3,
+        "speaker": "driver",
+        "startedAt": "2026-10-21T09:01:34.594Z",
+        "endedAt": "2026-10-21T09:01:34.594Z",
+        "textLive": "It's about the delivery place in Helsinki.",
+        "textFinal": "It's about the delivery place in Helsinki.",
+        "sttModel": "live-only",
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {}
+      },
+      {
+        "id": "call-1cc76bdc53-4",
+        "seq": 4,
+        "speaker": "agent",
+        "startedAt": "2026-10-21T09:01:38.027Z",
+        "endedAt": "2026-10-21T09:01:38.027Z",
+        "textLive": "Thanks. Have you spoken to anyone at the delivery place yet?",
+        "textFinal": "Thanks. Have you spoken to anyone at the delivery place yet?",
+        "sttModel": null,
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {
+          "phase": "checklist",
+          "timing": {
+            "model": "anthropic/claude-sonnet-5.5",
+            "total": 3433,
+            "firstSentence": 3433,
+            "modelFirstText": 1173
+          },
+          "rawText": "Thanks. Have you spoken to anyone at the delivery place yet?",
+          "screened": [],
+          "safetyTemplates": []
+        }
+      },
+      {
+        "id": "call-1cc76bdc53-5",
+        "seq": 5,
+        "speaker": "driver",
+        "startedAt": "2026-10-21T09:01:38.043Z",
+        "endedAt": "2026-10-21T09:01:38.043Z",
+        "textLive": "No, I haven't spoken to anyone there yet.",
+        "textFinal": "No, I haven't spoken to anyone there yet.",
+        "sttModel": "live-only",
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {}
+      },
+      {
+        "id": "call-1cc76bdc53-6",
+        "seq": 6,
+        "speaker": "agent",
+        "startedAt": "2026-10-21T09:01:41.584Z",
+        "endedAt": "2026-10-21T09:01:41.584Z",
+        "textLive": "Understood. Is there anything else we should know?",
+        "textFinal": "Understood. Is there anything else we should know?",
+        "sttModel": null,
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {
+          "phase": "checklist",
+          "timing": {
+            "model": "anthropic/claude-sonnet-5.5",
+            "total": 3541,
+            "firstSentence": 1862,
+            "modelFirstText": 1010
+          },
+          "rawText": "Understood. Is there anything else we should know?",
+          "screened": [],
+          "safetyTemplates": []
+        }
+      },
+      {
+        "id": "call-1cc76bdc53-7",
+        "seq": 7,
+        "speaker": "driver",
+        "startedAt": "2026-10-21T09:01:41.599Z",
+        "endedAt": "2026-10-21T09:01:41.599Z",
+        "textLive": "No, that's all, thanks.",
+        "textFinal": "No, that's all, thanks.",
+        "sttModel": "live-only",
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {}
+      },
+      {
+        "id": "call-1cc76bdc53-8",
+        "seq": 8,
+        "speaker": "agent",
+        "startedAt": "2026-10-21T09:01:44.460Z",
+        "endedAt": "2026-10-21T09:01:44.460Z",
+        "textLive": "So: you're fine and it's not urgent, you're asking where to leave the keys at the delivery place in Helsinki, you haven't spoken to anyone there yet, and there's nothing else. Is that right?",
+        "textFinal": "So: you're fine and it's not urgent, you're asking where to leave the keys at the delivery place in Helsinki, you haven't spoken to anyone there yet, and there's nothing else. Is that right?",
+        "sttModel": null,
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {
+          "phase": "readback",
+          "timing": {
+            "model": "anthropic/claude-sonnet-5.5",
+            "total": 2861,
+            "firstSentence": 2317,
+            "modelFirstText": 981
+          },
+          "rawText": "So: you're fine and it's not urgent, you're asking where to leave the keys at the delivery place in Helsinki, you haven't spoken to anyone there yet, and there's nothing else. Is that right?",
+          "screened": [],
+          "safetyTemplates": []
+        }
+      },
+      {
+        "id": "call-1cc76bdc53-9",
+        "seq": 9,
+        "speaker": "driver",
+        "startedAt": "2026-10-21T09:01:44.477Z",
+        "endedAt": "2026-10-21T09:01:44.477Z",
+        "textLive": "Yes, that's right.",
+        "textFinal": "Yes, that's right.",
+        "sttModel": "live-only",
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {}
+      },
+      {
+        "id": "call-1cc76bdc53-10",
+        "seq": 10,
+        "speaker": "agent",
+        "startedAt": "2026-10-21T09:01:48.541Z",
+        "endedAt": "2026-10-21T09:01:48.541Z",
+        "textLive": "Thanks, that's noted. If anything else comes up, write to us in the app. Thanks for calling. Drive safely, goodbye.",
+        "textFinal": "Thanks, that's noted. If anything else comes up, write to us in the app. Thanks for calling. Drive safely, goodbye.",
+        "sttModel": null,
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {
+          "phase": "closing",
+          "timing": {
+            "model": "anthropic/claude-sonnet-5.5",
+            "total": 3208,
+            "firstSentence": 4,
+            "modelFirstText": 1013
+          },
+          "rawText": "Thanks, Kasper, I've got all of that noted.",
+          "screened": [],
+          "safetyTemplates": []
+        }
+      }
+    ]
+  }
+}

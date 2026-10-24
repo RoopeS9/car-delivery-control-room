@@ -1,0 +1,262 @@
+{
+  "scenario": "no-response",
+  "title": "Reply deadline: the driver goes silent twice (no_response)",
+  "model": "anthropic/claude-sonnet-5.5",
+  "ranAt": "2026-10-24T13:02:34.683Z",
+  "checks": [
+    {
+      "name": "urgency",
+      "ok": true,
+      "detail": "got null, quote \"null\""
+    },
+    {
+      "name": "first agent turn is the urgency question",
+      "ok": true,
+      "detail": "Hi Leo, this is Road Desk. Your car just reported an engine fault. Are you and the car safe right now, or is this an emergency?"
+    },
+    {
+      "name": "call ended",
+      "ok": true,
+      "detail": "end_reason no_response"
+    },
+    {
+      "name": "asked again after the first silence",
+      "ok": true,
+      "detail": "Sorry, I didn't hear you. Are you and the car safe right now, or is this an emergency?"
+    },
+    {
+      "name": "ended with no_response after the second silence",
+      "ok": true,
+      "detail": "end_reason no_response"
+    },
+    {
+      "name": "missing facts listed for the operator",
+      "ok": true,
+      "detail": "question, anything_else"
+    },
+    {
+      "name": "call_ended recorded",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no mechanical advice, drivability or promises spoken",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no reasoning or labels spoken",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no re-prompt or repeated question after the driver answered",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every agent turn went through the screen",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every safety instruction is a template",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "call": {
+    "id": "call-78c4c9c7fe",
+    "caseId": null,
+    "orderId": "ord-00584",
+    "orderRef": "CD-420584",
+    "driverId": "drv-042",
+    "driverName": "Leo Quellford",
+    "direction": "AGENT_INITIATED",
+    "startedAt": "2026-10-21T09:01:48.611Z",
+    "endedAt": "2026-10-21T09:01:50.504Z",
+    "urgency": null,
+    "urgencyTurnId": null,
+    "urgencyQuote": null,
+    "situation": null,
+    "slots": {},
+    "slotLabels": {
+      "question": "Question",
+      "anything_else": "Anything else"
+    },
+    "missing": [
+      {
+        "key": "question",
+        "label": "Question"
+      },
+      {
+        "key": "anything_else",
+        "label": "Anything else"
+      }
+    ],
+    "readbackConfirmed": false,
+    "endReason": "no_response",
+    "recordingKey": null,
+    "nextCheckAt": null,
+    "phase": "ended",
+    "context": [
+      {
+        "at": null,
+        "key": "driver",
+        "text": "Driver: Leo Quellford.",
+        "source": "Driver record"
+      },
+      {
+        "at": "2026-10-15T07:52:00Z",
+        "key": "assignment",
+        "text": "Assignment status in progress, journey started 21 Oct 06:21 UTC.",
+        "source": "Work assignment"
+      },
+      {
+        "at": null,
+        "key": "vehicle",
+        "text": "Car: 2025 Bentley Continental GT, petrol.",
+        "source": "Order vehicle record"
+      },
+      {
+        "at": "2026-10-14T09:46:00Z",
+        "key": "route",
+        "text": "Route: Norvarken Cologne, Cologne to Kavellora Helsinki, Helsinki.",
+        "source": "Active transport plan"
+      },
+      {
+        "at": "2026-10-21T07:00:00.000Z",
+        "key": "picked_up",
+        "text": "Car collected 21 Oct 07:00 UTC.",
+        "source": "Collection event"
+      },
+      {
+        "at": null,
+        "key": "promise",
+        "text": "Customer delivery promise: 26 Oct 10:00–16:00 EET.",
+        "source": "Time window, source customer"
+      },
+      {
+        "at": "2026-10-15T08:21:00Z",
+        "key": "travel_ferry",
+        "text": "Ferry booked: West Baltic Vehicle Terminal to South Finland Vehicle Terminal, booking ref WBV-FERRY-00584, check-in cutoff 21 Oct 15:30 UTC, departs 21 Oct 17:30 UTC, check-in unconfirmed.",
+        "source": "Travel reservation (a booking, not a boarding scan)"
+      },
+      {
+        "at": "2026-10-21T08:37:00Z",
+        "key": "tracking",
+        "text": "Last app position report 21 Oct 08:37 UTC: 1,992 km to go, app ETA 26 Oct 12:50 UTC. Location quality coarse, no exact position.",
+        "source": "Tracking observation, driver app"
+      },
+      {
+        "at": "2026-10-14T09:22:00Z",
+        "key": "delivery_access",
+        "text": "Delivery access note: The fleet desk checks the plate documents and counts the keys at handover. (status: confirmed).",
+        "source": "Order endpoint detail, stated by managed site profile"
+      },
+      {
+        "at": null,
+        "key": "delivery_hours",
+        "text": "Delivery site opening hours (local time): sat 08:00-12:00, sun closed, mon–fri 08:00-17:00.",
+        "source": "Site profile"
+      },
+      {
+        "at": "2026-10-21T09:01:48.611Z",
+        "key": "obd",
+        "text": "The car's OBD dongle reports trouble codes P0300 and a flashing check-engine light.",
+        "source": "OBD dongle (simulated)"
+      }
+    ],
+    "triggers": [
+      {
+        "at": "2026-10-21T09:01:50.504Z",
+        "note": "No server origin (text harness); recorded only.",
+        "status": null,
+        "trigger": "call_ended",
+        "delivered": false
+      }
+    ],
+    "spend": {
+      "llm": 0.0002375,
+      "stt": 0,
+      "tts": 0
+    },
+    "turns": [
+      {
+        "id": "call-78c4c9c7fe-0",
+        "seq": 0,
+        "speaker": "agent",
+        "startedAt": "2026-10-21T09:01:48.611Z",
+        "endedAt": "2026-10-21T09:01:48.611Z",
+        "textLive": "Hi Leo, this is Road Desk. Your car just reported an engine fault. Are you and the car safe right now, or is this an emergency?",
+        "textFinal": "Hi Leo, this is Road Desk. Your car just reported an engine fault. Are you and the car safe right now, or is this an emergency?",
+        "sttModel": null,
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {
+          "phase": "urgency"
+        }
+      },
+      {
+        "id": "call-78c4c9c7fe-1",
+        "seq": 1,
+        "speaker": "driver",
+        "startedAt": "2026-10-21T09:01:48.626Z",
+        "endedAt": "2026-10-21T09:01:48.626Z",
+        "textLive": null,
+        "textFinal": null,
+        "sttModel": null,
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {
+          "silence": true
+        }
+      },
+      {
+        "id": "call-78c4c9c7fe-2",
+        "seq": 2,
+        "speaker": "agent",
+        "startedAt": "2026-10-21T09:01:49.537Z",
+        "endedAt": "2026-10-21T09:01:49.537Z",
+        "textLive": "Sorry, I didn't hear you. Are you and the car safe right now, or is this an emergency?",
+        "textFinal": "Sorry, I didn't hear you. Are you and the car safe right now, or is this an emergency?",
+        "sttModel": null,
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {
+          "phase": "urgency"
+        }
+      },
+      {
+        "id": "call-78c4c9c7fe-3",
+        "seq": 3,
+        "speaker": "driver",
+        "startedAt": "2026-10-21T09:01:49.559Z",
+        "endedAt": "2026-10-21T09:01:49.559Z",
+        "textLive": null,
+        "textFinal": null,
+        "sttModel": null,
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {
+          "silence": true
+        }
+      },
+      {
+        "id": "call-78c4c9c7fe-4",
+        "seq": 4,
+        "speaker": "agent",
+        "startedAt": "2026-10-21T09:01:50.488Z",
+        "endedAt": "2026-10-21T09:01:50.488Z",
+        "textLive": "I can't hear you, so I'll end the call now. An operator has what you told us so far and will message you in the app.",
+        "textFinal": "I can't hear you, so I'll end the call now. An operator has what you told us so far and will message you in the app.",
+        "sttModel": null,
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {
+          "phase": "urgency"
+        }
+      }
+    ]
+  }
+}

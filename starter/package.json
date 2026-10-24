@@ -14,7 +14,9 @@
     "smoke": "tsx scripts/smoke.ts",
     "test": "tsx --test lib/agent/*.test.ts",
     "agent:scenario-a": "tsx lib/agent/dev/scenario-a.ts",
-    "cr:reset-schema": "tsx lib/cr/dev/reset-schema.ts"
+    "cr:reset-schema": "tsx lib/cr/dev/reset-schema.ts",
+    "voice:test": "tsx --import ./scripts/voice-register.mjs scripts/voice-test.ts",
+    "voice:prerender": "tsx --import ./scripts/voice-register.mjs scripts/voice-prerender.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
