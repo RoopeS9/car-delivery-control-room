@@ -319,6 +319,8 @@ async function anchorAssumptions(ctx: GateContext, assumptions: Assumption[]): P
 }
 
 export async function submitProposal(ctx: GateContext, input: ProposalInput): Promise<{ proposal: ProposalRow; level: AutonomyLevel; executed: boolean }> {
+  // A booking with an unknown outcome blocks every new booking card first, even one that repeats a pending card.
+  await requireReconciledBookings(ctx.facts.id, input.action_type)
   // One question once. A card an operator is already looking at is not duplicated; a card they rejected on this case
   // is not asked again in other words: the agent works out a different step from the reason, or waits.
   const twinOf = (row: ProposalRow) => row.actionType === input.action_type && (row.title.trim().toLowerCase() === input.title.trim().toLowerCase()
@@ -330,7 +332,6 @@ export async function submitProposal(ctx: GateContext, input: ProposalInput): Pr
   if (rejectedTwin && rejectedTwin.decidedAt && simNow().getTime() - rejectedTwin.decidedAt.getTime() < 4 * 3600_000) {
     throw new DecisionError(409, `An operator rejected "${rejectedTwin.title}" on this case${rejectedTwin.decisionNote ? ` (${rejectedTwin.decisionNote})` : ""}. Do not propose it again: work out a different next step from their reason, or put the case into a wait with wait_for.`)
   }
-  await requireReconciledBookings(ctx.facts.id, input.action_type)
   if (input.action_type === "BOOK_TRAVEL" && input.draft_message) throw new DecisionError(400, "A travel booking card approves its selected quote. Propose a customer message separately.")
   if (input.action_type === "BOOK_TRAVEL" || input.booking_selection) await verifyBookingSelection(ctx.caseRow.id, ctx.facts, input.action_type, input.booking_selection)
   const draft = resolveDraft(input.draft_message, ctx.facts)

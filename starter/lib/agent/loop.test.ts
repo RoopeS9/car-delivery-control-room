@@ -168,9 +168,12 @@ describe("scenario A wiring", () => {
     const { result } = await handleDriverMessage(prepared)
     assert.ok(!/ferry/.test(result.reply))
     assert.match(result.reply, /An operator has to confirm/)
-    const cards = await listProposals({ caseId, statuses: ["PENDING"] })
-    assert.ok(cards.some((card) => card.actionType === "CLEAR_TO_CONTINUE" && /head to the ferry/.test(card.draftMessage!.body)))
-    for (const card of cards) await decide(caseId, card.id, { decision: "reject", decided_by: "ops-shift", note: "Keep the car stopped." })
+    // The operator rejected clearing this driver in the previous test, so the held message is noted, not asked again.
+    const held = (await listEvents({ caseId })).filter((event) => event.data.rule === "drivability_screen" && /head to the ferry/.test(String(event.data.text)))
+    assert.equal(held.length, 1, "the classifier held the message")
+    assert.equal(held[0].data.refused, true)
+    assert.ok(held[0].data.rejected_proposal_id, "no second clearance card after a rejection")
+    assert.equal((await listProposals({ caseId, statuses: ["PENDING"] })).filter((card) => card.actionType === "CLEAR_TO_CONTINUE").length, 0)
   })
 
   test("a failed model call is retried once when nothing was sent", async () => {

@@ -16,7 +16,7 @@ import {
   appendEvent, createCase, createProposal, getCase, getProposal, listEffects, listEvents, listProposals, proposalsWithChangedFacts, resolveOrder, setAutonomy,
   updateCase, type CaseRow,
 } from "@/lib/cr/queries"
-import { crAgentRuns, crAutonomy, crCases, crEffects, crEvents, crProposals } from "@/lib/cr/schema"
+import { crAgentRuns, crAutonomy, crCases, crEffects, crEvents, crProposals, crTelemetry } from "@/lib/cr/schema"
 import { relatedRecords } from "@/lib/schema"
 import type { ActionType } from "@/lib/cr/types"
 import { useTestLlm } from "./client"
@@ -229,7 +229,11 @@ describe("M1: an OUTDATED proposal does not execute", () => {
     const { proposal: first } = await submitProposal({ audience: "operator", caseRow, facts }, await travelProposal(caseRow, {
       assumptions: [{ kind: "car_codes", codes: ["P0420"], label: "Car reports P0420" }],
     }))
-    await decideProposal(caseRow.id, first.id, { decision: "approve", decided_by: "ops-shift" })
+    // The dongle now reports no codes, so the card's assumption no longer holds (no dongle at all is not checkable).
+    const sampleId = `gate-test-obd-${caseRow.id}`
+    await crDb().insert(crTelemetry).values({ id: sampleId, orderId: facts.id, at: simNow(), source: "OBD", data: { dtcs: [] } })
+    try { await decideProposal(caseRow.id, first.id, { decision: "approve", decided_by: "ops-shift" }) }
+    finally { await crDb().delete(crTelemetry).where(eq(crTelemetry.id, sampleId)) }
     const { proposal: second } = await submitProposal({ audience: "operator", caseRow, facts }, await travelProposal(caseRow))
     assert.equal(second.revision, 2)
     assert.equal(second.revisesProposalId, first.id)
@@ -461,7 +465,9 @@ describe("structured travel booking selection", () => {
     const input = await travelProposal(caseRow)
     input.booking_selection!.replaces_reservation_id = String(facts.reservations[0].id)
     const first = (await submitProposal({ audience: "operator", caseRow, facts }, input)).proposal
-    const second = (await submitProposal({ audience: "operator", caseRow, facts }, input)).proposal
+    // A differently worded card: the same card twice is reused, not stored again.
+    const second = (await submitProposal({ audience: "operator", caseRow, facts }, { ...input, title: "Test BOOK_TRAVEL, another sailing" })).proposal
+    assert.notEqual(second.id, first.id)
     await decideProposal(caseRow.id, first.id, { decision: "approve", decided_by: "ops-travel" })
     await assert.rejects(decideProposal(caseRow.id, second.id, { decision: "approve", decided_by: "ops-travel" }), /not a current confirmed booking/)
     const unchanged = await getProposal(second.id)
