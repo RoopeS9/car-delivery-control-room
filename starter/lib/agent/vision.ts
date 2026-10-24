@@ -21,7 +21,9 @@ export async function describePhoto(mediaType: string, base64: string, caption: 
   const type = (["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mediaType) ? mediaType : "image/jpeg") as ImageType
   try {
     const message = await client.messages.create({
-      model: visionModel(), max_tokens: 400,
+      // A description needs no reasoning; with thinking on, the model can spend the whole budget thinking and return
+      // no text, and the photo reads as "could not be read".
+      model: visionModel(), max_tokens: 600, thinking: { type: "disabled" },
       system: INSTRUCTION,
       messages: [{ role: "user", content: [
         { type: "image", source: { type: "base64", media_type: type, data: base64 } },

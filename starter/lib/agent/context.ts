@@ -7,7 +7,7 @@ import { crDb } from "@/lib/cr/db"
 import { effectiveOrder, type EffectiveBooking, type EffectiveOrder } from "@/lib/cr/effective"
 import { latestTelemetry } from "@/lib/cr/queries"
 import type { Audience, GpsData, ObdData, SourceRef } from "@/lib/cr/types"
-import { addresses, alerts, conversations, customers, drivers, orderItems, orders, relatedRecords, sites, vehicles } from "@/lib/schema"
+import { addresses, alerts, conversations, customers, drivers, messages, orderItems, orders, relatedRecords, sites, vehicles } from "@/lib/schema"
 import { firstName, localTime, money, relative, utcTime } from "./format"
 
 export type Raw = Record<string, unknown>
@@ -445,7 +445,9 @@ function commonView(facts: OrderFacts, audience: "driver" | "operator", driverId
  */
 export async function getDriverContext(facts: OrderFacts, driverId: string | null) {
   const id = driverId ?? activeDriverId(facts)
-  const [telemetry, effective] = await Promise.all([telemetryView(facts.id), effectiveOrder(facts.id)])
+  const [telemetry, effective, earlier] = await Promise.all([telemetryView(facts.id), effectiveOrder(facts.id),
+    crDb().select().from(messages).where(eq(messages.orderId, facts.id)).orderBy(asc(messages.authoredAt))])
+  const assignmentIds = new Set(facts.assignments.filter((row) => row.driver_id === id).map((row) => String(row.id)))
   const pickupSlot = facts.windows.find((row) => row.purpose === "SELECTED_PICKUP_SLOT" && row.is_selected === true)
   return {
     ...commonView(facts, "driver", id),
@@ -454,6 +456,22 @@ export async function getDriverContext(facts: OrderFacts, driverId: string | nul
     your_travel_bookings: bookingsView(facts, effective, facts.reservations
       .filter((row) => !row.assignment_id || facts.assignments.some((a) => a.id === row.assignment_id && a.driver_id === id)))
       .map(({ replaces: _replaces, ...view }: Record<string, unknown>) => view),
+    // What already happened on this job, so the agent does not ask the driver to tell it again.
+    your_open_issues: facts.incidents.filter((row) => row.status !== "RESOLVED" && (!row.assignment_id || assignmentIds.has(String(row.assignment_id)))).map((row) => ({
+      what: str(row.kind)?.toLowerCase().replace(/_/g, " "), you_reported: str(row.reported_symptom), where_you_said: str(row.reported_stop_text),
+      opened: utcTime(str(row.opened_at)), location_verified: row.location_verified === true,
+      decision: row.recovery_decision === "PENDING_CUSTOMER" ? "operations is waiting for the car owner's decision on recovery" : str(row.recovery_decision)?.toLowerCase().replace(/_/g, " ") ?? null,
+      dashboard_photo: row.warning_photo_status === "REQUESTED" ? "requested, not received" : str(row.warning_photo_status)?.toLowerCase() ?? null,
+      source: ref("incidents", row.id, `Incident, ${str(row.kind)?.toLowerCase().replace(/_/g, " ")}`, row.opened_at),
+    })),
+    your_earlier_messages_with_bahn: earlier.filter((row) => {
+      const details = row.details as Raw
+      if (details.visibility && details.visibility !== "PUBLIC") return false
+      return (row.authorType === "driver" && details.author_id === id) || (details.recipient_type === "driver" && details.recipient_id === id)
+    }).slice(-8).map((row) => ({
+      at: utcTime(row.authoredAt.toISOString()), from: row.authorType === "driver" ? "you" : "Bahn", text: row.body.slice(0, 300),
+      source: ref("messages", row.id, `${row.authorType === "driver" ? "Driver" : "Bahn"} message, ${utcTime(row.authoredAt.toISOString())}`, row.authoredAt.toISOString()),
+    })),
     phone_position: telemetry.phone_position,
     car_status: telemetry.car_status,
     your_expense_claims: facts.expenses.filter((row) => row.driver_id === id).map((row) => ({
