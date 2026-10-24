@@ -4,10 +4,12 @@ import type { Tone } from "./types"
 
 export type Strength =
   | "verified" | "recorded" | "booked" | "quote" | "claim" | "signal" | "simulated" | "planned" | "agent" | "decision" | "unverified" | "missed"
+  | "reference" | "request" | "commitment" | "observation" | "rejected" | "proposal"
 
 export const STRENGTH_LABEL: Record<Strength, string> = {
   verified: "Verified", recorded: "Recorded", booked: "Booked", quote: "Quote", claim: "Claim", signal: "Signal",
   simulated: "Simulated", planned: "Planned", agent: "Agent check", decision: "Decision", unverified: "Unverified", missed: "Missed",
+  reference: "Reference", request: "Request", commitment: "Commitment", observation: "Observation", rejected: "Rejected", proposal: "Proposal",
 }
 
 export type DossierItem = {
@@ -20,8 +22,14 @@ export type DossierItem = {
   /** Who or what the line comes from: "Leo Quellford, driver app", "Gate reader, West Baltic terminal". */
   source: string
   tone: Tone
+  /** The record behind the line, so the dossier service can name its evidence strength. */
+  ref?: { collection: string; id: string }
   /** Calls only: the recorded turns, folded by default. */
   turns?: { speaker: string; text: string; at: string }[]
+  /** Robo-calls: what the call established, each citing its turn. */
+  slots?: { label: string; value: string; quote: string; turn: number }[]
+  missing?: string[]
+  escalated?: string | null
   href?: string
 }
 

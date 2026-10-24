@@ -6,6 +6,8 @@
 // simulated. A waiting decision is one item at "now", not a card that leads.
 
 import { fleetCar } from "@/lib/sim/fleet"
+import { callsFor, serviceDossier, strengthIndex } from "./call-service"
+import { slotLabel, slotValue, type CallRecord } from "./call-types"
 import { deriveKeyDates, milestones } from "./attention"
 import { type Bundle, num, rows, str } from "./bundle"
 import { labelIn } from "./labels"
@@ -29,7 +31,10 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
   const header = view.header
   const { pickedUpAt, deliveredAt } = milestones(bundle)
   const { keyDates } = deriveKeyDates(bundle)
-  const car = await fleetCar(bundle.order.id).catch(() => null)
+  // The robo-call service runs beside the app; without it the dossier still renders.
+  const [car, robo, typed] = await Promise.all([
+    fleetCar(bundle.order.id).catch(() => null), callsFor(bundle.order.reference), serviceDossier(bundle.order.reference),
+  ])
   const active = view.assignments.find((row) => row.status === "IN_PROGRESS") ?? view.assignments.find((row) => row.status !== "CANCELLED" && row.status !== "COMPLETED") ?? null
   const driver = car?.driverName ?? active?.driver.name ?? null
   const ahead: DossierItem[] = []
@@ -68,7 +73,7 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
       id: `res-${reservation.id}`, at: reservation.bookedAt, kind: reservation.kind === "FERRY" ? "ferry" : "travel",
       title: `${reservation.kindLabel} booked: ${route}`,
       detail: [reservation.reference ? `booking ${reservation.reference}` : null, reservation.departureAt ? `departs ${when(reservation.departureAt)}` : null, reservation.amendment].filter(Boolean).join(" · ") || null,
-      strength: "booked", source: "Driver travel booking", tone: reservation.tone,
+      strength: "booked", source: "Driver travel booking", tone: reservation.tone, ref: { collection: "travel_reservations", id: reservation.id },
     })
     if (reservation.kind !== "FERRY") continue
     const scans = gate.filter((row) => row.reservation_id === reservation.id).sort((a, b) => String(a.occurred_at).localeCompare(String(b.occurred_at)))
@@ -79,7 +84,7 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
         id: `gate-${str(scan.id)}`, at: str(scan.occurred_at), kind: "ferry",
         title: accepted ? "Check-in confirmed by gate scan" : `Gate refused check-in`,
         detail: [str(scan.reason), str(scan.receipt_reference) ? `receipt ${str(scan.receipt_reference)}` : null, "boarding is not recorded by the gate"].filter(Boolean).join(" · "),
-        strength: "verified", source: `Gate reader, ${terminal}`, tone: accepted ? "ok" : "danger",
+        strength: "verified", source: `Gate reader, ${terminal}`, tone: accepted ? "ok" : "danger", ref: { collection: "ferry_terminal_events", id: str(scan.id) ?? "" },
       })
     }
     const checkedIn = scans.some((scan) => scan.kind === "CHECK_IN_ACCEPTED")
@@ -117,7 +122,7 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
       id: `opt-${option.id}`, at: option.checkedAt, kind: "quote",
       title: `${option.kindLabel} quote${option.route ? `: ${option.route}` : ""}${option.quote ? `, ${option.quote}` : ""}`,
       detail: [option.statusLabel, option.provider, option.departureAt ? `departs ${when(option.departureAt)}` : null, "a quote, not a booking"].filter(Boolean).join(" · "),
-      strength: "quote", source: option.provider ?? "Travel search", tone: "neutral",
+      strength: "quote", source: option.provider ?? "Travel search", tone: "neutral", ref: { collection: "travel_options", id: option.id },
     })
   }
 
@@ -162,7 +167,7 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
       id: `t-${entry.id}`, at: entry.at, kind, strength, tone: SOURCE_TONE[entry.tone] ?? "neutral",
       title: entry.text.length > 180 ? `${entry.text.slice(0, 177).trimEnd()}…` : entry.text,
       detail: entry.text.length > 180 ? entry.text : null,
-      source: [entry.actorName, entry.channelLabel].filter(Boolean).join(", "),
+      source: [entry.actorName, entry.channelLabel].filter(Boolean).join(", "), ref: { collection: entry.source.kind, id: entry.source.id },
     })
   }
   for (const call of view.calls) {
@@ -174,6 +179,17 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
       strength: "recorded", source: `Voice call with ${call.driverName}, transcript of the recording`, tone: call.tone,
       turns: call.turns.map((turn) => ({ speaker: turn.speakerName, text: turn.text, at: turn.at })),
     })
+  }
+
+  for (const call of robo) behind.push(roboCallItem(call))
+
+  // Where the dossier service has typed a record, its evidence word wins over
+  // ours, except for the judgements made here against the clock.
+  const typedStrength = strengthIndex(typed)
+  for (const item of [...ahead, ...behind]) {
+    if (!item.ref || ["missed", "unverified", "simulated", "agent", "decision"].includes(item.strength)) continue
+    const word = typedStrength.get(`${item.ref.collection}:${item.ref.id}`)
+    if (word && word !== "reference") item.strength = word
   }
 
   // ---- a waiting decision is one item at "now"
@@ -231,3 +247,36 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
   }
 }
 
+
+const PURPOSE_WORDS: Record<string, string> = {
+  PICKUP_READINESS: "pickup readiness", DRIVER_START_CHECK: "driver start check", DRIVER_INBOUND: "driver call",
+}
+
+/** One robo-call as a timeline line: who, why, what it established (each citing its turn), what it did not, and the retry. */
+function roboCallItem(call: CallRecord): DossierItem {
+  const callee = call.brief?.callee.name ?? (call.brief?.callee.kind ? labelIn(call.brief.callee.kind) : "the other party")
+  const inbound = call.direction === "INBOUND"
+  const purpose = call.brief?.purpose ? PURPOSE_WORDS[call.brief.purpose] ?? labelIn(call.brief.purpose).toLowerCase() : null
+  const said = new Set(call.slots.map((slot) => slot.value.slot))
+  const missing = (call.brief?.ask ?? []).filter((slot) => !said.has(slot)).map(slotLabel)
+  const escalation = call.toolCalls.find((tool) => tool.name === "ESCALATE_TO_OPERATOR")
+  const triage = typeof call.triage === "object" && call.triage ? call.triage : null
+  // The service records Road Desk's voice as CALLER and the other party as CALLEE, whoever dialled.
+  const speaker = (turn: CallRecord["turns"][number]) => turn.speaker === "CALLER" ? "Road Desk" : callee
+  return {
+    id: `robo-${call.id}`, at: call.startedAt, kind: "call",
+    title: `${inbound ? `${callee} called in` : `Robo-call to ${callee}`}${purpose ? `, ${purpose}` : ""}: ${labelIn(call.outcome).toLowerCase()}`,
+    detail: [
+      triage?.urgency ? `triaged ${String(triage.urgency).toLowerCase()}${triage.situation ? `, ${labelIn(String(triage.situation)).toLowerCase()}` : ""}` : null,
+      call.slots.length ? `${call.slots.length} answer${call.slots.length === 1 ? "" : "s"} taken` : null,
+      missing.length ? `not established: ${missing.join(", ").toLowerCase()}` : null,
+      call.retryAfter ? `tries again ${fmtDateTime(call.retryAfter)}` : null,
+      escalation ? "handed to an operator" : null,
+    ].filter(Boolean).join(" · ") || null,
+    strength: "recorded", source: `${call.engine === "SIMULATED" ? "Simulated call" : "Call"}, transcript of record`,
+    tone: escalation ? "danger" : call.outcome === "COMPLETED" ? "ok" : "warn",
+    turns: call.turns.map((turn) => ({ speaker: speaker(turn), text: turn.text, at: turn.startedAt })),
+    slots: call.slots.map((slot) => ({ label: slotLabel(slot.value.slot), value: slotValue(slot.value.value), quote: slot.quote, turn: slot.turnSeq })),
+    missing, escalated: escalation ? String(escalation.argument ?? "") : null,
+  }
+}

@@ -128,6 +128,11 @@ function Item({ item, now }: { item: DossierItem; now: string }) {
     <div className="ti-main">
       <p className="ti-title">{item.title}</p>
       {item.detail && (!foldable || open) && <p className="ti-detail">{item.detail}</p>}
+      {open && item.escalated && <p className="ti-escalated"><Icon name="alert" size={12} />Handed to an operator: {item.escalated}</p>}
+      {open && item.slots && item.slots.length > 0 && <ul className="ti-slots">{item.slots.map((slot) => <li key={`${slot.label}-${slot.turn}`}>
+        <b>{slot.label}: {slot.value}</b> <q>{slot.quote}</q> <span>turn {slot.turn}</span>
+      </li>)}</ul>}
+      {open && item.missing && item.missing.length > 0 && <p className="ti-missing">Not established: {item.missing.join(", ")}</p>}
       {open && item.turns && <ol className="ti-turns">{item.turns.map((turn, index) => <li key={index}><b>{turn.speaker}</b> {turn.text}</li>)}</ol>}
       <p className="ti-src"><StrengthChip strength={item.strength} /><span>{item.source}</span>{item.at && <span className="ti-rel">{relative(item.at, now)}</span>}
         {foldable && <button type="button" className="ti-fold" onClick={() => setOpen((value) => !value)} aria-expanded={open}>{open ? "Less" : item.turns?.length ? "Transcript" : "More"}</button>}

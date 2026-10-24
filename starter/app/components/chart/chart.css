@@ -71,7 +71,9 @@
 /* ---- quiet strip at the bottom: clock, counts, legend */
 .chart-strip { position: absolute; z-index: 999; left: 16px; bottom: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; max-width: calc(100% - 300px);
   padding: 9px 16px; border-radius: 12px; background: var(--birch); box-shadow: var(--shadow-card); font-size: 12.5px; color: var(--muted); }
-.chart-home.has-dossier .chart-strip { max-width: calc(100% - 820px); }
+.chart-home.has-dossier .chart-strip { max-width: calc(100% - 640px); }
+.chart-home.has-dossier .strip-legend, .chart-home.has-dossier .strip-note { display: none; }
+@media (max-width: 1500px) { .strip-note { display: none; } }
 .chart-strip b { font-weight: 600; color: var(--ink); }
 .strip-clock b { font-weight: 500; }
 .strip-counts, .strip-legend { display: inline-flex; flex-wrap: wrap; gap: 4px 14px; }
@@ -104,7 +106,7 @@
 .b-waiting { background: var(--c-waiting); }
 .b-delivered { background: transparent; box-shadow: inset 0 0 0 1.5px var(--c-ok); opacity: 0.75; }
 .b-intake.b-fine, .b-ready.b-fine, .b-market.b-fine { background: transparent; box-shadow: inset 0 0 0 1.5px var(--c-berth); }
-.hb { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; position: relative;
+.hb { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-sizing: border-box; border-radius: 50%; position: relative;
   background: var(--birch); box-shadow: 0 0 0 1px var(--hair), 0 1px 3px var(--shadow-lift); color: var(--ink); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .hb-decide { box-shadow: 0 0 0 2px var(--c-decide), 0 1px 3px var(--shadow-lift); }
 .hb i { position: absolute; top: -5px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--c-decide); color: #fff;
@@ -271,3 +273,22 @@
 .scrubbing .scrub-time b { color: var(--orange-ink); }
 .scrub-note { color: var(--subtle); font-size: 12px; }
 .scrub button { border: 1px solid var(--hair); background: var(--birch); color: var(--brown); border-radius: var(--radius); padding: 4px 10px; font-size: 12.5px; font-weight: 500; }
+
+/* Robo-call lines in the dossier: answers cite their turn. */
+.ti-slots { display: grid; gap: 4px; margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+.ti-slots b { font-weight: 500; color: var(--ink); }
+.ti-slots q { color: var(--brown); }
+.ti-slots span { color: var(--subtle); font-size: 11.5px; white-space: nowrap; }
+.ti-missing { margin-top: 6px; font-size: 12.5px; color: var(--orange-ink); }
+.ti-escalated { display: flex; gap: 6px; align-items: flex-start; margin-top: 6px; padding: 7px 9px; border-radius: 8px; background: var(--red-bg); color: var(--red-ink); font-size: 12.5px; }
+.ti-escalated .icon { margin-top: 2px; }
+
+/* Marks appear and leave softly; the wrapper's transform is Leaflet's position, so the child animates. */
+.node-wrap > * { transform-origin: center; }
+.fresh > * { animation: mark-in 0.24s ease-out both; }
+.leaving > * { animation: mark-out 0.18s ease-in both; }
+@keyframes mark-in { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
+@keyframes mark-out { to { opacity: 0; transform: scale(0.7); } }
+@media (prefers-reduced-motion: reduce) { .fresh > *, .leaving > * { animation: none; } }
+.leaving { pointer-events: none; }
+.chart-map { contain: strict; }

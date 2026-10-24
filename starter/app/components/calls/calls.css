@@ -1,0 +1,59 @@
+/* Call simulator: the queue's card language for scenarios, a two-party transcript. */
+.calls-page { max-width: 1240px; }
+.calls-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 24px; align-items: start; }
+.calls-list { display: grid; gap: 8px; position: sticky; top: 20px; }
+.call-card { width: 100%; display: grid; gap: 3px; padding: 13px 16px; text-align: left; border: 0; border-radius: 12px; background: var(--birch); box-shadow: var(--shadow-card); color: var(--ink); }
+.call-card:hover { box-shadow: var(--shadow-card-hover); }
+.call-card.active { box-shadow: 0 0 0 2px var(--ink); }
+.call-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.call-card-top b { font-size: 14px; font-weight: 600; }
+.call-card-who { font-size: 12.5px; color: var(--muted); }
+.call-card-line { font-size: 13px; color: var(--brown); }
+.call-card-foot { margin-top: 3px; font-size: 12px; color: var(--subtle); }
+.call-view { display: grid; gap: 14px; min-width: 0; }
+.call-view-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.call-view-head h2 { font-size: 18px; font-weight: 600; }
+.call-view-head p { margin-top: 3px; font-size: 13.5px; color: var(--muted); }
+.call-error { padding: 10px 12px; border-radius: var(--radius); background: var(--red-bg); color: var(--red-ink); font-size: 13px; }
+.call-running { font-size: 13px; color: var(--teal-ink); }
+.call-history { display: flex; flex-wrap: wrap; gap: 6px; }
+.call-history button { border: 1px solid var(--hair); background: var(--birch); border-radius: 999px; padding: 4px 11px; font-size: 12.5px; color: var(--muted); }
+.call-history button.active { border-color: var(--ink); color: var(--ink); }
+.calls-quiet { font-size: 12.5px; color: var(--subtle); }
+.calls-empty { padding: 22px 24px; border-radius: 12px; background: var(--birch); box-shadow: var(--shadow-card); font-size: 14px; }
+.calls-empty p { margin-top: 4px; color: var(--muted); }
+.call-record { display: grid; gap: 12px; }
+.call-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.call-facts .chip.tone-ok { background: var(--green-bg); }
+.call-facts .chip.tone-warn { background: var(--orange-bg); }
+.call-facts .chip.tone-danger { background: var(--red-bg); }
+.triage-urgent, .triage-emergency { background: var(--red-bg) !important; color: var(--red-ink) !important; }
+.call-quote { font-size: 13px; color: var(--muted); }
+.call-columns { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+.transcript { display: grid; gap: 10px; padding: 16px; border-radius: 12px; background: var(--canvas); }
+.transcript li { max-width: 78%; display: grid; gap: 4px; padding: 10px 13px; border-radius: 12px; background: var(--birch); box-shadow: var(--shadow-card); scroll-margin-top: 80px; }
+.transcript li.us { justify-self: end; background: var(--teal-bg); box-shadow: none; }
+.transcript li:target { box-shadow: 0 0 0 2px var(--ink); }
+.transcript p { font-size: 14px; line-height: 1.45; }
+.turn-who { font-size: 12px; font-weight: 600; color: var(--brown); }
+.turn-who span { font-weight: 400; color: var(--subtle); margin-left: 4px; }
+.turn-slot, .turn-tool { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--green-ink); }
+.turn-tool { color: var(--muted); }
+.turn-tool.escalate { padding: 5px 8px; border-radius: 8px; background: var(--red-bg); color: var(--red-ink); font-weight: 500; }
+.call-side { display: grid; gap: 8px; padding: 16px 18px; border-radius: 12px; background: var(--birch); box-shadow: var(--shadow-card); position: sticky; top: 20px; }
+.call-side h3 { margin-top: 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.slot-list { display: grid; gap: 10px; }
+.slot-list li { display: grid; gap: 2px; font-size: 13px; }
+.slot-list li.escalate b { color: var(--red-ink); }
+.slot-value { color: var(--ink); }
+.slot-cite { font-size: 12px; color: var(--subtle); text-decoration: none; }
+.slot-cite:hover { color: var(--ink); }
+.slot-missing { display: grid; gap: 3px; font-size: 13px; color: var(--orange-ink); }
+.call-retry { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--brown); }
+.call-brief summary { cursor: pointer; font-size: 12.5px; color: var(--muted); }
+.call-brief h4 { margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--subtle); }
+.call-brief ul { display: grid; gap: 3px; font-size: 12.5px; color: var(--brown); }
+.call-brief p { font-size: 12.5px; color: var(--brown); }
+.chip-s { display: inline-flex; align-items: center; height: 18px; padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 500; line-height: 1; background: var(--hair-soft); color: var(--brown); }
+.chip-s.s-claim { background: var(--orange-bg); color: var(--orange-ink); }
+@media (max-width: 1100px) { .calls-layout, .call-columns { grid-template-columns: 1fr; } .calls-list, .call-side { position: static; } }

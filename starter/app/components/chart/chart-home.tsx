@@ -48,7 +48,7 @@ function vesselHtml(node: ChartNode, selected: boolean): string {
   const classes = ["v", `v-${node.attention}`, node.stale ? "v-stale" : "", selected ? "v-sel" : "", moving ? "v-moving" : "v-still"].filter(Boolean).join(" ")
   const shape = moving
     ? `<svg viewBox="0 0 20 20" style="transform:rotate(${Math.round(node.heading ?? 0)}deg)"><path d="M10 1.8 15.2 17.4 10 14.2 4.8 17.4Z"/></svg>`
-    : `<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="5.2"/></svg>`
+    : `<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.8"/></svg>`
   return `<span class="${classes}">${shape}<span class="v-label">${escape(node.reference)}</span></span>`
 }
 
@@ -132,7 +132,7 @@ export function ChartHome({ initial }: { initial: ChartView }) {
     void import("leaflet").then((leaflet) => {
       if (cancelled || !holder.current || map.current) return
       L.current = leaflet
-      const m = leaflet.map(holder.current, { zoomControl: false, attributionControl: true, worldCopyJump: true, minZoom: 4, maxZoom: 16, zoomSnap: 1 })
+      const m = leaflet.map(holder.current, { zoomControl: false, attributionControl: true, worldCopyJump: true, minZoom: 4, maxZoom: 16, zoomSnap: 1, trackResize: false })
       m.fitBounds([[47.5, 4.5], [64.5, 27.5]], { paddingTopLeft: [80, 60], paddingBottomRight: [40, 30] })
       leaflet.control.zoom({ position: "bottomright" }).addTo(m)
       m.createPane("trails").style.zIndex = "420"
@@ -146,6 +146,22 @@ export function ChartHome({ initial }: { initial: ChartView }) {
       m.on("click", () => setSelectedId(null))
       setZoom(m.getZoom())
       map.current = m
+      // Resizing (dragging the window edge) keeps the centre still: the map follows once per frame, not after the drag.
+      let frame = 0
+      let centre = m.getCenter()
+      m.on("moveend", () => { centre = m.getCenter() })
+      const resized = new ResizeObserver(() => {
+        cancelAnimationFrame(frame)
+        frame = requestAnimationFrame(() => {
+          if (!map.current) return
+          const keep = centre
+          map.current.invalidateSize({ animate: false, pan: false })
+          map.current.setView(keep, map.current.getZoom(), { animate: false })
+          centre = keep
+        })
+      })
+      resized.observe(holder.current)
+      m.on("unload", () => { resized.disconnect(); cancelAnimationFrame(frame) })
       setReady(true)
     })
     const observer = new MutationObserver(() => setTheme(readTheme()))
@@ -241,11 +257,12 @@ export function ChartHome({ initial }: { initial: ChartView }) {
 
     const place = (key: string, at: [number, number], html: string, tip: string, size: number, anchor: [number, number], z: number, onClick: () => void, trail: [number, number][] | null, hoverOrder: string | null) => {
       seen.add(key)
+      const look = `${html}|${size}|${anchor.join(",")}`
       const existing = markers.current.get(key)
       if (existing) {
-        if (existing.html !== html) {
+        if (existing.html !== look) {
           existing.marker.setIcon(leaflet.divIcon({ className: "node-wrap", html, iconSize: [size, size], iconAnchor: anchor }))
-          existing.html = html
+          existing.html = look
         }
         if (existing.tip !== tip) { existing.marker.setTooltipContent(tip); existing.tip = tip }
         const current = existing.marker.getLatLng()
@@ -262,22 +279,28 @@ export function ChartHome({ initial }: { initial: ChartView }) {
         .on("mouseout", () => hoverOrder && setHoverId((id) => (id === hoverOrder ? null : id)))
         .addTo(layers.current!.nodes)
       const line = trail ? leaflet.polyline(trail, { pane: "trails", className: "trail", weight: 2, interactive: false }).addTo(layers.current!.trails) : null
-      markers.current.set(key, { marker, html, trail: line, tip })
+      // New marks fade and scale in once; later icon changes do not re-animate.
+      const element = marker.getElement()
+      if (element) { element.classList.add("fresh"); setTimeout(() => element.classList.remove("fresh"), 400) }
+      markers.current.set(key, { marker, html: look, trail: line, tip })
     }
 
-    const rank = { decide: 3000, agent: 2000, waiting: 1000, fine: 0 }
+    // One layering for every mark: berths, then harbours, then vessels; within each, more urgent on top; the selection above all.
+    const rank = { decide: 300, agent: 200, waiting: 100, fine: 0 }
+    const layer = { berth: 100, harbour: 500, vessel: 1000 }
+    const zFor = (kind: keyof typeof layer, attention: ChartNode["attention"], isSelected = false) => layer[kind] + rank[attention] + (isSelected ? 5000 : 0)
     for (const node of nodes) {
       const isSelected = node.orderId === selectedId
       const select = (event?: { originalEvent?: Event }) => { event?.originalEvent?.stopPropagation(); setSelectedId(node.orderId) }
       if (node.kind === "vessel") {
-        place(node.orderId, [node.lat, node.lng], vesselHtml(node, isSelected), tipHtml(node), 26, [13, 13], rank[node.attention] + 500 + (isSelected ? 5000 : 0), select, node.trail, node.orderId)
+        place(node.orderId, [node.lat, node.lng], vesselHtml(node, isSelected), tipHtml(node), 26, [13, 13], zFor("vessel", node.attention, isSelected), select, node.trail, node.orderId)
       }
     }
     for (const [city, group] of berths) {
       const sorted = [...group].sort((a, b) => rank[b.attention] - rank[a.attention] || a.reference.localeCompare(b.reference))
       if (!fanOut && sorted.length > 1) {
         const first = sorted[0]
-        place(`harbour:${city}`, [first.lat, first.lng], harbourHtml(sorted), harbourTip(city.split("|")[0], sorted), 30, [15, 15], rank[first.attention],
+        place(`harbour:${city}`, [first.lat, first.lng], harbourHtml(sorted), harbourTip(city.split("|")[0], sorted), 32, [16, 16], zFor("harbour", first.attention),
           () => map.current?.flyTo([first.lat, first.lng], FAN_ZOOM + 1, { duration: 0.7 }), null, null)
         continue
       }
@@ -285,15 +308,19 @@ export function ChartHome({ initial }: { initial: ChartView }) {
         const [dx, dy] = sorted.length === 1 ? [0, 0] : fan(index)
         const isSelected = node.orderId === selectedId
         const size = node.attention === "decide" ? 16 : 12
-        place(node.orderId, [node.lat, node.lng], berthHtml(node, isSelected), tipHtml(node), size, [size / 2 - dx, size / 2 - dy], rank[node.attention] + (isSelected ? 5000 : 0),
+        place(node.orderId, [node.lat, node.lng], berthHtml(node, isSelected), tipHtml(node), size, [Math.round(size / 2 - dx), Math.round(size / 2 - dy)], zFor("berth", node.attention, isSelected),
           (event?: { originalEvent?: Event }) => { event?.originalEvent?.stopPropagation(); setSelectedId(node.orderId) }, null, node.orderId)
       })
     }
     for (const [key, entry] of markers.current) {
       if (seen.has(key)) continue
-      entry.marker.remove()
-      entry.trail?.remove()
+      // Fade out rather than vanish, so a harbour folding into berths reads as one motion.
       markers.current.delete(key)
+      glides.current.delete(key)
+      const element = entry.marker.getElement()
+      element?.classList.add("leaving")
+      entry.marker.off()
+      setTimeout(() => { entry.marker.remove(); entry.trail?.remove() }, element ? 180 : 0)
     }
 
     // A node whose state changed since the last poll pulses for a few seconds.
