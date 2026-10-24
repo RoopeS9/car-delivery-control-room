@@ -4,7 +4,13 @@
 .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; padding-bottom: 18px; border-bottom: 1px solid var(--hair); }
 .head h1 { font-family: var(--font-display); font-weight: 600; font-size: 26px; letter-spacing: -0.02em; line-height: 1.1; }
 .eyebrow { font-size: 12.5px; color: var(--subtle); margin-bottom: 6px; }
-.headRight { display: flex; align-items: center; gap: 20px; }
+.headRight { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.jumps { display: flex; gap: 4px; }
+.jumps button { height: 32px; padding: 0 10px; border-radius: var(--radius); border: 1px solid var(--hair); background: var(--birch); font-size: 12.5px; font-weight: 500; color: var(--brown); white-space: nowrap; }
+.jumps button:hover:not(:disabled) { border-color: var(--sand); color: var(--ink); }
+.jumps button:disabled { opacity: 0.45; }
+.spend { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+.spend b { font-weight: 600; color: var(--ink); }
 .clock { display: grid; justify-items: end; gap: 1px; font-size: 12px; color: var(--muted); }
 .clock b { font-family: var(--font-mono); font-size: 26px; font-weight: 500; color: var(--ink); line-height: 1.1; }
 
@@ -21,6 +27,9 @@
 .scenarioText h3 span { font-weight: 500; color: var(--muted); font-size: 13px; }
 .scenarioText p { margin-top: 4px; font-size: 13px; color: var(--brown); max-width: 64ch; }
 .scenarioActions { flex: none; }
+.scenarioLinks { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px !important; }
+.scenarioLinks a { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 500; color: var(--teal-ink); text-decoration: none; }
+.scenarioLinks a:hover { text-decoration: underline; }
 
 .primary, .danger { height: 36px; padding: 0 18px; border-radius: var(--radius); border: 1px solid var(--ink); background: var(--ink); color: var(--birch); font-size: 13.5px; font-weight: 500; white-space: nowrap; }
 .primary:hover:not(:disabled) { opacity: 0.88; }
@@ -46,6 +55,8 @@
 .rowFault small { color: var(--red-ink); opacity: 0.85; }
 
 .foot { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--hair); }
+.keep { display: flex; align-items: center; gap: 8px; margin-top: 8px; color: var(--brown); }
+.keep code { font-family: var(--font-mono); font-size: 12px; }
 
 @media (max-width: 640px) {
   .scenario { flex-direction: column; align-items: stretch; }

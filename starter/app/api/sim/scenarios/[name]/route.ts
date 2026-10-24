@@ -1,16 +1,17 @@
 import { NextResponse, after } from "next/server"
-import { notifyAgent } from "@/lib/sim/agent-hooks"
+import { runActions } from "@/lib/sim/actions"
 import { runScenario } from "@/lib/sim/scenarios"
 
 export const runtime = "nodejs"
 
 export async function POST(request: Request, context: { params: Promise<{ name: string }> }) {
   const { name } = await context.params
-  const result = await runScenario(name)
-  const trigger = result.notifyAgent
-  if (trigger) {
-    const origin = new URL(request.url).origin
-    after(async () => { await notifyAgent(origin, trigger) })
-  }
-  return NextResponse.json(result, { status: result.ok ? 200 : 409 })
+  const origin = new URL(request.url).origin
+  const body = (await request.json().catch(() => null)) as { keepRoutine?: unknown } | null
+  const result = await runScenario(name, origin, { keepRoutine: body?.keepRoutine === false ? false : true })
+  const actions = result.actions ?? []
+  // Messages and triggers go out after we answer, so the demo panel is not kept waiting on the agent.
+  if (actions.length) after(async () => { await runActions(origin, actions) })
+  return NextResponse.json({ ok: result.ok, name: result.name, message: result.message, orderId: result.orderId, eventId: result.eventId },
+    { status: result.ok ? 200 : 409 })
 }

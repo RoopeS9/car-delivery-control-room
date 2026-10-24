@@ -1,0 +1,53 @@
+/* Site chat: a plain web chat for a dealer or yard desk. Shared colour tokens, so it follows the app themes. */
+
+.page { min-height: 100dvh; background: var(--canvas); color: var(--ink); padding: 32px 16px 48px; }
+.state { max-width: 640px; margin: 40px auto; }
+.state h1 { font-size: 18px; font-weight: 600; }
+.state p { margin-top: 8px; color: var(--muted); }
+
+.pickerHead, .group { max-width: 720px; margin: 0 auto; }
+.pickerHead h1 { font-family: var(--font-display); font-weight: 600; font-size: 26px; letter-spacing: -0.02em; line-height: 1.15; }
+.kicker { font-size: 12px; color: var(--subtle); margin-bottom: 6px; }
+.note { margin-top: 8px; font-size: 13.5px; color: var(--muted); }
+.group { margin-top: 26px; }
+.group h2 { display: flex; gap: 6px; align-items: baseline; margin-bottom: 8px; font-size: 13.5px; font-weight: 600; }
+.group h2 span { font-size: 12px; font-weight: 500; color: var(--subtle); }
+.group ul { display: grid; gap: 6px; }
+.row { display: flex; align-items: center; gap: 16px; padding: 11px 14px; border-radius: 12px; background: var(--birch); box-shadow: var(--shadow-card); text-decoration: none; color: inherit; }
+.row:hover { box-shadow: var(--shadow-card-hover); }
+.rowMain { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.rowMain b { font-size: 14px; font-weight: 600; }
+.rowMain small, .rowSide small { font-size: 12px; color: var(--muted); }
+.rowSide { flex: none; display: grid; justify-items: end; gap: 1px; font-size: 12px; color: var(--subtle); }
+
+.chat { display: flex; flex-direction: column; max-width: 720px; height: calc(100dvh - 80px); margin: 0 auto; border-radius: 16px; background: var(--birch); box-shadow: var(--shadow-card); overflow: hidden; }
+.chatHead { padding: 16px 20px 14px; border-bottom: 1px solid var(--hair-soft); }
+.chatHead h1 { margin-top: 8px; font-size: 18px; font-weight: 600; }
+.chatHead p { margin-top: 2px; font-size: 13px; color: var(--muted); }
+.back { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); text-decoration: none; }
+.back:hover { color: var(--ink); }
+
+.thread { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; }
+.empty { margin: auto; max-width: 40ch; text-align: center; font-size: 13.5px; color: var(--muted); }
+.divider { text-align: center; font-size: 11.5px; color: var(--subtle); }
+.message { max-width: 78%; padding: 9px 13px; border-radius: 14px; font-size: 14px; line-height: 1.45; }
+.message p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.mine { margin-left: auto; background: var(--ink); color: var(--birch); }
+.theirs { margin-right: auto; background: var(--hair-soft); }
+.who { display: block; margin-bottom: 2px; font-size: 11px; font-weight: 600; opacity: 0.7; }
+.held { align-self: center; max-width: 52ch; padding: 8px 12px; border-radius: 10px; background: var(--teal-bg); color: var(--teal-ink); font-size: 12.5px; text-align: center; }
+
+.error { margin: 0 20px 10px; padding: 8px 10px; border-radius: 10px; background: var(--red-bg); color: var(--red-ink); font-size: 12.5px; }
+.composer { display: flex; align-items: flex-end; gap: 10px; padding: 12px 20px 16px; border-top: 1px solid var(--hair-soft); }
+.field { flex: 1; min-width: 0; }
+.field textarea { width: 100%; resize: none; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--hair); background: var(--tray); font: inherit; font-size: 14px; color: var(--ink); outline: 0; }
+.field textarea:focus { border-color: var(--ink); }
+.composer button { flex: none; height: 40px; padding: 0 18px; border-radius: 10px; border: 0; background: var(--ink); color: var(--birch); font-size: 13.5px; font-weight: 600; }
+.composer button:disabled { opacity: 0.35; cursor: default; }
+
+@media (max-width: 560px) {
+  .page { padding: 0; }
+  .pickerHead, .group { padding: 0 16px; }
+  .pickerHead { padding-top: 24px; }
+  .chat { height: 100dvh; border-radius: 0; }
+}

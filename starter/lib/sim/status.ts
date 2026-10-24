@@ -5,9 +5,12 @@ import { and, desc, eq } from "drizzle-orm"
 import { simNow } from "@/lib/cr/clock"
 import { crDb } from "@/lib/cr/db"
 import { crTelemetry } from "@/lib/cr/schema"
+import { sql } from "drizzle-orm"
 import type { GpsData, ObdData } from "@/lib/cr/types"
 import { fleetCar, loadFleet, simStart, type FleetCar, type PhoneState } from "./fleet"
-import { motionAt, type MotionState } from "./motion"
+import { motionAt, type MotionState, type SimObd } from "./motion"
+import { alreadyReconnected, canReconnect } from "./reconnect"
+import { routineCaseCount } from "./routine"
 import { activeFaults, syncTelemetry } from "./sync"
 
 export type CarReadings = {
@@ -20,13 +23,15 @@ export type CarReadings = {
   phone: PhoneState
   phoneNote: string | null
   now: string
-  obd: { at: string; data: ObdData } | null
+  obd: { at: string; data: SimObd } | null
   gps: { at: string; data: GpsData } | null
   /** Last few OBD samples, oldest first, for a small trend line. */
-  obdTrend: { at: string; speed_kmh: number | null; rpm: number | null; coolant_c: number | null }[]
+  obdTrend: { at: string; speed_kmh: number | null; coolant_c: number | null }[]
   /** Codes from the newest OBD sample, or the stored ones after the engine stopped. */
   codes: string[]
   mil: ObdData["mil"]
+  /** True when the driver can plug the dongle back in (scenario B) and has not yet. */
+  canConnect: boolean
 }
 
 export async function carReadings(orderRefOrId: string): Promise<CarReadings | null> {
@@ -40,7 +45,8 @@ export async function carReadings(orderRefOrId: string): Promise<CarReadings | n
     db.select().from(crTelemetry).where(and(eq(crTelemetry.orderId, car.orderId), eq(crTelemetry.source, "PHONE_GPS")))
       .orderBy(desc(crTelemetry.at)).limit(1),
   ])
-  const latestObd = obdRows[0] ? { at: obdRows[0].at.toISOString(), data: obdRows[0].data as unknown as ObdData } : null
+  const canConnect = canReconnect(car.reference) && !(await alreadyReconnected(car.orderId))
+  const latestObd = obdRows[0] ? { at: obdRows[0].at.toISOString(), data: obdRows[0].data as unknown as SimObd } : null
   const latestGps = gpsRows[0] ? { at: gpsRows[0].at.toISOString(), data: gpsRows[0].data as unknown as GpsData } : null
   return {
     orderId: car.orderId,
@@ -56,10 +62,11 @@ export async function carReadings(orderRefOrId: string): Promise<CarReadings | n
     gps: latestGps,
     obdTrend: obdRows.slice(0, 24).reverse().map((row) => {
       const data = row.data as unknown as ObdData
-      return { at: row.at.toISOString(), speed_kmh: data.speed_kmh ?? null, rpm: data.rpm ?? null, coolant_c: data.coolant_c ?? null }
+      return { at: row.at.toISOString(), speed_kmh: data.speed_kmh ?? null, coolant_c: data.coolant_c ?? null }
     }),
     codes: latestObd?.data.dtcs ?? [],
     mil: latestObd?.data.mil ?? "OFF",
+    canConnect,
   }
 }
 
@@ -78,12 +85,21 @@ export type FleetRow = {
   quietFrom: string | null
 }
 
-export async function fleetOverview(): Promise<{ now: string; start: string; cars: FleetRow[] }> {
-  const [fleet, faults] = await Promise.all([loadFleet(), activeFaults()])
+/** What the agent has cost so far: the `cost_usd` the agent loop sums from OpenRouter on each run. */
+async function spend(): Promise<{ dollars: number; runs: number }> {
+  const result = await crDb().execute(sql`SELECT count(*)::int AS runs, coalesce(sum((usage->>'cost_usd')::numeric), 0)::float AS dollars FROM cr_agent_runs`)
+  const row = (result as unknown as { runs: number; dollars: number }[])[0]
+  return { dollars: Number(row?.dollars ?? 0), runs: Number(row?.runs ?? 0) }
+}
+
+export async function fleetOverview(): Promise<{ now: string; start: string; spend: { dollars: number; runs: number }; routineCases: number; cars: FleetRow[] }> {
+  const [fleet, faults, cost, routineCases] = await Promise.all([loadFleet(), activeFaults(), spend(), routineCaseCount()])
   const now = simNow()
   return {
     now: now.toISOString(),
     start: simStart().toISOString(),
+    spend: cost,
+    routineCases,
     cars: fleet.map((car) => {
       const plan = faults.get(car.orderId) ?? null
       const row = {
