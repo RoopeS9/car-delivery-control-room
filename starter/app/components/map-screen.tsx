@@ -9,15 +9,16 @@ import type { MapMarker, MapView } from "@/lib/present/types"
 import { Icon } from "./icons"
 import { MakeMark } from "./queue"
 
-// CARTO basemaps need no key on any host (Stadia returned 401 off localhost). If they
-// fail (another host, no network), fall back to OpenStreetMap's own tiles,
-// toned down with a CSS filter to match the theme.
+// Esri's canvas basemaps need no key. CARTO now answers every tile with an
+// "API key required" image (HTTP 200, so tileerror never fires) and Stadia 401s
+// off localhost. If Esri fails, fall back to OpenStreetMap's own tiles, toned
+// down with a CSS filter to match the theme.
 const TILES = {
-  light: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-  dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+  light: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+  dark: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
   fallback: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
 }
-const ATTRIBUTION = '&copy; <a href="https://carto.com/attributions">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+const ATTRIBUTION = 'Tiles &copy; <a href="https://www.esri.com/">Esri</a> &mdash; Esri, Garmin, GEBCO, NOAA, HERE, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 const FALLBACK_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 
 /** The theme the page is showing: a saved choice, else the system setting. */
@@ -86,8 +87,8 @@ export function MapScreen({ view }: { view: MapView }) {
     tiles.current?.remove()
     let errors = 0
     tiles.current = fallback
-      ? L.tileLayer(TILES.fallback, { attribution: FALLBACK_ATTRIBUTION, maxZoom: 18 }).addTo(map.current)
-      : L.tileLayer(TILES[theme], { attribution: ATTRIBUTION, maxZoom: 18 })
+      ? L.tileLayer(TILES.fallback, { attribution: FALLBACK_ATTRIBUTION, maxZoom: 16 }).addTo(map.current)
+      : L.tileLayer(TILES[theme], { attribution: ATTRIBUTION, maxZoom: 16 })
         .on("tileerror", () => { errors += 1; if (errors === 4) setFallback(true) })
         .addTo(map.current)
   }, [ready, theme, fallback])
