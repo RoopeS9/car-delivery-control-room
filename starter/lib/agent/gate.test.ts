@@ -297,6 +297,31 @@ describe("decisions", () => {
     assert.match(outcome.authority.basis, /outside the system/)
   })
 
+  test("I'll handle it records no option unless the operator picked one; approving goes with the recommendation", async () => {
+    const options = [
+      { id: "tow", label: "We book the tow", description: "", recommended: true },
+      { id: "own", label: "Owner's roadside assistance", description: "", recommended: false },
+    ]
+    const call = proposal("CONTACT_CUSTOMER", { draft_message: { ...customerDraft!, channel: "phone_call" }, options })
+    const untouched = await newCase()
+    const { proposal: first } = await submitProposal({ audience: "operator", caseRow: untouched, facts }, call)
+    await decideProposal(untouched.id, first.id, { decision: "handle", decided_by: "ops-shift" })
+    assert.equal((await getProposal(first.id))!.chosenOptionId, null, "phoning the owner is not choosing to book the recommended tow")
+    const events = await listEvents({ caseId: untouched.id })
+    const decision = events.find((event) => event.kind === "decision")!
+    assert.doesNotMatch(decision.body, /We book the tow/, "the record does not claim a choice nobody made")
+
+    const picked = await newCase()
+    const { proposal: second } = await submitProposal({ audience: "operator", caseRow: picked, facts }, call)
+    await decideProposal(picked.id, second.id, { decision: "handle", decided_by: "ops-shift", option_id: "own" })
+    assert.equal((await getProposal(second.id))!.chosenOptionId, "own", "an explicit pick is kept")
+
+    const approved = await newCase()
+    const { proposal: third } = await submitProposal({ audience: "operator", caseRow: approved, facts }, proposal("BOOK_RECOVERY", { options }))
+    await decideProposal(approved.id, third.id, { decision: "approve", decided_by: "ops-shift" })
+    assert.equal((await getProposal(third.id))!.chosenOptionId, "tow", "approving without picking goes with the recommendation")
+  })
+
   test("an edit may change the message, not who it goes to", async () => {
     const caseRow = await newCase()
     const { proposal: row } = await submitProposal({ audience: "operator", caseRow, facts }, proposal("CONTACT_CUSTOMER", { draft_message: customerDraft }))
