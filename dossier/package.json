@@ -1,0 +1,24 @@
+{
+  "name": "road-dossier",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "gen": "python3 -I tools/gen_records.py data/dataset src/records.generated.ts",
+    "build-all": "tsx src/cli/build-all.ts",
+    "typecheck": "tsc --noEmit",
+    "validate": "tsx src/cli/validate-records.ts",
+    "strictness": "tsx src/cli/negative.ts",
+    "check": "npm run -s typecheck && npm run -s validate && npm run -s strictness && npm run -s build-all && npm run -s sim:calls",
+    "sim:calls": "tsx src/cli/sim-calls.ts",
+    "serve": "tsx src/serve.ts",
+    "reason": "tsx src/cli/reason.ts"
+  },
+  "dependencies": {
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
