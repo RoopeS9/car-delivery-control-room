@@ -9,15 +9,15 @@ import type { MapMarker, MapView } from "@/lib/present/types"
 import { Icon } from "./icons"
 import { MakeMark } from "./queue"
 
-// Stadia's calm basemaps need no key on localhost, where the demo runs. If they
+// CARTO basemaps need no key on any host (Stadia returned 401 off localhost). If they
 // fail (another host, no network), fall back to OpenStreetMap's own tiles,
 // toned down with a CSS filter to match the theme.
 const TILES = {
-  light: "https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png",
-  dark: "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png",
+  light: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+  dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
   fallback: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
 }
-const ATTRIBUTION = '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+const ATTRIBUTION = '&copy; <a href="https://carto.com/attributions">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 const FALLBACK_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 
 /** The theme the page is showing: a saved choice, else the system setting. */
