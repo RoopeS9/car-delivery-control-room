@@ -90,7 +90,7 @@
 .rail-hot b { color: var(--c-decide); }
 .rail-hot { box-shadow: inset 0 2px 0 var(--c-decide); }
 .rail-hint { margin-top: auto; text-align: center; font-family: var(--font-mono); font-size: 11px; color: var(--c-quiet); padding-bottom: 4px; }
-.drawer { position: absolute; z-index: 1002; left: 68px; top: 12px; bottom: 12px; width: 360px; display: flex; flex-direction: column;
+.drawer { position: absolute; z-index: 1002; left: 68px; top: 60px; bottom: 12px; width: 360px; display: flex; flex-direction: column;
   background: var(--c-panel); border: 1px solid var(--c-line); border-radius: 12px; box-shadow: var(--c-shadow); backdrop-filter: blur(8px);
   transform: translateX(-16px); opacity: 0; pointer-events: none; transition: opacity 0.18s ease, transform 0.18s ease; overflow: hidden; }
 .drawer.open { transform: none; opacity: 1; pointer-events: auto; }

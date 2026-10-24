@@ -390,7 +390,7 @@ export function ChartHome({ initial }: { initial: ChartView }) {
       </nav>
     </header>
 
-    <Rail view={view} open={drawer} onToggle={() => setDrawer((open) => !open)} onPick={(id) => { focus(id) }} selectedId={selectedId} />
+    <Rail view={view} open={drawer} onToggle={() => setDrawer((open) => !open)} onPick={(id) => { focus(id) }} onHover={setHoverId} selectedId={selectedId} />
 
     {selected && <Dossier key={selected.orderId} node={selected} onClose={() => setSelectedId(null)} />}
 
@@ -405,7 +405,7 @@ export function ChartHome({ initial }: { initial: ChartView }) {
   </div>
 }
 
-function Rail({ view, open, onToggle, onPick, selectedId }: { view: ChartView; open: boolean; onToggle: () => void; onPick: (id: string) => void; selectedId: string | null }) {
+function Rail({ view, open, onToggle, onPick, onHover, selectedId }: { view: ChartView; open: boolean; onToggle: () => void; onPick: (id: string) => void; onHover: (id: string | null) => void; selectedId: string | null }) {
   const shown = view.needs.slice(0, 6)
   const more = view.needs.length - shown.length
   return <>
@@ -428,21 +428,21 @@ function Rail({ view, open, onToggle, onPick, selectedId }: { view: ChartView; o
         <b>Nothing needs a person right now.</b>
         <p>The agent is watching {view.counts.moving} moving cars. Anything it cannot settle alone will appear here.</p>
       </div> : <ul className="cards">
-        {shown.map((item) => <NeedCard key={item.orderId} item={item} active={item.orderId === selectedId} onPick={onPick} />)}
+        {shown.map((item) => <NeedCard key={item.orderId} item={item} active={item.orderId === selectedId} onPick={onPick} onHover={onHover} />)}
       </ul>}
       {more > 0 && <Link className="drawer-more" href="/queue">{more} more in the queue <Icon name="arrow" size={13} /></Link>}
       <details className="drawer-fold">
         <summary><Icon name="chevron" size={12} />Handled by the agent today <span className="num">{view.handled.length}</span></summary>
         {view.handled.length === 0 ? <p className="drawer-quiet">Nothing closed by the agent yet in this simulated day.</p>
-          : <ul className="cards cards-quiet">{view.handled.map((item) => <NeedCard key={`h-${item.orderId}-${item.since}`} item={item} active={false} onPick={onPick} />)}</ul>}
+          : <ul className="cards cards-quiet">{view.handled.map((item) => <NeedCard key={`h-${item.orderId}-${item.since}`} item={item} active={false} onPick={onPick} onHover={onHover} />)}</ul>}
       </details>
       <p className="drawer-foot">Kept out of the way: {view.quiet.routine} routine follow-up{view.quiet.routine === 1 ? "" : "s"}, {view.quiet.waiting} waiting on others{view.quiet.agentWorking ? `, ${view.quiet.agentWorking} with the agent` : ""}. <Link href="/queue">Open the queue</Link></p>
     </section>
   </>
 }
 
-function NeedCard({ item, active, onPick }: { item: ChartCard; active: boolean; onPick: (id: string) => void }) {
-  return <li>
+function NeedCard({ item, active, onPick, onHover }: { item: ChartCard; active: boolean; onPick: (id: string) => void; onHover: (id: string | null) => void }) {
+  return <li onMouseEnter={() => onHover(item.orderId)} onMouseLeave={() => onHover(null)}>
     <button type="button" className={`card card-${item.tone}${active ? " active" : ""}`} onClick={() => onPick(item.orderId)}>
       <span className="card-top"><b>{item.vehicle}</b><span className="mono">{item.reference}</span><span className="card-age">{item.sinceLabel}</span></span>
       <span className="card-what">{item.headline}</span>

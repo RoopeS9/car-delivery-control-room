@@ -96,7 +96,7 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
         strength: reservation.status === "MISSED_CHECK_IN" ? "recorded" : "unverified", source: "Carrier booking and gate records", tone: "warn",
       })
     }
-    if (reservation.departureAt) {
+    if (reservation.departureAt && !deliveredAt) {
       const departed = isBefore(reservation.departureAt, now)
       push({
         id: `dep-${reservation.id}`, at: reservation.departureAt, kind: "ferry",
