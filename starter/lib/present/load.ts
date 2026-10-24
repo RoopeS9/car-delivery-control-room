@@ -8,7 +8,7 @@ import {
   relatedRecords, sites, vehicles,
 } from "@/lib/schema"
 import { simNowIso } from "@/lib/cr/clock"
-import { latestPositions, latestTelemetry, listCases, listEvents, listProposals, type TelemetryRow } from "@/lib/cr/queries"
+import { latestPositions, latestTelemetry, listCases, listEvents, listProposals, type ProposalRow, type TelemetryRow } from "@/lib/cr/queries"
 import { Directory, snapshotNames } from "./actors"
 import { type Bundle, type CrSlice, emptyCr, type PlaceRow, type RelatedRow, type SiteRow } from "./bundle"
 import type { Row } from "./types"
@@ -86,7 +86,8 @@ async function loadCr(orderId?: string): Promise<{ now: string; byOrder: Map<str
   try {
     const [cases, proposals, events] = orderId
       ? await Promise.all([listCases({ orderId }), listProposals({ orderId }), listEvents({ orderId })])
-      : await Promise.all([listCases(), listProposals({ statuses: ["PENDING"] }), Promise.resolve([])])
+      // UNKNOWN_OUTCOME arrives with PLAN 4.2b; asking for it early is harmless.
+      : await Promise.all([listCases(), listProposals({ statuses: ["PENDING", "UNKNOWN_OUTCOME" as ProposalRow["status"]] }), Promise.resolve([])])
     const since = Date.parse(now) - HANDLED_WINDOW_MS
     for (const row of cases) {
       const closed = row.status === "HANDLED_BY_AGENT" || row.status === "RESOLVED"

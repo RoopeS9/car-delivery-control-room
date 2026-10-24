@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { use, useCallback, useEffect, useRef, useState } from "react"
 import { AppFrame } from "../../components/app-frame"
+import { tickCases } from "../../components/live-refresh"
 import { OrderPane, type Detail } from "../../components/order-detail"
 
 /** Operator pages poll every 2–3 s (PLAN.md 4.2c). */
@@ -32,7 +33,9 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
       if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load order")
     })
     const timer = setInterval(() => {
-      if (document.visibilityState === "visible") load(controller.signal).catch(() => { /* keep the last good view; the next poll retries */ })
+      if (document.visibilityState === "visible") {
+        void tickCases().then(() => load(controller.signal)).catch(() => { /* keep the last good view; the next poll retries */ })
+      }
     }, POLL_MS)
     return () => { clearInterval(timer); controller.abort() }
   }, [load])

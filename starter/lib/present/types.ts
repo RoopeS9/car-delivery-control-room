@@ -753,37 +753,49 @@ export type QueueRow = {
   vehicleMake: string | null
   route: string
   customer: string
+  /** `agent`: one of our cases with the agent's work behind it. `records`: the starter's recorded reasons, no agent analysis. */
+  origin: "agent" | "records"
   caseId: string | null
   /** One line: what happened. */
   headline: string
-  /** The decision waiting, or what the case waits on. */
+  /** The decision waiting, or the next action. */
   ask: string | null
   tone: Tone
-  urgency: string | null
+  /** Lower sorts first: the most urgent row leads its section. */
+  rank: number
   urgencyLabel: string | null
   statusLabel: string
-  /** "Road agent", a desk title, or "No one yet". */
+  /** "Road agent", a desk title, or "Owner not recorded". */
   who: string
   whoKind: "agent" | "person" | "nobody"
   /** The moment the age is measured from. */
   since: string | null
   sinceLabel: string
-  /** Other open items on the order, in a few words. */
+  /** For a records row: the reasons the records give, each with its source. */
+  reasons: { text: string; detail: string | null; source: string; href: string }[]
+  /** Waiting rows: who we wait on and when we look again. */
+  waitingOn: string | null
+  nextCheckAt: string | null
+  nextCheckLabel: string | null
+  /** The next check time has passed. */
+  overdue: boolean
+  /** Other open items on the same order, in a few words. */
   more: string | null
 }
 
 export type QueueView = {
   snapshotAt: string | null
   simNow: string
+  /** Needs your decision: cards, escalations, overdue follow-ups and urgent records, most urgent first. */
   decide: QueueRow[]
+  /** Records rows with only routine open items (open threads, unverified pickup details). Folded under the decide section. */
+  routine: QueueRow[]
   agentWorking: QueueRow[]
   waiting: QueueRow[]
   /** Closed by the agent (or resolved) in the last 24 h of simulated time. */
   handled: QueueRow[]
-  /** Orders that need a person for reasons outside our road and driver cases. They stay on the board. */
-  otherCount: number
-  /** The most common of those reasons, in a few words each. */
-  otherReasons: string[]
+  /** Orders with nothing open in the records and no open case. */
+  quietCount: number
   total: number
 }
 

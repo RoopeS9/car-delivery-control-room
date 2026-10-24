@@ -73,8 +73,18 @@ export const ACTION_LABELS: Record<string, string> = {
   CONTACT_SITE_AS_CUSTOMER: "Contact the site (counts as the customer)",
 }
 
+/**
+ * PLAN.md 4.1 adds OUTDATED and UNKNOWN_OUTCOME to the proposal statuses.
+ * Compare as text so this reads them as soon as the contract carries them.
+ */
+export function statusIs(proposal: { status: string }, status: "OUTDATED" | "UNKNOWN_OUTCOME"): boolean {
+  return proposal.status === status
+}
+
 const PROPOSAL_STATUS: Record<string, { label: string; tone: Tone }> = {
   PENDING: { label: "Waiting for your decision", tone: "warn" },
+  OUTDATED: { label: "Out of date", tone: "warn" },
+  UNKNOWN_OUTCOME: { label: "Outcome unknown", tone: "danger" },
   APPROVED: { label: "Approved", tone: "ok" },
   EDITED_AND_APPROVED: { label: "Approved with changes", tone: "ok" },
   REJECTED: { label: "Rejected", tone: "neutral" },
@@ -137,10 +147,26 @@ export function caseAttention(bundle: Bundle): AttentionItem[] {
       at: iso(proposal.createdAt), atLabel: "proposed", section: "case", recordId: proposal.id,
     })
   }
+  for (const proposal of proposals.filter((row) => statusIs(row, "UNKNOWN_OUTCOME"))) {
+    items.push({
+      kind: "decision", tone: "danger", title: `Outcome unknown: ${proposal.title}`, short: "Outcome unknown, check before retrying",
+      detail: "The action may or may not have happened. Check with the other side before anything is retried.", owner: null,
+      at: iso(proposal.executedAt ?? proposal.decidedAt ?? proposal.createdAt), atLabel: "attempted", section: "case", recordId: proposal.id,
+    })
+  }
   for (const row of cases) {
     if (!OPEN_CASE_STATUSES.includes(row.status)) continue
     if (pending.some((proposal) => proposal.caseId === row.id)) continue
     const kindLabel = CASE_KIND_LABELS[row.kind] ?? label(row.kind)
+    const checkAt = iso(row.nextCheckAt)
+    if (row.status === "WAITING_EXTERNAL" && checkAt && checkAt < bundle.cr.now) {
+      items.push({
+        kind: "decision", tone: "warn", title: plainText(bundle, `Overdue: ${row.waitingOn ? `waiting on ${row.waitingOn}` : row.title}`),
+        short: "Follow-up overdue", detail: plainText(bundle, row.nextStep ?? row.title), owner: ownerName(bundle, row.owner),
+        at: checkAt, atLabel: "check was due", section: "case", recordId: row.id,
+      })
+      continue
+    }
     if (row.status === "NEEDS_DECISION") {
       items.push({
         kind: "decision", tone: urgencyTone(row.urgency), title: `The agent needs a person: ${row.title}`, short: `Needs a person: ${row.title}`,
