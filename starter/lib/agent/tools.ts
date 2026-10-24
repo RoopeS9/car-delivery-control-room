@@ -13,7 +13,7 @@ import {
 } from "@/lib/cr/types"
 import { AGENT_ID } from "./config"
 import { contextFor, loadOrderFacts, type End } from "./context"
-import { loadDriverSafetyContext, renderSafetyTemplate, SAFETY_TEMPLATES, screenDriverMessage } from "./drivability"
+import { DRIVING_WORDS, findClearance, loadDriverSafetyContext, renderSafetyTemplate, SAFETY_TEMPLATES, screenDriverMessage } from "./drivability"
 import { firstName, localTime, relative, utcTime } from "./format"
 import { checkTool, recordedTravelSelection, submitProposal, validateProposal, type GateContext, type ProposalInput, type ToolName, DecisionError } from "./gate"
 import { cityCoords, matchWarningLights, playbook, playbooks, troubleCode } from "./knowledge"
@@ -501,9 +501,24 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
 
   async message_driver(state, input) {
     if (!state.driverId) return { content: "There is no driver on this order to message.", isError: true }
-    const screen = await screenDriverMessage(str(input.text), { safety: await loadDriverSafetyContext(state.facts, state.caseRow) })
+    const safety = await loadDriverSafetyContext(state.facts, state.caseRow)
+    const screen = await screenDriverMessage(str(input.text), { safety })
     state.costUsd += screen.costUsd
     if (!screen.allowed) {
+      if (safety.mode === "routine") {
+        // No fault, no restriction: a sign-off that sounds like clearance ("you're good to go") is not a decision for
+        // operations, it is a sentence to drop. The rest of the message goes; if nothing is left, the agent rewrites.
+        const kept = str(input.text).split(/(?<=[.!?])\s+|\n+/).filter((sentence) => sentence.trim() && !findClearance(sentence) && !DRIVING_WORDS.test(sentence) && !/\b(good to go|all clear|all sorted|safe (last )?stretch)\b/i.test(sentence))
+        const rest = kept.join(" ").trim()
+        await appendEvent({
+          caseId: state.caseRow.id, orderId: state.facts.id, actorType: "system", actorId: "gate", kind: "tool_call", channel: "internal",
+          body: `Drivability screen dropped a sentence that read as permission to drive on (${screen.reason ?? "classifier"}) from a routine reply; no card: nothing about the car is in question.`,
+          data: { refused: true, rule: "drivability_screen", text: str(input.text), sent: rest || null },
+        })
+        if (!rest) return { content: `Not sent: it reads as permission to drive on (${screen.reason}). This is a routine case: answer the question and say what happens next, without any remark about driving on.`, isError: true, gate: "REFUSED" }
+        await sendToDriver(state, { body: rest, channel: "driver_chat", data: { screened: screen.layer, trimmed: true } })
+        return { content: `Sent to ${state.driverName ?? "the driver"} without the part that read as permission to drive on (${screen.reason}): "${rest.slice(0, 200)}"`, log: null }
+      }
       await holdForClearance(state, str(input.text), screen.reason)
       return { content: `Not sent: it reads as permission to drive on (${screen.reason}). It is now a CLEAR_TO_CONTINUE card for an operator.`, isError: true, gate: "REFUSED" }
     }

@@ -59,7 +59,7 @@ export function findClearance(text: string): string | null {
 const STOP_INSTRUCTION = /\b(pull (over|in)|next safe place|stop (at|in|the car|now|safely)|switch (the engine|it) off|engine off|hazard lights|behind the barrier|do not (drive|continue|move the car)|don't (drive|continue|move the car)|stay (stopped|where you are|with the car))\b/i
 
 /** Words that make a message worth a closer look when the classifier is unavailable. */
-const DRIVING_WORDS = /\b(driv\w*|continu\w*|carry on|keep going|go on|head (?:to|on|off|for)|move on|restart\w*|journey|on your way|get going|set off)\b/i
+export const DRIVING_WORDS = /\b(driv\w*|continu\w*|carry on|keep going|go on|head (?:to|on|off|for)|move on|restart\w*|journey|on your way|get going|set off)\b/i
 const MOVEMENT_DIRECTION = /\b(use|take|enter|head|go|proceed|drive)\b[^.!?\n]{0,70}\b(gate|entrance|courtyard|ferry|terminal|site|motorway|road)\b/i
 
 export type DriverSafetyContext = {
