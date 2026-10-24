@@ -4,14 +4,14 @@
 // the stored runs instead of running new ones.
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { loadDataset } from "../build"
+import { loadEnv } from "./env"
 import { CallRecord } from "../live"
 import { newRunReport, planTimeline, runDelivery, type RunReport } from "../run"
 import { judgeRun, renderSoak, type RunVerdict } from "../soak"
 import { Twist } from "../sim/persona-from-dossier"
 
 const root = new URL("../../", import.meta.url)
-const envPath = new URL(".env", root)
-if (existsSync(envPath)) for (const l of readFileSync(envPath, "utf8").split("\n")) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m && !process.env[m[1]!]) process.env[m[1]!] = m[2]! }
+loadEnv(root)
 const ds = loadDataset(new URL("data/dataset/", root))
 const runsDir = new URL("data/out/runs/", root), callsDir = new URL("data/out/calls/", root), soakDir = new URL("data/out/soak/", root)
 for (const d of [runsDir, callsDir, soakDir]) mkdirSync(d, { recursive: true })

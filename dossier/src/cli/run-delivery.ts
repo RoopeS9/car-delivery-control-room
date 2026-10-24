@@ -3,14 +3,14 @@
 // report. --plan only prints the timeline. Needs OPENROUTER_API_KEY (from .env) unless --plan.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { buildDossier, loadDataset } from "../build"
+import { loadEnv } from "./env"
 import { CallRecord } from "../live"
 import { newRunReport, planTimeline, runDelivery, summarizeRun } from "../run"
 import { Twist } from "../sim/persona-from-dossier"
 import { derive } from "../derived"
 
 const root = new URL("../../", import.meta.url)
-const envPath = new URL(".env", root)
-if (existsSync(envPath)) for (const l of readFileSync(envPath, "utf8").split("\n")) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m && !process.env[m[1]!]) process.env[m[1]!] = m[2]! }
+loadEnv(root)
 const ds = loadDataset(new URL("data/dataset/", root))
 const runsDir = new URL("data/out/runs/", root), callsDir = new URL("data/out/calls/", root)
 mkdirSync(runsDir, { recursive: true }); mkdirSync(callsDir, { recursive: true })
