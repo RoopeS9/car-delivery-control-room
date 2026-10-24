@@ -251,6 +251,14 @@ describe("scenario A wiring", () => {
     assert.equal(row?.nextCheckAt?.toISOString().slice(11, 16), hhmm)
   })
 
+  test("notes before a separator line never reach the driver", async () => {
+    useTestLlm(scriptedModel([
+      { stop_reason: "end_turn", content: [text("The driver has already been told. Let me just acknowledge them.\n\n---\n\nThanks, we are on it and will message you before you arrive.")] },
+    ]))
+    const { result } = await handleDriverMessage(await prepareDriverMessage({ orderRef: ORDER, driverId: DRIVER, text: "Any news?", mode: "chat" }))
+    assert.equal(result.reply, "Thanks, we are on it and will message you before you arrive.")
+  })
+
   test("a tool call with broken JSON is made once more with a note, without restarting the turn", async () => {
     const model = scriptedModel([
       { throws: "Expected ',' or '}' after property value in JSON at position 435 (line 1 column 436)" },

@@ -162,7 +162,15 @@ class ReplyGate {
     await this.chain
   }
 
+  /** Set for a driver or a site: what reaches them is the message alone. */
+  forPerson = false
+
   private release(raw: string) {
+    // Some models write their own notes, a "---" line, then the message: only the message reaches a person.
+    if (this.forPerson) {
+      const parts = raw.split(/\n\s*(?:-{3,}|\*{3,}|_{3,})\s*(?:\n|$)/).map((part) => part.trim()).filter(Boolean)
+      if (parts.length > 1) raw = parts.at(-1)!
+    }
     const piece = this.written ? `\n\n${raw.trim()}` : raw.trim()
     this.written += piece
     const check = this.screen ? this.screen(this.written) : Promise.resolve(ALLOW)
@@ -191,6 +199,7 @@ async function rewriteHeldReply(client: Anthropic, call: { model: string; system
   else messages.push({ role: "user", content: nudge })
   const gate = new ReplyGate(screen, onText)
   gate.deferFallback = true
+  gate.forPerson = true
   try {
     const message = await callModel(client, { model: call.model, max_tokens: MAX_TOKENS, system: call.system, tools: call.tools, tool_choice: { type: "none" }, messages, output_config: { effort: call.effort } }, gate, usage)
     gate.endCall(message.stop_reason === "tool_use" ? "end_turn" : message.stop_reason)
@@ -446,6 +455,7 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
   let messages: Anthropic.MessageParam[] = []
   let gate = new ReplyGate(screen, holdsReply ? undefined : request.onText)
   gate.deferFallback = request.audience === "driver"
+  gate.forPerson = request.audience !== "operator"
   let stopReason: string | null = null
   let error: string | null = null
 
@@ -501,6 +511,7 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
     })
     gate = new ReplyGate(screen, holdsReply ? undefined : request.onText)
     gate.deferFallback = request.audience === "driver"
+    gate.forPerson = request.audience !== "operator"
   }
   usage.cost_usd += gate.costUsd + state.costUsd
 

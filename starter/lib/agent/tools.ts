@@ -673,7 +673,9 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
       caseId: state.caseRow.id, orderId: state.facts.id, actorType: "agent", actorId: AGENT_ID, kind: "note", channel: "internal",
       body: `Handled by the agent: ${str(input.summary)}`,
     })
-    return { content: "Case closed as handled by the agent.", log: null }
+    // The model echoes a bare "case closed" to the person it is talking to; tell it what its last text is for.
+    return { content: state.audience === "operator" ? "Case closed as handled by the agent."
+      : `Recorded. Your final text now goes to ${state.audience === "driver" ? "the driver" : "the site"} exactly as you write it: the answer to their question, in full, even if you wrote it before. Nothing about cases, closing or tools.`, log: null }
   },
 }
 
