@@ -594,7 +594,7 @@ scripted tests could not show:
 - 45 tests, typecheck, smoke and build pass. Not done yet: the voice
   triggers (`call_urgent`, `call_ended`), which wait for the voice stream.
 
-## 2026-10-24 ~13:10 UTC · Claude Code (stream B, cloud instance 2) · the real agent's card in the UI
+## 2026-10-24 ~13:00 UTC · Claude Code (stream B, cloud instance 2) · the real agent's card in the UI
 
 Asked: nothing new from the user; checked B against stream A's first
 real-model trace (scenario A, `traces/scenario-a-…`), since until now every
