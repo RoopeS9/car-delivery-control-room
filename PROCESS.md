@@ -259,7 +259,6 @@ Checked / changed / rejected:
 - Noticed Sonnet volunteered mechanical detail ("cylinder 2, catalytic
   converter") in the latency test: the interviewer prompt must hold to
   safety-only advice.
-
 ## 2026-10-24 ~14:15 UTC · Claude Code (stream A agent) · M1 acceptance tests
 
 Asked: prove in code that customer contact cannot happen without approval
@@ -340,7 +339,6 @@ Checked / changed / rejected:
 - Cut: about 15 trouble codes instead of 40, only decision-relevant OBD
   signals, simulated driver for the video only. Kept the map and voice.
 - Reserved 40 s of the video for the process story.
-
 
 ## 2026-10-24 ~13:30 UTC · Claude Code (stream C) · scenarios B–F, site chat, plan update
 
@@ -448,3 +446,184 @@ Checked / changed / rejected:
   with the simulator (the stop label, the reconnect place), so the driver
   never names a different service area than the GPS shows. The model path is
   not yet run: no key in this session; the scripted path covers the same facts.
+
+## 2026-10-24 ~11:45 UTC · Claude Code (stream A agent) · M0 foundation
+
+Asked: do M0 (shared contract) since `lib/cr/` did not exist, then move on to
+the agent.
+
+Got: `starter/lib/cr/` with `types.ts` (enums, `SourceRef`, `HandoverPacket`,
+OBD/GPS shapes), `schema.ts` (six `cr_` tables, no foreign keys into starter
+tables), `queries.ts` (store/fetch only; gates stay in `lib/agent`),
+`clock.ts` (simulated clock from `SIM_NOW`) and `db.ts`. Drizzle config now
+pushes both schemas; agent env vars added to `.env.example`.
+
+Checked / changed / rejected:
+- Read `scripts/seed.ts` first: it truncates only starter tables, so `cr_`
+  rows survive a reseed. Verified by reseeding with the new tables present.
+- `lib/db.ts` imports `server-only`, which throws under `tsx`. Rather than
+  edit the starter file, `lib/cr/db.ts` opens its own client so tests and
+  scripts can share the same queries as the app.
+- Added fields the plan's table list lacked but the UI and gates need:
+  `channel` and recipient on events (to audit "never contacted a customer"
+  and to render the driver thread), `waiting_on` / `next_step` on cases,
+  and `transitionProposal()` that only updates from an expected status so a
+  double click cannot execute a proposal twice.
+- Customer contact is pinned to ASK_FIRST in two places: `setAutonomy`
+  refuses it, and `getAutonomy` ignores any stored row for it.
+- No Docker daemon in the cloud machine: ran the system Postgres 16 on port
+  5438 instead. Node 22 (not 24) here; seed, typecheck and smoke all pass.
+- Left the dark-mode token skeleton (also M0) to stream B, since
+  `globals.css` is theirs.
+
+## 2026-10-24 ~12:00 UTC · Claude Code (stream A agent) · agent core + channel routes
+
+Asked: build the agent (loop, tools, gates) toward M1; mid-way, pull the
+updated plan (OpenRouter, channel contract 4.2c, decision options 4.2b,
+triggers) and follow it.
+
+Got: `lib/agent/` (OpenRouter client, context loader, tools, approval gate,
+prompts, loop, triggers) and the routes other streams build against:
+`/api/channels/{driver,site}/messages` (SSE), `/api/channels/photos`,
+driver and site feeds, `/api/cases` (list, detail, decide, outcome,
+instruct), `/api/agent/{ask,telemetry,runs}`. Without a key every route
+works in stub mode: a fixed reply, and the case goes to a person.
+
+Checked / changed / rejected:
+- Read the `claude-api` skill and the bundled Next 16 route docs first.
+  The skill's defaults (server-side refusal `fallbacks`, beta client,
+  `eager_input_streaming`) were dropped: OpenRouter does not support the
+  beta parameters, and eager streaming would turn off the schema check that
+  `strict: true` gives us. Refusals hand the case to a person instead.
+- Rules live in code, not just the prompt: per-audience tool allowlists,
+  order scoping for drivers and sites, `ask_site` refused for a site the
+  customer owns, customer drafts forced to ASK_FIRST whatever the autonomy
+  table says, and `executeProposal` refuses anything not approved.
+- "Never tell the driver to keep driving" is checked on every message to a
+  driver, including the streamed reply: the stream is released one sentence
+  at a time and stops before a sentence that clears driving ("you can
+  continue"), while negations and conditions ("not safe to drive", "until an
+  operator confirms you can drive") pass.
+- A reply to a site the customer owns is never streamed: it becomes a
+  CONTACT_SITE_AS_CUSTOMER draft (plan: "replies count too").
+- Driver and site turns stay fast and cannot propose; they call `hand_over`,
+  and a separate deeper "prepare a decision" turn builds the card. This keeps
+  voice replies quick and puts the careful work where the decision is made.
+- Each turn starts fresh from a stable cached system prompt (principles +
+  whole rulebook) plus case notes, and is append-only within the turn, so
+  thinking blocks are never edited or replayed across turns.
+- Deviation: photos are stored in Postgres (a `photo` event) instead of the
+  S3 object store, which needs Docker; this machine has none.
+- Telemetry stub reply first said "Thanks, we have your message" to a driver
+  who had not written; replaced with a fixed safety-first line.
+- Not yet run against the model: `OPENROUTER_API_KEY` is not visible in this
+  session.
+
+## 2026-10-24 ~12:05 UTC · Claude Code (stream A agent) · M1 acceptance tests
+
+Asked: prove in code that customer contact cannot happen without approval
+(M1), and get scenario A ready to run end to end.
+
+Got: `npm test` with 30 tests. `gate.test.ts` covers the approval rules against
+the real database, no model needed. `loop.test.ts` covers the loop wiring,
+using a scripted stand-in for the model. `npm run agent:scenario-a` runs
+scenario A with the real model, a rule-based driver and the operator's "I'll
+handle it", and saves every run plus a readable `timeline.md` under `traces/`.
+The dashboard photo in the fixture is drawn with code, not photographed.
+
+Checked / changed / rejected:
+- The customer rule is tested the hard way. AUTO is written straight into the
+  autonomy table, past `setAutonomy`'s own check, and the proposal still waits.
+  Neither the agent nor an operator can execute it while it is pending. After
+  approval it runs once, attributed to the operator, and a second click gets
+  409 and changes nothing.
+- The loop tests failed on the first run. It was not the code: open cases left
+  over from my manual stub-mode calls were being reused, which is correct
+  behaviour. I moved the loop tests to a quiet order (CD-420366) that no demo
+  scenario uses, and clear it first, rather than wiping the whole table under
+  teammates.
+- Did not mock the model inside the real loop. The test hook only swaps the
+  client, so the prompts, gates and delivery code that run are the real ones.
+- Still open: a real-model run and its trace. `OPENROUTER_API_KEY` is not
+  visible to this session.
+
+## 2026-10-24 ~12:10 UTC · Claude Code (stream A agent) · plan re-check, out-of-date cards
+
+Asked: pull, re-read PLAN.md 4.2–4.2c and 6, push the contract and channel
+stubs first, then continue toward M1 (telemetry trigger, 4.2b decisions).
+
+Got: main had nothing newer than the plan already merged. Checked the plan
+line by line against what is built: contract and stub routes were already
+pushed and both other streams had merged them and built against them (B's case
+panel calls the routes; C's simulator posts to `/api/agent/telemetry`).
+Neither touched stream A's folders. Built the one missing 4.2b item: "Facts
+changed since this was drafted". `GET /api/cases/{id}` lists out-of-date cards,
+and `POST …/proposals/{id}/refresh` sets one aside and has the agent draft a
+fresh one.
+
+Checked / changed / rejected:
+- Only outside facts count as "changed" (driver, site, customer, car, phone).
+  The agent's own notes and operators' actions do not, or every card would be
+  stale the moment the agent logs anything. A test covers both sides.
+- Refresh is refused (409) when nothing new came in, so it cannot be used to
+  silently discard a card.
+- Still blocked: the real-model M1 trace. `OPENROUTER_API_KEY` is not visible
+  in this session.
+
+## 2026-10-24 ~12:45 UTC · Claude Code (stream A agent) · contract v2: follow-ups, effects, drivability
+
+Asked: pull and re-read PLAN.md rules 2 and 8 and sections 4.1, 4.2, 4.2b and 7,
+then adjust everything already built: case follow-up fields, proposal
+revisions, assumptions and execution keys, `cr_effects` with
+`lib/cr/effective.ts`, context per audience, the drivability screen,
+template-only safety instructions, follow-up and watchdog triggers with
+`POST /api/cases/tick`, and the M1 tests.
+
+Got: all of it, in `lib/cr/` and `lib/agent/`. `npm test` runs 42 tests, all
+passing, with no model needed. Typecheck, smoke and build pass.
+- Every open case now says what happens next, who or what it waits on, and
+  when we look again. `POST /api/cases/tick` sends one reminder to a silent
+  driver (5 sim minutes when urgent, 30 otherwise), then escalates with what is
+  known, what is missing and one next action. A watchdog catches a run that
+  hangs or errors and turns it into a "the agent couldn't finish" card.
+- Cards carry a revision, the assumptions they rely on, and an execution key.
+  The assumptions are checked again just before anything runs. If one changed,
+  the card is marked OUTDATED and the agent redrafts it. Two approvals of the
+  same card execute once. A booking with no answer from the provider becomes
+  UNKNOWN_OUTCOME, and an operator has to confirm it before anything else
+  happens.
+- Results go into `cr_effects` with who authorised them and on what basis.
+  `effectiveOrder()` reads them. Approving a new delivery date only records
+  "proposed to the customer". The promise changes only when the customer's
+  agreement is logged (`POST /api/cases/{id}/customer-answer`).
+- Each audience gets its own context. A site gets nothing about the customer
+  or prices, and a driver gets no prices. A customer's own site is treated as
+  the customer. Rule 8: a driver can only write about an assignment that is
+  ASSIGNED or IN_PROGRESS.
+- Every message to a driver is screened. Patterns check it first, sentence by
+  sentence while it streams. Haiku then catches the indirect phrasings. If
+  Haiku is unavailable, a message that mentions driving is held. A held
+  message is never sent; it becomes a CLEAR_TO_CONTINUE card. The driver gets
+  a fixed "please stay where you are" line instead.
+
+Checked / changed / rejected:
+- Safety instructions are fixed templates. The server fills in only the
+  driver's first name; the model never writes free text into them. This is
+  stricter than the plan's slots, because a slot is still a place where the
+  model can write "it's fine to drive".
+- Added a `waiting_for` column (driver, site, customer, operator, agent,
+  provider, dispatch) next to the free-text `waiting_on`. The tick needs to
+  know whom to chase, and parsing that out of prose would break.
+- Approving a phone-call card now means "I'll handle it". The case waits for
+  the operator to log what happened. The agent does not pretend it called
+  anyone.
+- Refresh now marks the old card OUTDATED instead of rejecting it, so the
+  history shows why it was replaced.
+- Renamed for the plan's words (B and C told): `nextStep` → `nextAction`,
+  `sourceRefs` → `linkedRecords`, `execution` → `executionResult`. Existing
+  databases need `npm run cr:reset-schema && npm run db:push`, because
+  drizzle-kit's rename prompts would otherwise hang.
+- Tests found two bugs in my own first draft. The "no prices" check flagged
+  "Europe/Helsinki". The double-approval race test assumed the first click
+  always wins; now either click may win, as long as exactly one executes.
+

@@ -28,3 +28,10 @@ export function resetSimClock(to?: string): void {
   holder.__crClockAnchor = undefined
   if (to) holder.__crClockAnchor = { real: Date.now(), sim: Date.parse(to) }
 }
+
+/** Move the simulated clock forward (the /demo "+5 / +15 / +60 min" buttons), so follow-ups come due. */
+export function advanceSimClock(minutes: number): Date {
+  const now = simNow()
+  holder.__crClockAnchor = { real: Date.now(), sim: now.getTime() + minutes * 60000 }
+  return simNow()
+}

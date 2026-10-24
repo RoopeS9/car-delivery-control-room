@@ -14,6 +14,7 @@
     "smoke": "tsx scripts/smoke.ts",
     "test": "tsx --test lib/agent/*.test.ts lib/sim/*.test.ts",
     "agent:scenario-a": "tsx lib/agent/dev/scenario-a.ts",
+    "cr:reset-schema": "tsx lib/cr/dev/reset-schema.ts",
     "sim:seed-routine": "tsx lib/sim/seed-routine.ts"
   },
   "dependencies": {

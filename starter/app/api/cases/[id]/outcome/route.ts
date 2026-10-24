@@ -11,7 +11,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   try {
     const result = await outcome(id, await readJson<LogOutcomeRequest>(request))
     continueInBackground(result.followUps)
-    return Response.json({ case_id: id, case_status: result.outcome.case_status, next_step: result.outcome.next_step } satisfies CaseActionResponse)
+    return Response.json({ case_id: id, case_status: result.outcome.case_status, next_step: result.outcome.next_step, next_check_at: result.outcome.next_check_at } satisfies CaseActionResponse)
   } catch (error) {
     return errorResponse(error)
   }
