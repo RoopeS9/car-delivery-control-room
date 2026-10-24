@@ -11,10 +11,11 @@ import { crDb } from "@/lib/cr/db"
 import { crTelemetry } from "@/lib/cr/schema"
 import type { ObdData } from "@/lib/cr/types"
 import { fleetCar } from "@/lib/sim/fleet"
+import { polylineKm, type LatLng } from "@/lib/sim/geo"
 import { telemetryStrip } from "./cases"
 import { callsFor, serviceDossier, strengthIndex } from "./call-service"
 import { readToolArgument, slotLabel, slotValue, type CallRecord } from "./call-types"
-import { deriveKeyDates, milestones } from "./attention"
+import { deriveKeyDates, latestTracking, milestones } from "./attention"
 import { type Bundle, rows, str } from "./bundle"
 import { label, labelIn } from "./labels"
 import { buildRecordView } from "./record"
@@ -346,6 +347,35 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
     })
   }
 
+  // ---- how far along: the simulated position along the route shape, else the driver app's last progress report
+  let progress: DossierView["progress"] = null
+  if (deliveredAt) progress = { fraction: 1, remainingKm: 0, basis: "delivered" }
+  else if (moving && car && gps) {
+    const data = gps.data as Record<string, unknown>
+    const at: LatLng | null = typeof data.lat === "number" && typeof data.lng === "number" ? [data.lat, data.lng] : null
+    if (at) {
+      let best = { part: 0, index: 0, distance: Infinity }
+      car.parts.forEach((part, partIndex) => part.coords.forEach((point, index) => {
+        const distance = (point[0] - at[0]) ** 2 + ((point[1] - at[1]) * Math.cos(at[0] * Math.PI / 180)) ** 2
+        if (distance < best.distance) best = { part: partIndex, index, distance }
+      }))
+      const part = car.parts[best.part]
+      const drawn = polylineKm(part.coords)
+      const along = drawn > 0 ? polylineKm(part.coords.slice(0, best.index + 1)) / drawn : 0
+      const covered = part.startKm + part.km * along
+      progress = { fraction: Math.max(0, Math.min(1, covered / car.pathKm)), remainingKm: Math.max(0, Math.round(car.pathKm - covered)), basis: "simulated phone position along the route" }
+    }
+  }
+  if (!progress && moving) {
+    const report = latestTracking(bundle).direct
+    if (report?.progress != null) progress = { fraction: Math.max(0, Math.min(1, report.progress)), remainingKm: report.remainingKm != null ? Math.round(report.remainingKm) : null, basis: "driver app progress report" }
+  } else if (!progress && pickedUpAt == null) progress = { fraction: 0, remainingKm: null, basis: "not picked up yet" }
+  if (progress && moving) {
+    const now = strip.find((point) => point.state === "now")
+    const words = `${Math.round(progress.fraction * 100)} % of the way${progress.remainingKm != null ? ` · ${progress.remainingKm.toLocaleString("en-GB")} km to go` : ""}`
+    if (now) now.note = [words, now.note].filter(Boolean).join(" · ")
+  }
+
   // ---- the headline: one sentence of state, in plain words
   const first = driver?.split(" ")[0] ?? "The driver"
   let headline = view.story.headline
@@ -413,7 +443,7 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
     vehicle: header.vehicle?.title ?? "Vehicle not linked", make: primary?.vehicle.make ?? null,
     customer: bundle.customer.name, driver, from: header.from.city, to: header.to.city, laneLabel: header.laneLabel, zone, simNow: now,
     headline, tone: need ? "danger" : view.story.tone,
-    need, fault, strip, watching: shownWatching, conversationHref: need?.href ?? `/orders/${bundle.order.id}${view.calls[0] ? `#call-${view.calls[0].id}` : threadAnchor}`, recent: recentLines.slice(0, 3), ahead, behind, records, recordsFromService: !!typed,
+    need, fault, strip, progress, watching: shownWatching, conversationHref: need?.href ?? `/orders/${bundle.order.id}${view.calls[0] ? `#call-${view.calls[0].id}` : threadAnchor}`, recent: recentLines.slice(0, 3), ahead, behind, records, recordsFromService: !!typed,
   }
 }
 

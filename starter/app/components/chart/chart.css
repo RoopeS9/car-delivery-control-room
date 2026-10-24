@@ -208,6 +208,9 @@
 .ds-times .late b { color: var(--c-decide); }
 
 .strip { display: flex; margin: 14px 18px 4px; padding: 0; }
+/* How far along the trip is, as a filled bar above the journey points. */
+.strip-progress { margin: 16px 18px -8px; height: 4px; border-radius: 2px; background: var(--hair-soft); overflow: hidden; }
+.strip-progress span { display: block; height: 100%; border-radius: 2px; background: var(--tone-agent); transition: width 0.6s ease; }
 .sp { flex: 1; position: relative; display: flex; flex-direction: column; gap: 1px; padding-top: 18px; min-width: 0; font-size: 12px; }
 .sp::before { content: ""; position: absolute; top: 5px; left: 6px; right: -6px; height: 2px; background: var(--c-line-strong); }
 .sp:last-child::before { display: none; }

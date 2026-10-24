@@ -79,6 +79,10 @@ export function Dossier({ node, onClose }: { node: ChartNode; onClose: () => voi
         <p className="fault-note">A trouble code is a signal from the car, not a diagnosis.</p>
       </section>}
 
+      {view.progress && <div className="strip-progress" title={`${Math.round(view.progress.fraction * 100)} % of the way, from the ${view.progress.basis}`}
+        role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(view.progress.fraction * 100)} aria-label="How far along the trip is">
+        <span style={{ width: `${Math.round(view.progress.fraction * 100)}%` }} />
+      </div>}
       <ol className="strip" aria-label="Journey">
         {view.strip.map((point, index) => <li key={`${point.label}-${index}`} className={`sp sp-${point.state}`}>
           <span className="sp-dot" aria-hidden="true" />
