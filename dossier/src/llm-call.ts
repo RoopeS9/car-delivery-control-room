@@ -9,7 +9,7 @@ import { CHECKLISTS, CallRecord, MAX_QUESTIONS, SlotName, SlotValue, Situation, 
 import type { Persona } from "./sim/personas"
 import { composeBrief, renderDossier } from "./reason"
 import { items } from "./brief"
-import { contextPrompt, isClosing } from "./context"
+import { EMERGENCY_CLOSING, contextPrompt, isClosing } from "./context"
 
 type Usage = { prompt_tokens: number; completion_tokens: number; cost?: number }
 async function complete(apiKey: string, model: string, messages: { role: "system" | "user" | "assistant"; content: string }[], json = false, temperature = 0.6): Promise<{ text: string; cost: number }> {
@@ -65,10 +65,19 @@ export async function runLlmCall(d: Dossier, persona: Persona, purpose: CallBrie
   say("CALLER", brief.opening); history.push({ role: "assistant", content: brief.opening })
   const calleeModel = process.env.CALLEE_MODEL ?? "deepseek/deepseek-v4.1-flash"     // the persona needs no depth; the fast model halves the wall time
   { const r0 = await complete(apiKey, calleeModel, [{ role: "system", content: calleeSys }, ...asCallee()], false, 0.7); cost += r0.cost; const reply0 = r0.text.split("\n")[0]!.trim(); if (reply0) { say("CALLEE", reply0); history.push({ role: "user", content: reply0 }) } }
+  // The same sentence twice, or the emergency instruction twice, ends the call: a person would stop talking and let them act.
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim()
+  const saidBefore = new Set<string>()
+  let saidEmergency = 0
   for (let i = 0; i < maxTurns && !done; i++) {
     const guard = i < minTurnsBeforeClose ? "\n(You have not asked everything yet: do not close the call on this turn; ask your next question.)" : ""
     const c = await complete(apiKey, model, [{ role: "system", content: callerSys + guard }, ...history], false, 0.5); cost += c.cost
-    const line = c.text.replace(/^Mira:\s*/i, "").split("\n")[0]!.trim(); if (!line) break
+    let line = c.text.replace(/^Mira:\s*/i, "").split("\n")[0]!.trim(); if (!line) break
+    const key = norm(line)
+    if (/\b112\b/.test(line)) saidEmergency += 1
+    if (saidEmergency >= 2 && !isClosing(line, brief)) { line = EMERGENCY_CLOSING }
+    else if (saidBefore.has(key) && i >= 1 && !isClosing(line, brief)) { line = /\b112\b/.test(line) ? EMERGENCY_CLOSING : brief.closing }
+    saidBefore.add(key)
     say("CALLER", line); history.push({ role: "assistant", content: line })
     // The closing line ends the call: no further callee turn, never a second closing.
     if (isClosing(line, brief)) { done = true; break }

@@ -1,4 +1,5 @@
-// Goal-alignment review of an outbound call: did the caller do what the brief asked, say only what it may, and stop cleanly?
+// Goal-alignment review of a call: did the caller do what the brief asked, say only what it may, say nothing twice, and stop cleanly?
+// Inbound calls have no asks, so their coverage is trivially full; the violations and the repeats are what count.
 // Deterministic (no model), so it can be read as a scorecard and compared across runs.
 import { z } from "zod"
 import type { CallRecord } from "./live"
@@ -45,6 +46,14 @@ export function reviewCall(c: CallRecord): CallReview {
   const caller = c.turns.filter((t) => t.speaker === "CALLER")
   const violations: CallReview["violations"] = []
   for (const t of caller) for (const kind of c.brief.mustNot) { const re = PATTERNS[kind]; if (re && re.test(t.text) && !(kind === "OTHER_ORDERS" && t.text.includes(c.brief.mayState.join(" ").match(/C D [a-z ]+/i)?.[0] ?? "\u0000"))) violations.push({ kind, turnSeq: t.seq, text: t.text }) }
+  // The same sentence said again, word for word, is a violation of its own kind: the user hears a robot.
+  const seen = new Map<string, number>()
+  for (const t of caller) {
+    const key = t.text.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim()
+    if (key.length < 12) continue
+    const n = (seen.get(key) ?? 0) + 1; seen.set(key, n)
+    if (n >= 2) violations.push({ kind: "REPEATED_LINE", turnSeq: t.seq, text: t.text })
+  }
   const card = [c.brief.opening, ...c.brief.mayState, c.brief.closing].join(" ").toLowerCase()
   const cardNumbers = new Set(numbersIn(card))
   // A number the other party said is theirs to repeat: reading it back is the brief's own rule, not an invention.

@@ -274,7 +274,7 @@ export const SCENARIOS: Scenario[] = [
       if (present && present.value.value === false) world.rec.pass("The later statement wins on a self-contradiction", `VEHICLE_PRESENT=false from turn ${present.turnSeq}`)
       else world.rec.review("The later statement wins on a self-contradiction", present ? JSON.stringify(present) : "VEHICLE_PRESENT not recorded")
       const caller = job.call.turns.filter((t) => t.speaker === "CALLER").map((t) => t.text).join("\n")
-      const verdict = await ask(world.rec, "Does the caller notice the contradiction and ask the desk to confirm which statement is right before the read-back?", job.call.turns.map((t) => `${t.speaker}: ${t.text}`).join("\n"))
+      const verdict = await ask(world.rec, "When the desk contradicts itself (the car is here, then it went out; keys at the desk, then with sales), does the caller settle on one value each time, by taking the correction or by asking, and read back only that value at the end?", job.call.turns.map((t) => `${t.speaker}: ${t.text}`).join("\n"))
       if (verdict.yes) world.rec.pass("The caller notices the contradiction", verdict.why); else world.rec.review("The caller notices the contradiction", `${verdict.why} · ${caller.slice(0, 200)}`)
     },
   },

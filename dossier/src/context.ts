@@ -26,8 +26,11 @@ export const MUST_NOT_WORDS: Record<CallBrief["mustNot"][number], string> = {
 
 export const ROUTINE_CLOSING = "Glad I could help. Drive safely, and call again if anything comes up."
 
+/** The line's last sentence when the caller must call the emergency number: said once, then the call ends. */
+export const EMERGENCY_CLOSING = "Hang up and call 112 now. An operator at Bahn has been told and will call you back."
+
 /** The line can tell an operator; it cannot send anyone. Injury or danger goes to the emergency number first. */
-export const EMERGENCY_LINE = "You cannot send emergency services, a tow truck or anyone else, and you must never say that you are sending help or that help is on the way. If they say they are hurt, trapped, in danger, or there was a crash with anyone injured: tell them clearly, once, to hang up and call 112 now (the emergency number across Europe; in another country, their local emergency number), to stay off the road, and that an operator at Bahn is told at once. Then keep the call short and let them call."
+export const EMERGENCY_LINE = "You cannot send emergency services, a tow truck or anyone else, and you must never say that you are sending help or that help is on the way. If they say they are hurt, trapped, in danger, or there was a crash with anyone injured: tell them clearly, once, to hang up and call 112 now (the emergency number across Europe; in another country, their local emergency number), to stay off the road, and that an operator at Bahn is told at once. Then keep the call short and let them call: if they ask again whether help is coming, answer in one short sentence that you cannot send anyone and that 112 can, then end the call with exactly: " + EMERGENCY_CLOSING
 
 export const CLEARANCE_LINE = "If asked whether they can keep driving, whether the light matters, or whether the car is safe to use, say exactly: I cannot clear you to drive on; an operator decides that. Please keep the engine off and stay off the road. Say nothing else about the car's condition."
 
@@ -51,6 +54,7 @@ export function contextPrompt(d: Dossier, brief: CallBrief, opts: { maxHistory?:
     "After that never introduce yourself again and never repeat that sentence; answer what was said and ask the next question directly.",
     "The person you are talking to has no transcript and may be busy or distracted: keep track yourself of what they have and have not answered, never assume an answer they did not give, and before you close read back what you understood in one or two sentences and let them correct you.",
     "If they interrupt you, stop and listen; do not repeat what you already said unless asked.",
+    "Never say the same sentence twice on a call. When they push back on an instruction you already gave, give it once more in other words and then end the call with the closing sentence; a third time is never right, and a question you cannot answer is answered once with what an operator will do.",
     "Never ask what they already told you, even in passing: when an answer covers a later question (they said the driver should call them, so you know where the driver reports), skip that question and fold it into the read-back.",
     "A stray word, noise, or a bye before you have asked anything is not the end of the call: say once, sorry, do you have a moment, and go on. Say the closing sentence exactly once, only after the read-back is confirmed, and nothing after it; if they speak again after it, answer in a few words and stop.",
     `When you have what you need and the read-back is confirmed, end with exactly this sentence and nothing after it: ${brief.closing}`,
@@ -79,5 +83,7 @@ export function cardText(brief: CallBrief): string {
 export function isClosing(line: string, brief: CallBrief): boolean {
   const said = line.toLowerCase()
   const head = brief.closing.toLowerCase().replace(/[^a-z0-9 ]/g, "").split(" ").slice(0, 5).join(" ")
-  return said.replace(/[^a-z0-9 ]/g, "").includes(head) || said.includes("glad i could help") || /\b(an operator (has|will)|we will (call|message) you)\b/i.test(line)
+  const emergency = EMERGENCY_CLOSING.toLowerCase().replace(/[^a-z0-9 ]/g, "").split(" ").slice(0, 5).join(" ")
+  const plain = said.replace(/[^a-z0-9 ]/g, "")
+  return plain.includes(head) || plain.includes(emergency) || said.includes("glad i could help") || /\b(an operator( at \w+)? (has|will|is (told|informed))|we('ll| will) (call|message) you)\b/i.test(line) || /\bgoodbye\b/i.test(line)
 }

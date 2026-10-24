@@ -183,7 +183,7 @@ createServer(async (req, res) => {
       void (async () => {
         try {
           const r = await runLlmCall(d, persona, purpose.data, at); store(r.record)
-          job.call = r.record; job.note = { costUsd: r.costUsd, briefBy: r.briefBy, twist: twist.data }; job.review = r.record.direction === "OUTBOUND" ? reviewCall(r.record) : null; job.status = "done"
+          job.call = r.record; job.note = { costUsd: r.costUsd, briefBy: r.briefBy, twist: twist.data }; job.review = reviewCall(r.record); job.status = "done"
         } catch (e) { job.status = "failed"; job.error = (e as Error).message.slice(0, 600) }
       })()
       return json(res, 202, { jobId: job.id, personaId: persona.id, purpose: purpose.data, twist: twist.data })
@@ -195,7 +195,7 @@ createServer(async (req, res) => {
       const at = input.at ?? new Date().toISOString()
       const mode = input.mode ?? (process.env.OPENROUTER_API_KEY ? "llm" : "scripted")
       const store = (call: CallRecord) => { calls.set(call.id, call); writeFileSync(new URL(`${call.id}.json`, callsDir), JSON.stringify(call, null, 1)) }
-      if (mode !== "llm") { const call = runSimulatedCall(briefFor(d, purposeFor(persona)), persona, at); store(call); return json(res, 201, { ...call, review: call.direction === "OUTBOUND" ? reviewCall(call) : null }) }
+      if (mode !== "llm") { const call = runSimulatedCall(briefFor(d, purposeFor(persona)), persona, at); store(call); return json(res, 201, { ...call, review: reviewCall(call) }) }
       // A model-driven run takes 30 to 90 s, longer than the proxies in front of the UI allow: run it as a job and let the UI poll.
       const job: Job = { id: `job-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, personaId: persona.id, mode, startedAt: new Date().toISOString(), status: "running" }
       jobs.set(job.id, job)
@@ -205,7 +205,7 @@ createServer(async (req, res) => {
           // Speech for every turn, after the record is stored: a failed render never loses the call.
           const spoken = await renderCallAudio(r.record, audioDir); if (spoken.rendered) store(spoken.call)
           job.call = spoken.call; job.note = { costUsd: r.costUsd + spoken.costUsd, briefBy: r.briefBy, audio: ttsEnabled() ? { rendered: spoken.rendered, costUsd: spoken.costUsd, failed: spoken.failed } : null }
-          job.review = r.record.direction === "OUTBOUND" ? reviewCall(r.record) : null; job.status = "done"
+          job.review = reviewCall(r.record); job.status = "done"
         }
         catch (e) { job.status = "failed"; job.error = (e as Error).message.slice(0, 400) }
       })()
@@ -222,7 +222,7 @@ createServer(async (req, res) => {
       try {
         const r = await ingestTranscript(d, purpose.data, input.turns, { startedAt: input.startedAt, endedAt: input.endedAt, engine: input.engine, lineCallId: input.lineCallId })
         calls.set(r.record.id, r.record); writeFileSync(new URL(`${r.record.id}.json`, callsDir), JSON.stringify(r.record, null, 1))
-        return json(res, 201, { ...r.record, review: r.record.direction === "OUTBOUND" ? reviewCall(r.record) : null, costUsd: r.costUsd })
+        return json(res, 201, { ...r.record, review: reviewCall(r.record), costUsd: r.costUsd })
       } catch (e) { return json(res, 502, { error: (e as Error).message.slice(0, 400) }) }
     }
     if (parts[0] === "calls" && parts[1] === "jobs" && parts[2]) { const j = jobs.get(parts[2]); return j ? json(res, 200, { id: j.id, status: j.status, personaId: j.personaId, startedAt: j.startedAt, call: j.call ?? null, review: j.review ?? null, note: j.note ?? null, error: j.error ?? null }) : json(res, 404, { error: "no such job" }) }
