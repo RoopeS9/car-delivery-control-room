@@ -8,6 +8,7 @@ import { ActionStrip } from "../actions/action-strip"
 import { Icon } from "../icons"
 import { MakeMark } from "../queue"
 import { weekdayClock } from "./format"
+import { JourneyBar } from "./journey-bar"
 
 const REFRESH_MS = 8000
 
@@ -58,6 +59,16 @@ export function Dossier({ node, onClose }: { node: ChartNode; onClose: () => voi
       <ActionStrip orderId={node.orderId} compact />
       <p className={`ds-headline tone-edge-${view.tone}`}>{view.headline}</p>
 
+      {view.progress && <div className="ds-journey"><JourneyBar progress={view.progress} /></div>}
+      <ol className="strip" aria-label="Journey">
+        {view.strip.map((point, index) => <li key={`${point.label}-${index}`} className={`sp sp-${point.state}`}>
+          <span className="sp-dot" aria-hidden="true" />
+          <b>{point.label}</b>
+          <span className="sp-place">{point.place}</span>
+          {point.note && <small>{point.note}</small>}
+        </li>)}
+      </ol>
+
       {view.need ? <section className="ds-need" aria-label="Needs you">
         <b>{view.need.title}</b>
         {view.need.ask && <p>{view.need.ask}</p>}
@@ -79,18 +90,6 @@ export function Dossier({ node, onClose }: { node: ChartNode; onClose: () => voi
         <p className="fault-note">A trouble code is a signal from the car, not a diagnosis.</p>
       </section>}
 
-      {view.progress && <div className="strip-progress" title={`${Math.round(view.progress.fraction * 100)} % of the way, from the ${view.progress.basis}`}
-        role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(view.progress.fraction * 100)} aria-label="How far along the trip is">
-        <span style={{ width: `${Math.round(view.progress.fraction * 100)}%` }} />
-      </div>}
-      <ol className="strip" aria-label="Journey">
-        {view.strip.map((point, index) => <li key={`${point.label}-${index}`} className={`sp sp-${point.state}`}>
-          <span className="sp-dot" aria-hidden="true" />
-          <b>{point.label}</b>
-          <span className="sp-place">{point.place}</span>
-          {point.note && <small>{point.note}</small>}
-        </li>)}
-      </ol>
 
       {view.watching.length > 0 && <section className="ds-sec" aria-label="Watching">
         <h3>Watching</h3>

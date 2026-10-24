@@ -351,8 +351,26 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
   }
 
   // ---- how far along: the simulated position along the route shape, else the driver app's last progress report
+  // Stages: from the sim's route parts when the car has one (a crossing is its own segment), else pickup to delivery.
+  const stops: NonNullable<DossierView["progress"]>["stops"] = [{ at: 0, label: "Pickup", place: header.from.city }]
+  const segments: NonNullable<DossierView["progress"]>["segments"] = []
+  if (car && car.pathKm > 0) {
+    for (const part of car.parts) {
+      const from = part.startKm / car.pathKm
+      const to = (part.startKm + part.km) / car.pathKm
+      segments.push({ from, to, kind: part.kind, label: part.kind === "sea" ? `Ferry, ${car.ferry?.originName ?? ""} to ${car.ferry?.destinationName ?? ""}`.replace(/, $/, "") : part.label })
+    }
+    if (car.ferry) {
+      const sea = car.parts.find((part) => part.kind === "sea")
+      if (sea) {
+        stops.push({ at: sea.startKm / car.pathKm, label: "Terminal", place: car.ferry.originName })
+        stops.push({ at: (sea.startKm + sea.km) / car.pathKm, label: "Terminal", place: car.ferry.destinationName })
+      }
+    }
+  } else segments.push({ from: 0, to: 1, kind: "road", label: `${header.from.city} to ${header.to.city}` })
+  stops.push({ at: 1, label: "Delivery", place: header.to.city })
   let progress: DossierView["progress"] = null
-  if (deliveredAt) progress = { fraction: 1, remainingKm: 0, basis: "delivered" }
+  if (deliveredAt) progress = { fraction: 1, remainingKm: 0, basis: "delivered", stops, segments }
   else if (moving && car && gps) {
     const data = gps.data as Record<string, unknown>
     const at: LatLng | null = typeof data.lat === "number" && typeof data.lng === "number" ? [data.lat, data.lng] : null
@@ -366,13 +384,13 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
       const drawn = polylineKm(part.coords)
       const along = drawn > 0 ? polylineKm(part.coords.slice(0, best.index + 1)) / drawn : 0
       const covered = part.startKm + part.km * along
-      progress = { fraction: Math.max(0, Math.min(1, covered / car.pathKm)), remainingKm: Math.max(0, Math.round(car.pathKm - covered)), basis: "simulated phone position along the route" }
+      progress = { fraction: Math.max(0, Math.min(1, covered / car.pathKm)), remainingKm: Math.max(0, Math.round(car.pathKm - covered)), basis: "simulated phone position along the route", stops, segments }
     }
   }
   if (!progress && moving) {
     const report = latestTracking(bundle).direct
-    if (report?.progress != null) progress = { fraction: Math.max(0, Math.min(1, report.progress)), remainingKm: report.remainingKm != null ? Math.round(report.remainingKm) : null, basis: "driver app progress report" }
-  } else if (!progress && pickedUpAt == null) progress = { fraction: 0, remainingKm: null, basis: "not picked up yet" }
+    if (report?.progress != null) progress = { fraction: Math.max(0, Math.min(1, report.progress)), remainingKm: report.remainingKm != null ? Math.round(report.remainingKm) : null, basis: "driver app progress report", stops, segments }
+  } else if (!progress && pickedUpAt == null) progress = { fraction: 0, remainingKm: null, basis: "not picked up yet", stops, segments }
   if (progress && moving) {
     const now = strip.find((point) => point.state === "now")
     const words = `${Math.round(progress.fraction * 100)} % of the way${progress.remainingKm != null ? ` · ${progress.remainingKm.toLocaleString("en-GB")} km to go` : ""}`

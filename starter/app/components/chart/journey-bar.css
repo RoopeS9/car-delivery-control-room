@@ -1,0 +1,23 @@
+/* Journey progress: stages on one bar, percent on it, boundaries named beneath. */
+.jbar { display: grid; gap: 6px; }
+.jbar-track { position: relative; height: 22px; border-radius: 11px; background: var(--hair-soft); overflow: hidden; }
+.jbar-seg { position: absolute; top: 0; bottom: 0; }
+.jbar-sea { background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--tone-agent) 14%, transparent) 6px 9px); }
+.jbar-fill { position: absolute; left: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--tone-agent) 75%, var(--ink) 0%); border-radius: 11px 0 0 11px; transition: width 0.6s ease; }
+.jbar-tick { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--birch); }
+.jbar-text { position: absolute; left: 10px; top: 0; line-height: 22px; font-size: 12px; font-weight: 600; color: var(--ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.jbar-text.on-fill { color: #fff; }
+/* The stops line: the ends anchor to their edge, middle stops centre on their tick. A stop that would collide with a
+   neighbour keeps its tick and loses its words; Now is a tick with a word only when there is room for it. */
+.jbar-stops { position: relative; height: 34px; margin: 0 2px; }
+.jbar-stops li { position: absolute; top: 0; transform: translateX(-50%); display: grid; justify-items: center; font-size: 11.5px; line-height: 1.25; white-space: nowrap; }
+.jbar-stops li::before { content: ""; width: 1px; height: 5px; background: var(--sand); margin-bottom: 2px; }
+.jbar-stops li.first { transform: none; justify-items: start; }
+.jbar-stops li.last { transform: translateX(-100%); justify-items: end; }
+.jbar-stops li.quiet b, .jbar-stops li.quiet span { visibility: hidden; }
+.jbar-stops b { font-weight: 600; }
+.jbar-stops span { color: var(--subtle); max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+.jbar-stops li.now { top: -3px; color: var(--teal-ink); }
+.jbar-stops li.now::before { height: 7px; background: var(--tone-agent); }
+.jbar-card { margin: 0 0 18px; padding: 14px 16px 10px; border-radius: 12px; background: var(--birch); box-shadow: var(--shadow-card); }
+.jbar-card h2 { margin-bottom: 8px; font-size: 13px; font-weight: 600; color: var(--muted); }

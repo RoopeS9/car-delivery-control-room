@@ -3,6 +3,7 @@
 import Link from "next/link"
 import type { RecordView } from "@/lib/present/types"
 import { CasePanel } from "./case/case-panel"
+import { OrderJourneyBar } from "./chart/journey-bar"
 import { MakeMark } from "./queue"
 import { RecordHero, Tiles } from "./record/header"
 import { RecordsPanel } from "./record/records"
@@ -26,12 +27,13 @@ export function OrderPane({ detail, onChange }: { detail: Detail; onChange: () =
   const { view } = detail
   if (view.cases.length || view.calls.length) return <>
     <CaseOrderLine view={view} />
+    <OrderJourneyBar orderId={detail.order.id} />
+    <RouteStrip view={view} />
     <CasePanel view={view} onChange={onChange} />
     <div className="order-divider"><h2>The order</h2><p>Everything below is from the order record.</p></div>
     <RecordHero view={view} compact />
     <AttentionPanel view={view} />
     <Tiles tiles={view.tiles} />
-    <RouteStrip view={view} />
     <ConversationsSection view={view} />
     <EvidenceSection view={view} />
     <DecisionsSection view={view} />
@@ -39,9 +41,10 @@ export function OrderPane({ detail, onChange }: { detail: Detail; onChange: () =
   </>
   return <>
     <RecordHero view={view} />
+    <OrderJourneyBar orderId={detail.order.id} />
+    <RouteStrip view={view} />
     <AttentionPanel view={view} />
     <Tiles tiles={view.tiles} />
-    <RouteStrip view={view} />
     <ConversationsSection view={view} />
     <EvidenceSection view={view} />
     <DecisionsSection view={view} />

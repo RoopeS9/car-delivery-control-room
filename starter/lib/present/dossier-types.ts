@@ -63,7 +63,13 @@ export type DossierView = {
   fault: { lamp: string | null; codes: { code: string; title: string | null; severity: string | null; tone: Tone }[]; freezeSpeed: string | null; atPickup: string; when: string | null } | null
   strip: StripPoint[]
   /** How far along the trip is: 0..1, the km still to go when known, and where the figure comes from. */
-  progress: { fraction: number; remainingKm: number | null; basis: string } | null
+  progress: {
+    fraction: number; remainingKm: number | null; basis: string
+    /** Stage boundaries along the trip, 0..1: pickup, the ferry terminals when there is a crossing, delivery. */
+    stops: { at: number; label: string; place: string }[]
+    /** The stretches between stops; a crossing is its own `sea` segment. */
+    segments: { from: number; to: number; kind: "road" | "sea"; label: string }[]
+  } | null
   /** Where "Open the full order" lands: the conversation that matters. */
   conversationHref: string
   /** At most three. */
