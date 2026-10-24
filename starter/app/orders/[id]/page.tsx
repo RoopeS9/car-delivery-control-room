@@ -23,9 +23,9 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
     if (detail) document.title = `${detail.view.header.reference} · ${detail.view.header.vehicle?.title ?? "Order"} · Control Room`
   }, [detail])
 
-  return <AppFrame section="board" snapshotAt={detail?.view.snapshotAt ?? null}><main className="page">
-    <nav className="crumbs" aria-label="Breadcrumb"><Link href="/">Orders</Link><span>/</span><span>{detail?.view.header.reference ?? "Record"}</span></nav>
-    {error && <div className="record-state" role="alert"><h1>{error}</h1><p>The record could not be opened. <Link href="/">Back to orders</Link></p></div>}
+  return <AppFrame section="queue" snapshotAt={detail?.view.snapshotAt ?? null}><main className="page">
+    <nav className="crumbs" aria-label="Breadcrumb"><Link href="/">Needs you</Link><span>/</span><span>{detail?.view.header.reference ?? "Record"}</span></nav>
+    {error && <div className="record-state" role="alert"><h1>{error}</h1><p>The record could not be opened. <Link href="/">Back to the queue</Link></p></div>}
     {!error && !detail && <div className="record-state" aria-busy="true"><div className="cover skeleton-cover" /><p>Loading order…</p></div>}
     {detail && <OrderPane detail={detail} />}
   </main></AppFrame>

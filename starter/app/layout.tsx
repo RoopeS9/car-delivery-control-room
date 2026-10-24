@@ -1,17 +1,27 @@
 import type { Metadata, Viewport } from "next"
+import { THEME_SCRIPT } from "./components/theme-toggle"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "Car Delivery Control Room starter",
-  description: "A fictional operations dataset and a simple read-only starting point.",
+  title: "Road Desk · Control Room",
+  description: "Car delivery control room: the orders that need a person, with the agent's legwork already done. Fictional data.",
 }
 
-export const viewport: Viewport = { themeColor: "#fffef7", width: "device-width", initialScale: 1 }
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fffef7" },
+    { media: "(prefers-color-scheme: dark)", color: "#16150f" },
+  ],
+  width: "device-width",
+  initialScale: 1,
+}
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        {/* Applies a saved light or dark choice before first paint. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         {/* Brand fallback faces: Unbounded for titles, Poppins for reading, Reddit Mono for identifiers.
             Loaded from Google Fonts; without a network the stack falls back to Arial. */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />

@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from "react"
 import { LANES } from "@/lib/present/labels"
 import type { Overview } from "@/lib/present/types"
-import { AppFrame } from "./components/app-frame"
-import { Card } from "./components/card"
-import { Icon } from "./components/icons"
+import { AppFrame } from "../components/app-frame"
+import { Card } from "../components/card"
+import { Icon } from "../components/icons"
 
-export default function Home() {
+export default function Board() {
   const [search, setSearch] = useState("")
   const [onlyAttention, setOnlyAttention] = useState(false)
   const [overview, setOverview] = useState<Overview | null>(null)
