@@ -809,3 +809,88 @@ Checked / changed / rejected:
   breaks scenario C (protected core) and tells healthy drivers to stop.
 - Did not loosen the seed questions to dodge the screen; the questions are
   the right test. Did not touch `lib/agent/`.
+
+## 2026-10-24 ~13:40 UTC · Claude Code (stream B, cloud instance 2) · testing B against the real agent
+
+Asked: continue stream B and test the implementation. A model key reached this
+session for the first time, so every earlier check of B (its own fixtures,
+scripted tests, "hands to a person" stub mode) could finally be replaced by
+the real thing.
+
+Got: merged stream C's branch (scenarios B–F, driver app, site chat) into B's,
+set up Postgres and the app, and ran all five scenarios through the browser
+with the real agent: queue, case page, every decision button, the Ask box, map
+and agent page, in light and dark mode and at 390 px. Typecheck, 65 tests
+(7 new in B's folders, 1 new gate test), production build and smoke pass.
+Eight problems found, all fixed and shown in the browser:
+
+- **The control room showed a frozen world.** The simulator moves only when
+  something calls `/api/sim/tick`; only the driver app and /demo did. With just
+  the control room open, one card said "car stopped, engine off" next to
+  "Speed 111 km/h", and scenario F's overheating code (written by the sync)
+  never opened a case while the operator sat on the queue. Operator pages now
+  tick the simulator before the case timers, and the order and map loaders sync
+  before reading telemetry. Verified: with only the queue open, F's card
+  appeared after 96 s (the simulated 90 s plus polling).
+- **"I'll handle it" recorded a choice nobody made.** The card pre-selects the
+  recommended option and sent it with every button, and the gate fell back to
+  the recommendation. A phone call to the owner was written down as "Chosen:
+  We book tow to Birkenhain", against the rule that approval to ask is not
+  approval to book. B now sends an option with "I'll handle it" only if the
+  operator picked one, and the gate records none by default (two lines in A's
+  `gate.ts`, flagged in the commit). The new gate test fails on the old gate.
+- **Code names reached operators** ("STOP_NOW", "a CONTACT_CUSTOMER
+  proposal"). `plainText` now rewrites them and runs over every agent-written
+  card field and the activity log.
+- **Scenario F had no way through.** Choice-only "Your call" cards hid "I'll
+  handle it", so "Call the driver now" was approved as if the system had made
+  the call, the case read "Agent working, waiting on the agent", and nobody was
+  asked to log the call. The plan's F script is "I'll handle it, then log the
+  outcome"; the button is back and the whole chain works (the next card cites
+  "Shift lead, internal" as the source of the outcome).
+- **A stale summary contradicted the card.** After the operator logged that the
+  driver was stopped, the page still said "moving on the motorway, waiting for
+  his reply". A waiting card now speaks for the case; the summary shows only
+  when there is no card.
+- **An edit was invisible after approval.** The sent message used the
+  operator's edit (checked in the database), but the card only said "approved
+  it". It now says "approved it with changes" and keeps the sent text in a fold.
+- **The Ask box and agent notes showed raw markup** (`**bold**`, `- `) and a
+  raw `CHANGE_PROMISE`; the activity log was a 1,000-character wall. They are
+  rendered as formatted text (React elements, never injected HTML), and the log
+  keeps one skimmable line per step.
+- Not a bug, checked: the Ask box refused "book the ferry and message the
+  customer", explained why, and created no proposal, effect or customer message.
+
+Checked / changed / rejected:
+- Every claim above was reproduced first and verified after in the browser;
+  the two logic fixes have tests that fail on the old behaviour (including a
+  test that caught an offset bug in my own first version of `plainText`).
+- The typecheck cache hid nothing this time, but `--incremental false` still
+  found three entry builders my new field had missed.
+- My own mistake: `pkill -f "next dev"` matched the shell running it and
+  killed the dev server and the command. Stopped by listing processes instead.
+- Rejected editing A's agent prompt to fix the F dead-end at its root (see
+  below): it is A's, and B's button closes the demo path.
+- Cost: the real agent runs behind this testing cost well under $2 on Sonnet 5.5.
+
+Found, not B's, for stream A (all reproduced with the real model):
+- **Scenario C (protected core) still fails.** The drivability screen holds the
+  agent's routine key answer and turns it into a "Clear the driver to drive
+  on?" card, so the case goes to a person instead of closing. Stream C
+  reported this at ~15:15; it is still open on this branch. The agent itself
+  calls the held card "a screening artefact" in the second card. "Handled by
+  the agent" is empty in the live queue because of it.
+- Approving an `OPERATOR_DECISION` option is treated as "carried out
+  (simulated)". For options a person must do (phone the driver) the agent then
+  waits on itself. Suggest: say that the option is the operator's to do, and
+  wait on the operator for the outcome.
+- Case titles go stale: F stays "Bentley moving on motorway" after the logged
+  call says it stopped near Bremen. The agent needs a way to retitle.
+- F's second follow-up chose to wait another 5 minutes instead of escalating
+  (the first run escalated at once). The plan says one reminder, then escalate.
+- F's card says "Delivery on 22 Oct is at risk" before any recovery estimate;
+  PLAN 3 asks for wording only as far as the evidence goes.
+
+Still open in B: the call-transcript block (PLAN 4.6) waits for voice's
+`cr_calls` tables, which have not landed.
