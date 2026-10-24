@@ -233,7 +233,7 @@ Checked / changed / rejected:
 - Not yet run against the model: `OPENROUTER_API_KEY` is not visible in this
   session.
 
-## 2026-10-24 ~12:10 UTC · Claude Code (stream B, cloud instance 2) · map, agent page, real routes
+## 2026-10-24 ~12:00 UTC · Claude Code (stream B, cloud instance 2) · map, agent page, real routes
 
 Asked: continue toward M1 on the control room side; the plan now asks for
 5 decision buttons, 2–3 s polling and a queue with only our cases.
@@ -292,7 +292,7 @@ Checked / changed / rejected:
 - Still open: a real-model run and its trace. `OPENROUTER_API_KEY` is not
   visible to this session.
 
-## 2026-10-24 ~12:20 UTC · Claude Code (stream B, cloud instance 2) · telemetry strip, photos, three-stream run
+## 2026-10-24 ~12:10 UTC · Claude Code (stream B, cloud instance 2) · telemetry strip, photos, three-stream run
 
 Asked: finish the case page from PLAN 4.7 (telemetry strip, photos) and check
 it against the other streams' real output instead of B's own fixtures.
