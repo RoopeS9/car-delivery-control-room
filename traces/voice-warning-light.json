@@ -2,7 +2,7 @@
   "scenario": "warning-light",
   "title": "Scenario A: fresh warning light, agent-initiated (URGENT)",
   "model": "anthropic/claude-sonnet-5.5",
-  "ranAt": "2026-10-24T12:49:18.972Z",
+  "ranAt": "2026-10-24T13:03:55.807Z",
   "checks": [
     {
       "name": "urgency",
@@ -12,7 +12,7 @@
     {
       "name": "urgency points at a driver turn",
       "ok": true,
-      "detail": "call-c944caf3c0-1"
+      "detail": "call-2cce1cf8cb-1"
     },
     {
       "name": "first agent turn is the urgency question",
@@ -27,27 +27,32 @@
     {
       "name": "slot safe_place",
       "ok": true,
-      "detail": "\"yes, parked at service area away from the pumps\" from call-c944caf3c0-3, quote \"parked away from the pumps\""
+      "detail": "\"yes, stopped at a service area, parked away from the pumps\" from call-2cce1cf8cb-3, quote \"I'm at the Osnabrück-Nord service area on the A1, parked away from the pumps.\""
     },
     {
       "name": "slot location",
       "ok": true,
-      "detail": "\"Osnabrück-Nord service area on the A1, parked away from the pumps\" from call-c944caf3c0-3, quote \"I'm at the Osnabrück-Nord service area on the A1, parked away from the pumps.\""
+      "detail": "\"Osnabrück-Nord service area, A1\" from call-2cce1cf8cb-3, quote \"I'm at the Osnabrück-Nord service area on the A1\""
     },
     {
       "name": "slot light",
       "ok": true,
-      "detail": "\"orange engine light, flashing\" from call-c944caf3c0-5, quote \"Yes, it's the orange engine light and it's flashing.\""
+      "detail": "\"orange engine light, flashing\" from call-2cce1cf8cb-5, quote \"Yes, it's the orange engine light and it's flashing.\""
     },
     {
       "name": "slot symptoms",
       "ok": true,
-      "detail": "\"shaking a lot, lost power, no smoke, a bit of petrol smell\" from call-c944caf3c0-7, quote \"It was shaking a lot. No smoke, but a bit of a petrol smell.\""
+      "detail": "\"shaking, loss of power, slight petrol smell, no smoke\" from call-2cce1cf8cb-7, quote \"It was shaking a lot. No smoke, but a bit of a petrol smell.\""
     },
     {
       "name": "slot engine_off",
       "ok": true,
-      "detail": "\"engine is off now\" from call-c944caf3c0-7, quote \"The engine is off now.\""
+      "detail": "\"yes, engine is off\" from call-2cce1cf8cb-7, quote \"The engine is off now.\""
+    },
+    {
+      "name": "slot safety_signal",
+      "ok": true,
+      "detail": "\"Fuel smell\" from call-2cce1cf8cb-7, quote \"No smoke, but a bit of a petrol smell.\""
     },
     {
       "name": "slot quotes come from their turn",
@@ -57,17 +62,37 @@
     {
       "name": "read-back happened",
       "ok": true,
-      "detail": "So, Leo: you're at the Osnabrück-Nord service area on the A1, parked away from the pumps, with the engine off. The orange engine light was flashing, the car shook and lost power, there's no smoke but a bit of a petrol smell, and you'll send a dashboard photo after the call. Is that right?"
+      "detail": "So: there's a petrol smell, you're out of the car at the Osnabrück-Nord service area on the A1, parked away from the pumps, engine off. The orange engine light was flashing, the car shook and lost power, no smoke, and you'll send a dashboard photo in the app. Is that right?"
     },
     {
       "name": "read-back reads the facts back",
       "ok": true,
-      "detail": "So, Leo: you're at the Osnabrück-Nord service area on the A1, parked away from the pumps, with the engine off. The orange engine light was flashing, the car shook and lost power, there's no smoke but a bit of a petrol smell, and you'll send a dashboard photo after the call. Is that right?"
+      "detail": "So: there's a petrol smell, you're out of the car at the Osnabrück-Nord service area on the A1, parked away from the pumps, engine off. The orange engine light was flashing, the car shook and lost power, no smoke, and you'll send a dashboard photo in the app. Is that right?"
     },
     {
       "name": "read-back confirmed",
       "ok": true,
       "detail": ""
+    },
+    {
+      "name": "safety signal: the next agent turn speaks the leave-the-car template",
+      "ok": true,
+      "detail": "call-2cce1cf8cb-8: Get everyone out of the car and stand behind the barrier, away from the traffic. I've noted the petrol smell, Leo. Can you send a photo of the dashboard in the app after this call?"
+    },
+    {
+      "name": "safety signal recorded with its quote and turn",
+      "ok": true,
+      "detail": "\"Fuel smell\" from call-2cce1cf8cb-7, quote \"No smoke, but a bit of a petrol smell.\""
+    },
+    {
+      "name": "safety signal raised urgency to at least URGENT",
+      "ok": true,
+      "detail": "URGENT"
+    },
+    {
+      "name": "safety signal comes first in the read-back",
+      "ok": true,
+      "detail": "there's a petrol smell"
     },
     {
       "name": "urgent call fired call_urgent",
@@ -77,7 +102,7 @@
     {
       "name": "next_check_at stored for the promised message",
       "ok": true,
-      "detail": "2026-10-21T09:15:31.307Z"
+      "detail": "2026-10-21T09:15:31.543Z"
     },
     {
       "name": "call_ended recorded",
@@ -95,6 +120,11 @@
       "detail": ""
     },
     {
+      "name": "no re-prompt or repeated question after the driver answered",
+      "ok": true,
+      "detail": ""
+    },
+    {
       "name": "every agent turn went through the screen",
       "ok": true,
       "detail": ""
@@ -106,7 +136,7 @@
     }
   ],
   "call": {
-    "id": "call-c944caf3c0",
+    "id": "call-2cce1cf8cb",
     "caseId": null,
     "orderId": "ord-00584",
     "orderRef": "CD-420584",
@@ -114,76 +144,76 @@
     "driverName": "Leo Quellford",
     "direction": "AGENT_INITIATED",
     "startedAt": "2026-10-21T09:00:00.000Z",
-    "endedAt": "2026-10-21T09:00:31.320Z",
+    "endedAt": "2026-10-21T09:00:31.557Z",
     "urgency": "URGENT",
-    "urgencyTurnId": "call-c944caf3c0-1",
+    "urgencyTurnId": "call-2cce1cf8cb-1",
     "urgencyQuote": "I can't really drive it like this.",
     "situation": "WARNING_LIGHT",
     "slots": {
       "light": {
         "quote": "Yes, it's the orange engine light and it's flashing.",
         "value": "orange engine light, flashing",
-        "turn_id": "call-c944caf3c0-5",
-        "confidence": 0.97
+        "turn_id": "call-2cce1cf8cb-5",
+        "confidence": 0.95
       },
       "photo": {
         "quote": "Okay, I'll send a photo of the dashboard after the call.",
         "value": "agreed to send dashboard photo in app after call",
-        "turn_id": "call-c944caf3c0-9",
+        "turn_id": "call-2cce1cf8cb-9",
         "confidence": 0.95
       },
-      "injuries": {
-        "quote": "nobody's hurt",
-        "value": "no one hurt",
-        "turn_id": "call-c944caf3c0-1",
-        "confidence": 0.9
-      },
       "location": {
-        "quote": "I'm at the Osnabrück-Nord service area on the A1, parked away from the pumps.",
-        "value": "Osnabrück-Nord service area on the A1, parked away from the pumps",
-        "turn_id": "call-c944caf3c0-3",
+        "quote": "I'm at the Osnabrück-Nord service area on the A1",
+        "value": "Osnabrück-Nord service area, A1",
+        "turn_id": "call-2cce1cf8cb-3",
         "confidence": 0.95
       },
       "symptoms": {
         "quote": "It was shaking a lot. No smoke, but a bit of a petrol smell.",
-        "value": "shaking a lot, lost power, no smoke, a bit of petrol smell",
-        "turn_id": "call-c944caf3c0-7",
+        "value": "shaking, loss of power, slight petrol smell, no smoke",
+        "turn_id": "call-2cce1cf8cb-7",
         "confidence": 0.9
       },
       "engine_off": {
         "quote": "The engine is off now.",
-        "value": "engine is off now",
-        "turn_id": "call-c944caf3c0-7",
+        "value": "yes, engine is off",
+        "turn_id": "call-2cce1cf8cb-7",
         "confidence": 0.95
       },
       "safe_place": {
-        "quote": "parked away from the pumps",
-        "value": "yes, parked at service area away from the pumps",
-        "turn_id": "call-c944caf3c0-3",
-        "confidence": 0.9
+        "quote": "I'm at the Osnabrück-Nord service area on the A1, parked away from the pumps.",
+        "value": "yes, stopped at a service area, parked away from the pumps",
+        "turn_id": "call-2cce1cf8cb-3",
+        "confidence": 0.95
       },
       "anything_else": {
-        "quote": "No, that's all.",
-        "value": "no, nothing more",
-        "turn_id": "call-c944caf3c0-13",
+        "quote": "No, that's everything.",
+        "value": "no, nothing else",
+        "turn_id": "call-2cce1cf8cb-11",
         "confidence": 0.95
+      },
+      "safety_signal": {
+        "quote": "No smoke, but a bit of a petrol smell.",
+        "value": "Fuel smell",
+        "turn_id": "call-2cce1cf8cb-7",
+        "confidence": 0.9
       }
     },
     "slotLabels": {
       "light": "Warning light",
       "photo": "Dashboard photo",
-      "injuries": "Injuries",
       "location": "Location",
       "symptoms": "Symptoms",
       "engine_off": "Engine off",
       "safe_place": "Safe place",
-      "anything_else": "Anything else"
+      "anything_else": "Anything else",
+      "safety_signal": "Safety signal"
     },
     "missing": [],
     "readbackConfirmed": true,
     "endReason": "completed",
     "recordingKey": null,
-    "nextCheckAt": "2026-10-21T09:15:31.307Z",
+    "nextCheckAt": "2026-10-21T09:15:31.543Z",
     "phase": "ended",
     "context": [
       {
@@ -261,14 +291,14 @@
     ],
     "triggers": [
       {
-        "at": "2026-10-21T09:00:04.788Z",
+        "at": "2026-10-21T09:00:08.919Z",
         "note": "No server origin (text harness); recorded only.",
         "status": null,
         "trigger": "call_urgent",
         "delivered": false
       },
       {
-        "at": "2026-10-21T09:00:31.320Z",
+        "at": "2026-10-21T09:00:31.557Z",
         "note": "No server origin (text harness); recorded only.",
         "status": null,
         "trigger": "call_ended",
@@ -276,13 +306,13 @@
       }
     ],
     "spend": {
-      "llm": 0.0951036,
+      "llm": 0.0685084,
       "stt": 0,
       "tts": 0
     },
     "turns": [
       {
-        "id": "call-c944caf3c0-0",
+        "id": "call-2cce1cf8cb-0",
         "seq": 0,
         "speaker": "agent",
         "startedAt": "2026-10-21T09:00:00.000Z",
@@ -297,11 +327,11 @@
         }
       },
       {
-        "id": "call-c944caf3c0-1",
+        "id": "call-2cce1cf8cb-1",
         "seq": 1,
         "speaker": "driver",
-        "startedAt": "2026-10-21T09:00:00.895Z",
-        "endedAt": "2026-10-21T09:00:00.895Z",
+        "startedAt": "2026-10-21T09:00:01.013Z",
+        "endedAt": "2026-10-21T09:00:01.013Z",
         "textLive": "I'm okay, nobody's hurt. The car started shaking and lost power, so I pulled into a service area. I can't really drive it like this.",
         "textFinal": "I'm okay, nobody's hurt. The car started shaking and lost power, so I pulled into a service area. I can't really drive it like this.",
         "sttModel": "live-only",
@@ -310,13 +340,13 @@
         "flags": {}
       },
       {
-        "id": "call-c944caf3c0-2",
+        "id": "call-2cce1cf8cb-2",
         "seq": 2,
         "speaker": "agent",
-        "startedAt": "2026-10-21T09:00:04.777Z",
-        "endedAt": "2026-10-21T09:00:04.777Z",
-        "textLive": "Thanks, Leo, glad you're safe. Your phone puts you on the A1 near Osnabrück; is that the service area you're at?",
-        "textFinal": "Thanks, Leo, glad you're safe. Your phone puts you on the A1 near Osnabrück; is that the service area you're at?",
+        "startedAt": "2026-10-21T09:00:08.910Z",
+        "endedAt": "2026-10-21T09:00:08.910Z",
+        "textLive": "Glad you're safe, Leo. Your phone puts you on the A1 near Osnabrück. Is that where this service area is?",
+        "textFinal": "Glad you're safe, Leo. Your phone puts you on the A1 near Osnabrück. Is that where this service area is?",
         "sttModel": null,
         "audioUrl": null,
         "interrupted": false,
@@ -324,21 +354,21 @@
           "phase": "urgency",
           "timing": {
             "model": "anthropic/claude-sonnet-5.5",
-            "total": 3881,
-            "firstSentence": 2013,
-            "modelFirstText": 825
+            "total": 7896,
+            "firstSentence": 7434,
+            "modelFirstText": 6672
           },
-          "rawText": "Thanks, Leo, glad you're safe. Your phone puts you on the A1 near Osnabrück; is that the service area you're at?",
+          "rawText": "Glad you're safe, Leo. Your phone puts you on the A1 near Osnabrück. Is that where this service area is?",
           "screened": [],
           "safetyTemplates": []
         }
       },
       {
-        "id": "call-c944caf3c0-3",
+        "id": "call-2cce1cf8cb-3",
         "seq": 3,
         "speaker": "driver",
-        "startedAt": "2026-10-21T09:00:04.820Z",
-        "endedAt": "2026-10-21T09:00:04.820Z",
+        "startedAt": "2026-10-21T09:00:08.947Z",
+        "endedAt": "2026-10-21T09:00:08.947Z",
         "textLive": "I'm at the Osnabrück-Nord service area on the A1, parked away from the pumps.",
         "textFinal": "I'm at the Osnabrück-Nord service area on the A1, parked away from the pumps.",
         "sttModel": "live-only",
@@ -347,13 +377,13 @@
         "flags": {}
       },
       {
-        "id": "call-c944caf3c0-4",
+        "id": "call-2cce1cf8cb-4",
         "seq": 4,
         "speaker": "agent",
-        "startedAt": "2026-10-21T09:00:08.613Z",
-        "endedAt": "2026-10-21T09:00:08.613Z",
-        "textLive": "Thanks, Leo, that's clear. The car reports a flashing check-engine light; is that what you see on the dashboard?",
-        "textFinal": "Thanks, Leo, that's clear. The car reports a flashing check-engine light; is that what you see on the dashboard?",
+        "startedAt": "2026-10-21T09:00:12.820Z",
+        "endedAt": "2026-10-21T09:00:12.820Z",
+        "textLive": "Which warning light is on, and is it flashing or steady?",
+        "textFinal": "Which warning light is on, and is it flashing or steady?",
         "sttModel": null,
         "audioUrl": null,
         "interrupted": false,
@@ -361,21 +391,22 @@
           "phase": "checklist",
           "timing": {
             "model": "anthropic/claude-sonnet-5.5",
-            "total": 3793,
-            "firstSentence": 2020,
-            "modelFirstText": 889
+            "total": 2927,
+            "firstSentence": null,
+            "modelFirstText": null
           },
-          "rawText": "Thanks, Leo, that's clear. The car reports a flashing check-engine light; is that what you see on the dashboard?",
+          "rawText": "",
           "screened": [],
+          "emptyReply": "asked light after an empty reply",
           "safetyTemplates": []
         }
       },
       {
-        "id": "call-c944caf3c0-5",
+        "id": "call-2cce1cf8cb-5",
         "seq": 5,
         "speaker": "driver",
-        "startedAt": "2026-10-21T09:00:08.645Z",
-        "endedAt": "2026-10-21T09:00:08.645Z",
+        "startedAt": "2026-10-21T09:00:12.856Z",
+        "endedAt": "2026-10-21T09:00:12.856Z",
         "textLive": "Yes, it's the orange engine light and it's flashing.",
         "textFinal": "Yes, it's the orange engine light and it's flashing.",
         "sttModel": "live-only",
@@ -384,13 +415,13 @@
         "flags": {}
       },
       {
-        "id": "call-c944caf3c0-6",
+        "id": "call-2cce1cf8cb-6",
         "seq": 6,
         "speaker": "agent",
-        "startedAt": "2026-10-21T09:00:11.808Z",
-        "endedAt": "2026-10-21T09:00:11.808Z",
-        "textLive": "Got it, orange and flashing. Is the engine switched off now?",
-        "textFinal": "Got it, orange and flashing. Is the engine switched off now?",
+        "startedAt": "2026-10-21T09:00:16.152Z",
+        "endedAt": "2026-10-21T09:00:16.152Z",
+        "textLive": "Thanks, Leo. Is the engine switched off now?",
+        "textFinal": "Thanks, Leo. Is the engine switched off now?",
         "sttModel": null,
         "audioUrl": null,
         "interrupted": false,
@@ -398,21 +429,21 @@
           "phase": "checklist",
           "timing": {
             "model": "anthropic/claude-sonnet-5.5",
-            "total": 3163,
-            "firstSentence": 1848,
-            "modelFirstText": 812
+            "total": 3296,
+            "firstSentence": 1879,
+            "modelFirstText": 883
           },
-          "rawText": "Got it, orange and flashing. Is the engine switched off now?",
+          "rawText": "Thanks, Leo. Is the engine switched off now?",
           "screened": [],
           "safetyTemplates": []
         }
       },
       {
-        "id": "call-c944caf3c0-7",
+        "id": "call-2cce1cf8cb-7",
         "seq": 7,
         "speaker": "driver",
-        "startedAt": "2026-10-21T09:00:11.837Z",
-        "endedAt": "2026-10-21T09:00:11.837Z",
+        "startedAt": "2026-10-21T09:00:16.186Z",
+        "endedAt": "2026-10-21T09:00:16.186Z",
         "textLive": "The engine is off now. It was shaking a lot. No smoke, but a bit of a petrol smell.",
         "textFinal": "The engine is off now. It was shaking a lot. No smoke, but a bit of a petrol smell.",
         "sttModel": "live-only",
@@ -421,13 +452,13 @@
         "flags": {}
       },
       {
-        "id": "call-c944caf3c0-8",
+        "id": "call-2cce1cf8cb-8",
         "seq": 8,
         "speaker": "agent",
-        "startedAt": "2026-10-21T09:00:15.400Z",
-        "endedAt": "2026-10-21T09:00:15.400Z",
-        "textLive": "Thanks, Leo. Can you send a photo of the dashboard in the app after this call?",
-        "textFinal": "Thanks, Leo. Can you send a photo of the dashboard in the app after this call?",
+        "startedAt": "2026-10-21T09:00:20.002Z",
+        "endedAt": "2026-10-21T09:00:20.002Z",
+        "textLive": "Get everyone out of the car and stand behind the barrier, away from the traffic. I've noted the petrol smell, Leo. Can you send a photo of the dashboard in the app after this call?",
+        "textFinal": "Get everyone out of the car and stand behind the barrier, away from the traffic. I've noted the petrol smell, Leo. Can you send a photo of the dashboard in the app after this call?",
         "sttModel": null,
         "audioUrl": null,
         "interrupted": false,
@@ -435,21 +466,23 @@
           "phase": "checklist",
           "timing": {
             "model": "anthropic/claude-sonnet-5.5",
-            "total": 3563,
-            "firstSentence": 2016,
-            "modelFirstText": 869
+            "total": 3816,
+            "firstSentence": 1090,
+            "modelFirstText": 848
           },
-          "rawText": "Thanks, Leo. Can you send a photo of the dashboard in the app after this call?",
+          "rawText": "[[LEAVE_CAR_BARRIER]] I've noted the petrol smell, Leo. Can you send a photo of the dashboard in the app after this call?",
           "screened": [],
-          "safetyTemplates": []
+          "safetyTemplates": [
+            "LEAVE_CAR_BARRIER"
+          ]
         }
       },
       {
-        "id": "call-c944caf3c0-9",
+        "id": "call-2cce1cf8cb-9",
         "seq": 9,
         "speaker": "driver",
-        "startedAt": "2026-10-21T09:00:15.431Z",
-        "endedAt": "2026-10-21T09:00:15.431Z",
+        "startedAt": "2026-10-21T09:00:20.020Z",
+        "endedAt": "2026-10-21T09:00:20.020Z",
         "textLive": "Okay, I'll send a photo of the dashboard after the call.",
         "textFinal": "Okay, I'll send a photo of the dashboard after the call.",
         "sttModel": "live-only",
@@ -458,13 +491,13 @@
         "flags": {}
       },
       {
-        "id": "call-c944caf3c0-10",
+        "id": "call-2cce1cf8cb-10",
         "seq": 10,
         "speaker": "agent",
-        "startedAt": "2026-10-21T09:00:18.605Z",
-        "endedAt": "2026-10-21T09:00:18.605Z",
-        "textLive": "Thanks, Leo. Is there anything else we should know?",
-        "textFinal": "Thanks, Leo. Is there anything else we should know?",
+        "startedAt": "2026-10-21T09:00:23.510Z",
+        "endedAt": "2026-10-21T09:00:23.510Z",
+        "textLive": "Thanks, Leo, that's noted. Is there anything else we should know?",
+        "textFinal": "Thanks, Leo, that's noted. Is there anything else we should know?",
         "sttModel": null,
         "audioUrl": null,
         "interrupted": false,
@@ -472,21 +505,21 @@
           "phase": "checklist",
           "timing": {
             "model": "anthropic/claude-sonnet-5.5",
-            "total": 3174,
-            "firstSentence": 1055,
-            "modelFirstText": 841
+            "total": 3490,
+            "firstSentence": 2009,
+            "modelFirstText": 855
           },
-          "rawText": "Thanks, Leo. Is there anything else we should know?",
+          "rawText": "Thanks, Leo, that's noted. Is there anything else we should know?",
           "screened": [],
           "safetyTemplates": []
         }
       },
       {
-        "id": "call-c944caf3c0-11",
+        "id": "call-2cce1cf8cb-11",
         "seq": 11,
         "speaker": "driver",
-        "startedAt": "2026-10-21T09:00:18.632Z",
-        "endedAt": "2026-10-21T09:00:18.632Z",
+        "startedAt": "2026-10-21T09:00:23.534Z",
+        "endedAt": "2026-10-21T09:00:23.534Z",
         "textLive": "No, that's everything.",
         "textFinal": "No, that's everything.",
         "sttModel": "live-only",
@@ -495,50 +528,13 @@
         "flags": {}
       },
       {
-        "id": "call-c944caf3c0-12",
+        "id": "call-2cce1cf8cb-12",
         "seq": 12,
         "speaker": "agent",
-        "startedAt": "2026-10-21T09:00:23.727Z",
-        "endedAt": "2026-10-21T09:00:23.727Z",
-        "textLive": "Sorry, could you tell me a little more about what's happening?",
-        "textFinal": "Sorry, could you tell me a little more about what's happening?",
-        "sttModel": null,
-        "audioUrl": null,
-        "interrupted": false,
-        "flags": {
-          "phase": "checklist",
-          "timing": {
-            "model": "anthropic/claude-sonnet-5.5",
-            "total": 5095,
-            "firstSentence": null,
-            "modelFirstText": null
-          },
-          "rawText": "",
-          "screened": [],
-          "safetyTemplates": []
-        }
-      },
-      {
-        "id": "call-c944caf3c0-13",
-        "seq": 13,
-        "speaker": "driver",
-        "startedAt": "2026-10-21T09:00:23.757Z",
-        "endedAt": "2026-10-21T09:00:23.757Z",
-        "textLive": "No, that's all.",
-        "textFinal": "No, that's all.",
-        "sttModel": "live-only",
-        "audioUrl": null,
-        "interrupted": false,
-        "flags": {}
-      },
-      {
-        "id": "call-c944caf3c0-14",
-        "seq": 14,
-        "speaker": "agent",
-        "startedAt": "2026-10-21T09:00:27.335Z",
-        "endedAt": "2026-10-21T09:00:27.335Z",
-        "textLive": "So, Leo: you're at the Osnabrück-Nord service area on the A1, parked away from the pumps, with the engine off. The orange engine light was flashing, the car shook and lost power, there's no smoke but a bit of a petrol smell, and you'll send a dashboard photo after the call. Is that right?",
-        "textFinal": "So, Leo: you're at the Osnabrück-Nord service area on the A1, parked away from the pumps, with the engine off. The orange engine light was flashing, the car shook and lost power, there's no smoke but a bit of a petrol smell, and you'll send a dashboard photo after the call. Is that right?",
+        "startedAt": "2026-10-21T09:00:27.391Z",
+        "endedAt": "2026-10-21T09:00:27.391Z",
+        "textLive": "So: there's a petrol smell, you're out of the car at the Osnabrück-Nord service area on the A1, parked away from the pumps, engine off. The orange engine light was flashing, the car shook and lost power, no smoke, and you'll send a dashboard photo in the app. Is that right?",
+        "textFinal": "So: there's a petrol smell, you're out of the car at the Osnabrück-Nord service area on the A1, parked away from the pumps, engine off. The orange engine light was flashing, the car shook and lost power, no smoke, and you'll send a dashboard photo in the app. Is that right?",
         "sttModel": null,
         "audioUrl": null,
         "interrupted": false,
@@ -546,21 +542,21 @@
           "phase": "readback",
           "timing": {
             "model": "anthropic/claude-sonnet-5.5",
-            "total": 3578,
-            "firstSentence": 1972,
-            "modelFirstText": 848
+            "total": 3857,
+            "firstSentence": 2140,
+            "modelFirstText": 862
           },
-          "rawText": "So, Leo: you're at the Osnabrück-Nord service area on the A1, parked away from the pumps, with the engine off. The orange engine light was flashing, the car shook and lost power, there's no smoke but a bit of a petrol smell, and you'll send a dashboard photo after the call. Is that right?",
+          "rawText": "So: there's a petrol smell, you're out of the car at the Osnabrück-Nord service area on the A1, parked away from the pumps, engine off. The orange engine light was flashing, the car shook and lost power, no smoke, and you'll send a dashboard photo in the app. Is that right?",
           "screened": [],
           "safetyTemplates": []
         }
       },
       {
-        "id": "call-c944caf3c0-15",
-        "seq": 15,
+        "id": "call-2cce1cf8cb-13",
+        "seq": 13,
         "speaker": "driver",
-        "startedAt": "2026-10-21T09:00:27.357Z",
-        "endedAt": "2026-10-21T09:00:27.357Z",
+        "startedAt": "2026-10-21T09:00:27.413Z",
+        "endedAt": "2026-10-21T09:00:27.413Z",
         "textLive": "Yes, that's right.",
         "textFinal": "Yes, that's right.",
         "sttModel": "live-only",
@@ -569,11 +565,11 @@
         "flags": {}
       },
       {
-        "id": "call-c944caf3c0-16",
-        "seq": 16,
+        "id": "call-2cce1cf8cb-14",
+        "seq": 14,
         "speaker": "agent",
-        "startedAt": "2026-10-21T09:00:31.307Z",
-        "endedAt": "2026-10-21T09:00:31.307Z",
+        "startedAt": "2026-10-21T09:00:31.543Z",
+        "endedAt": "2026-10-21T09:00:31.543Z",
         "textLive": "Thanks, that's noted. An operator will look at this now and decide the next step. Please send a photo of the dashboard in the app. We'll message you in the app within 15 minutes. Thank you. Goodbye for now.",
         "textFinal": "Thanks, that's noted. An operator will look at this now and decide the next step. Please send a photo of the dashboard in the app. We'll message you in the app within 15 minutes. Thank you. Goodbye for now.",
         "sttModel": null,
@@ -583,11 +579,11 @@
           "phase": "closing",
           "timing": {
             "model": "anthropic/claude-sonnet-5.5",
-            "total": 3012,
-            "firstSentence": 3,
-            "modelFirstText": 930
+            "total": 3209,
+            "firstSentence": 4,
+            "modelFirstText": 813
           },
-          "rawText": "Thanks, Leo, I've got all of that.",
+          "rawText": "Thanks, Leo, that's all confirmed.",
           "screened": [],
           "safetyTemplates": []
         }

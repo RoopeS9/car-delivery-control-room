@@ -39,7 +39,44 @@ export const SLOT_DEFS: Record<string, SlotDef> = {
   receipt: { key: "receipt", label: "Receipt", ask: "Do they have a receipt? Ask them to photograph it in the app." },
 }
 
+/** Slot keys the model fills through `slots`. `safety_signal` has its own required tool field. */
 export const SLOT_KEYS = Object.keys(SLOT_DEFS)
+
+/** The recorded safety signal (fuel smell, smoke...), written from the tool's `safety_signal` field. */
+export const SAFETY_SIGNAL_SLOT = "safety_signal"
+
+/**
+ * Fixed spoken questions, used when the model returns no speakable text: the
+ * server then asks the next missing item itself instead of a vague re-prompt.
+ */
+export const SPOKEN_QUESTIONS: Record<string, string> = {
+  safe_place: "Are you stopped somewhere safe, off the road?",
+  location: "Where exactly are you: which road, and the nearest town or junction?",
+  light: "Which warning light is on, and is it flashing or steady?",
+  symptoms: "Have you noticed any shaking, noise, smell or smoke?",
+  engine_off: "Is the engine switched off now?",
+  photo: "After this call, could you send a photo of the dashboard in the app?",
+  anything_else: "Is there anything else we should know?",
+  hazard: "What can you see: smoke, fire, or something else?",
+  injuries: "Is anyone hurt?",
+  what_happened: "What happened, in your own words?",
+  car_state: "Does the car start or move at all?",
+  other_party: "Was another vehicle or person involved?",
+  police: "Have the police been called?",
+  damage: "What damage can you see on the car?",
+  cause: "What's holding you up?",
+  eta_driver: "How late do you think you'll be?",
+  connection: "Is a ferry, train or pickup slot at risk?",
+  question: "What's your question?",
+  site: "Is this about the pickup or the delivery place?",
+  contact_on_site: "Have you spoken to anyone on site?",
+  expense_item: "What did you pay for?",
+  amount: "How much was it, and in which currency?",
+  receipt: "Do you have a receipt? You can photograph it in the app.",
+}
+
+/** A clear "no, nothing else" answer. */
+export const NOTHING_ELSE = /^\s*(no+|nope|nah|nothing( else)?|that'?s (all|everything|it)|all good|no,? (that'?s|nothing|i think that'?s))\b/i
 
 type Checklist = { slots: string[] }
 
@@ -64,5 +101,6 @@ export function checklistFor(urgency: Urgency | null, situation: Situation | nul
 }
 
 export function slotLabel(key: string): string {
+  if (key === SAFETY_SIGNAL_SLOT) return "Safety signal"
   return SLOT_DEFS[key]?.label ?? key.replace(/_/g, " ")
 }

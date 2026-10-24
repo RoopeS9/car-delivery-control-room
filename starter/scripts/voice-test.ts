@@ -14,7 +14,7 @@ import { join } from "node:path"
 import { driverTurn, getCallView, startCall } from "@/lib/voice/call"
 import { SAFETY_TEMPLATES, freeSafetyTemplate } from "@/lib/voice/interview/safety"
 import { isMetaTalk, screenDriverUtterance } from "@/lib/voice/screen"
-import type { CallView, StartCallRequest, TurnEvent, Urgency } from "@/lib/voice/types"
+import { URGENCY_RANK, type CallView, type StartCallRequest, type TurnEvent, type Urgency } from "@/lib/voice/types"
 
 // The interviewer runs on the live model (Sonnet 5.5): with thinking off, Haiku 5.5 spoke its
 // instructions aloud in testing. The screen classifier in the same run uses Haiku 5.5.
@@ -25,10 +25,20 @@ type Script = {
   name: string
   title: string
   start: StartCallRequest
-  expect: { urgency: Urgency | null; slots: string[]; mustSay?: RegExp[] }
+  expect: {
+    urgency: Urgency | null
+    /** Urgency must be at least this, not exactly it. */
+    atLeast?: boolean
+    slots: string[]
+    mustSay?: RegExp[]
+    /** The driver words carrying a safety signal: the next agent turn must speak the template, the read-back must lead with it. */
+    signal?: { driverSays: RegExp; readbackSays: RegExp }
+  }
   /** First answer, to the urgency-first opening. */
   first: string
   lines: Line[]
+  /** Answer the lines in order instead of by topic (to place a remark partway through). */
+  ordered?: boolean
   readbackYes: string
   /** Simulate silences instead of answers after the opening. */
   silent?: boolean
@@ -42,7 +52,10 @@ const SCRIPTS: Script[] = [
       orderRef: "CD-420584", driverId: "drv-042", direction: "AGENT_INITIATED",
       telemetryHint: { codes: ["P0300", "P0302"], milFlashing: true, place: "on the A1 near Osnabrück", note: "reduced power" },
     },
-    expect: { urgency: "URGENT", slots: ["safe_place", "location", "light", "symptoms", "engine_off"] },
+    expect: {
+      urgency: "URGENT", slots: ["safe_place", "location", "light", "symptoms", "engine_off", "safety_signal"],
+      signal: { driverSays: /petrol smell/i, readbackSays: /petrol|fuel/i },
+    },
     first: "I'm okay, nobody's hurt. The car started shaking and lost power, so I pulled into a service area. I can't really drive it like this.",
     lines: [
       { text: "Yes, it's the orange engine light and it's flashing.", topics: /light|flash|colou?r|dashboard|misfire/i },
@@ -66,6 +79,25 @@ const SCRIPTS: Script[] = [
       { text: "It's smoke, grey smoke, I can't see any flames.", topics: /fire|flame|smoke|danger/i },
     ],
     readbackYes: "Yes, correct.",
+  },
+  {
+    name: "burning-smell",
+    title: "Safety signal partway through: a burning smell after a battery light (at least URGENT)",
+    start: { orderRef: "CD-420071", driverId: "drv-275", direction: "DRIVER_INITIATED" },
+    expect: {
+      urgency: "URGENT", atLeast: true, slots: ["safety_signal", "light"],
+      signal: { driverSays: /burning smell/i, readbackSays: /burn/i },
+    },
+    first: "I'm okay, it's not an emergency. The battery warning light came on, so I pulled into a parking area off the motorway.",
+    ordered: true,
+    lines: [
+      { text: "It's a red battery light, steady, not flashing." },
+      { text: "Hang on, now that I'm standing next to it there's a burning smell coming from the front of the car." },
+      { text: "Okay, I'm out of the car and away from it now. The engine is off." },
+      { text: "I'm at a parking area on the A9, about 60 km before Leipzig." },
+      { text: "No, nothing else." },
+    ],
+    readbackYes: "Yes, that's right.",
   },
   {
     name: "routine-keys",
@@ -117,13 +149,20 @@ const SCREEN_CASES: { text: string; allowed: boolean }[] = [
 
 type Check = { name: string; ok: boolean; detail: string }
 
+/** Which slot a question asks about, to tell a legitimate repeat (no answer) from a spurious one. */
+const QUESTION_SLOTS: Record<string, RegExp> = {
+  anything_else: /anything else/i, engine_off: /engine.*\boff\b|switched off/i, light: /\blight\b|dashboard/i,
+  location: /\bwhere\b|which road|service area/i, photo: /photo|picture/i, car_state: /start or move/i,
+  injuries: /hurt|injur/i, site: /pickup or the delivery|which (site|place)/i, contact_on_site: /spoken to anyone/i,
+}
+
 /** The agent's last question, so the scripted driver answers what was actually asked. */
 function lastQuestion(text: string): string {
   return text.match(/[^.!?]*\?/g)?.pop() ?? text
 }
 
 function pickAnswer(script: Script, used: Set<number>, agentText: string): string {
-  const match = script.lines.findIndex((line, index) => !used.has(index) && line.topics?.test(lastQuestion(agentText)))
+  const match = script.ordered ? -1 : script.lines.findIndex((line, index) => !used.has(index) && line.topics?.test(lastQuestion(agentText)))
   const index = match !== -1 ? match : script.lines.findIndex((_, i) => !used.has(i))
   if (index === -1) return "No, that's all."
   used.add(index)
@@ -160,7 +199,10 @@ async function runScript(script: Script): Promise<{ checks: Check[]; view: CallV
   const checks: Check[] = []
   const check = (name: string, ok: boolean, detail = "") => checks.push({ name, ok, detail })
 
-  check("urgency", view.urgency === script.expect.urgency, `got ${view.urgency}, quote "${view.urgencyQuote}"`)
+  const urgencyOk = script.expect.atLeast && script.expect.urgency && view.urgency
+    ? URGENCY_RANK[view.urgency] >= URGENCY_RANK[script.expect.urgency]
+    : view.urgency === script.expect.urgency
+  check(script.expect.atLeast ? `urgency at least ${script.expect.urgency}` : "urgency", urgencyOk, `got ${view.urgency}, quote "${view.urgencyQuote}"`)
   if (view.urgencyTurnId && !script.silent) check("urgency points at a driver turn", driverTurns.has(view.urgencyTurnId), view.urgencyTurnId)
   const opening = agentTurns[0]?.textFinal ?? ""
   check("first agent turn is the urgency question", agentTurns[0]?.seq === 0 && /safe/i.test(opening) && /(urgent|emergency)/i.test(opening), opening)
@@ -187,6 +229,22 @@ async function runScript(script: Script): Promise<{ checks: Check[]; view: CallV
     const readbackText = readback?.textFinal ?? ""
     check("read-back reads the facts back", readbackText.length > 50 && /\?$/.test(readbackText) && !Object.values(SAFETY_TEMPLATES).some((t) => readbackText.includes(t)), readbackText)
     check("read-back confirmed", view.readbackConfirmed, "")
+    if (script.expect.signal) {
+      const { driverSays, readbackSays } = script.expect.signal
+      const signalTurn = view.turns.find((turn) => turn.speaker === "driver" && driverSays.test(turn.textFinal ?? ""))
+      const reply = signalTurn ? view.turns.find((turn) => turn.seq === signalTurn.seq + 1) : undefined
+      check("safety signal: the next agent turn speaks the leave-the-car template",
+        Boolean(reply?.flags.safetyTemplates?.includes("LEAVE_CAR_BARRIER")) && (reply?.textFinal ?? "").includes(SAFETY_TEMPLATES.LEAVE_CAR_BARRIER),
+        reply ? `${reply.id}: ${reply.textFinal}` : "no reply after the signal")
+      const slot = view.slots.safety_signal
+      check("safety signal recorded with its quote and turn", Boolean(slot) && slot.turn_id === signalTurn?.id && driverSays.test(slot.quote), slot ? `"${slot.value}" from ${slot.turn_id}, quote "${slot.quote}"` : "missing")
+      check("safety signal raised urgency to at least URGENT", Boolean(view.urgency) && URGENCY_RANK[view.urgency!] >= URGENCY_RANK.URGENT, `${view.urgency}`)
+      // Skip a lead-in such as "So, Leo:" or "Let me check I have this right:".
+      const colon = readbackText.indexOf(":")
+      const recap = (colon !== -1 && colon < 45 ? readbackText.slice(colon + 1) : readbackText).replace(/^\s*(thanks|so)[^,]*,\s*/i, "").trim()
+      const firstClause = recap.split(/[,.;]/)[0] ?? ""
+      check("safety signal comes first in the read-back", readbackSays.test(firstClause), firstClause)
+    }
     for (const pattern of script.expect.mustSay ?? []) {
       check(`said ${pattern}`, agentTurns.some((turn) => pattern.test(turn.textFinal ?? "")), "")
     }
@@ -203,6 +261,24 @@ async function runScript(script: Script): Promise<{ checks: Check[]; view: CallV
   check("no mechanical advice, drivability or promises spoken", offending.length === 0, offending.join(" | "))
   const meta = agentTurns.filter((turn) => isMetaTalk(turn.textFinal ?? "")).map((turn) => turn.textFinal)
   check("no reasoning or labels spoken", meta.length === 0, meta.join(" | "))
+  // A re-prompt is only right after silence or a failed reply, never after an answer.
+  const reprompt = /could you tell me a little more|didn't catch that|didn't hear you|could you say (it|that) again/i
+  const badReprompts: string[] = []
+  for (const turn of agentTurns.slice(1)) {
+    const driver = view.turns.find((item) => item.seq === turn.seq - 1)
+    const answered = driver && !driver.flags.silence && (driver.textFinal ?? "").trim()
+    if (answered && reprompt.test(turn.textFinal ?? "") && !turn.flags.engineError) badReprompts.push(`${turn.id} after "${driver.textFinal}": ${turn.textFinal}`)
+    const previous = agentTurns.find((item) => item.seq === turn.seq - 2)
+    const question = (text: string | null) => (text ?? "").match(/[^.!?]*\?/g)?.pop()?.trim().toLowerCase()
+    // A repeated question is wrong only when the driver's answer in between filled the slot it asks about.
+    const repeated = answered && previous && question(turn.textFinal) && question(turn.textFinal) === question(previous.textFinal)
+    const slotOf = (text: string) => Object.entries(QUESTION_SLOTS).find(([, pattern]) => pattern.test(text))?.[0]
+    const askedSlot = repeated ? slotOf(question(turn.textFinal) ?? "") : undefined
+    if (repeated && askedSlot && view.slots[askedSlot]?.turn_id === driver?.id) {
+      badReprompts.push(`${turn.id} asks "${question(turn.textFinal)}" again although ${driver?.id} answered it`)
+    }
+  }
+  check("no re-prompt or repeated question after the driver answered", badReprompts.length === 0, badReprompts.join(" | "))
   const unscreened = agentTurns.filter((turn) => turn.seq > 0 && !turn.flags.phase).map((turn) => turn.id)
   check("every agent turn went through the screen", unscreened.length === 0, unscreened.join(", "))
   // An instruction (imperative or "you should") about safety, worded freely instead of from a template.
@@ -226,7 +302,7 @@ async function runScript(script: Script): Promise<{ checks: Check[]; view: CallV
 
 async function main(): Promise<void> {
   const only = process.argv[2]
-  const scripts = SCRIPTS.filter((script) => !only || script.name === only)
+  const scripts = SCRIPTS.filter((script) => !only || only.split(",").includes(script.name))
   await mkdir(join(process.cwd(), "..", "traces"), { recursive: true })
   let total = 0
   let failed = 0

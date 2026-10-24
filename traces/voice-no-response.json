@@ -2,7 +2,7 @@
   "scenario": "no-response",
   "title": "Reply deadline: the driver goes silent twice (no_response)",
   "model": "anthropic/claude-sonnet-5.5",
-  "ranAt": "2026-10-24T12:49:50.781Z",
+  "ranAt": "2026-10-24T13:02:34.683Z",
   "checks": [
     {
       "name": "urgency",
@@ -50,6 +50,11 @@
       "detail": ""
     },
     {
+      "name": "no re-prompt or repeated question after the driver answered",
+      "ok": true,
+      "detail": ""
+    },
+    {
       "name": "every agent turn went through the screen",
       "ok": true,
       "detail": ""
@@ -61,15 +66,15 @@
     }
   ],
   "call": {
-    "id": "call-4b1b2b4142",
+    "id": "call-78c4c9c7fe",
     "caseId": null,
     "orderId": "ord-00584",
     "orderRef": "CD-420584",
     "driverId": "drv-042",
     "driverName": "Leo Quellford",
     "direction": "AGENT_INITIATED",
-    "startedAt": "2026-10-21T09:01:01.130Z",
-    "endedAt": "2026-10-21T09:01:03.126Z",
+    "startedAt": "2026-10-21T09:01:48.611Z",
+    "endedAt": "2026-10-21T09:01:50.504Z",
     "urgency": null,
     "urgencyTurnId": null,
     "urgencyQuote": null,
@@ -156,7 +161,7 @@
         "source": "Site profile"
       },
       {
-        "at": "2026-10-21T09:01:01.130Z",
+        "at": "2026-10-21T09:01:48.611Z",
         "key": "obd",
         "text": "The car's OBD dongle reports trouble codes P0300 and a flashing check-engine light.",
         "source": "OBD dongle (simulated)"
@@ -164,7 +169,7 @@
     ],
     "triggers": [
       {
-        "at": "2026-10-21T09:01:03.126Z",
+        "at": "2026-10-21T09:01:50.504Z",
         "note": "No server origin (text harness); recorded only.",
         "status": null,
         "trigger": "call_ended",
@@ -178,11 +183,11 @@
     },
     "turns": [
       {
-        "id": "call-4b1b2b4142-0",
+        "id": "call-78c4c9c7fe-0",
         "seq": 0,
         "speaker": "agent",
-        "startedAt": "2026-10-21T09:01:01.130Z",
-        "endedAt": "2026-10-21T09:01:01.130Z",
+        "startedAt": "2026-10-21T09:01:48.611Z",
+        "endedAt": "2026-10-21T09:01:48.611Z",
         "textLive": "Hi Leo, this is Road Desk. Your car just reported an engine fault. Are you and the car safe right now, or is this an emergency?",
         "textFinal": "Hi Leo, this is Road Desk. Your car just reported an engine fault. Are you and the car safe right now, or is this an emergency?",
         "sttModel": null,
@@ -193,11 +198,11 @@
         }
       },
       {
-        "id": "call-4b1b2b4142-1",
+        "id": "call-78c4c9c7fe-1",
         "seq": 1,
         "speaker": "driver",
-        "startedAt": "2026-10-21T09:01:01.145Z",
-        "endedAt": "2026-10-21T09:01:01.145Z",
+        "startedAt": "2026-10-21T09:01:48.626Z",
+        "endedAt": "2026-10-21T09:01:48.626Z",
         "textLive": null,
         "textFinal": null,
         "sttModel": null,
@@ -208,11 +213,11 @@
         }
       },
       {
-        "id": "call-4b1b2b4142-2",
+        "id": "call-78c4c9c7fe-2",
         "seq": 2,
         "speaker": "agent",
-        "startedAt": "2026-10-21T09:01:02.122Z",
-        "endedAt": "2026-10-21T09:01:02.122Z",
+        "startedAt": "2026-10-21T09:01:49.537Z",
+        "endedAt": "2026-10-21T09:01:49.537Z",
         "textLive": "Sorry, I didn't hear you. Are you and the car safe right now, or is this an emergency?",
         "textFinal": "Sorry, I didn't hear you. Are you and the car safe right now, or is this an emergency?",
         "sttModel": null,
@@ -223,11 +228,11 @@
         }
       },
       {
-        "id": "call-4b1b2b4142-3",
+        "id": "call-78c4c9c7fe-3",
         "seq": 3,
         "speaker": "driver",
-        "startedAt": "2026-10-21T09:01:02.143Z",
-        "endedAt": "2026-10-21T09:01:02.143Z",
+        "startedAt": "2026-10-21T09:01:49.559Z",
+        "endedAt": "2026-10-21T09:01:49.559Z",
         "textLive": null,
         "textFinal": null,
         "sttModel": null,
@@ -238,11 +243,11 @@
         }
       },
       {
-        "id": "call-4b1b2b4142-4",
+        "id": "call-78c4c9c7fe-4",
         "seq": 4,
         "speaker": "agent",
-        "startedAt": "2026-10-21T09:01:03.114Z",
-        "endedAt": "2026-10-21T09:01:03.114Z",
+        "startedAt": "2026-10-21T09:01:50.488Z",
+        "endedAt": "2026-10-21T09:01:50.488Z",
         "textLive": "I can't hear you, so I'll end the call now. An operator has what you told us so far and will message you in the app.",
         "textFinal": "I can't hear you, so I'll end the call now. An operator has what you told us so far and will message you in the app.",
         "sttModel": null,

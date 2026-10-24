@@ -56,6 +56,8 @@ export type TurnFlags = {
   sttError?: string
   /** The interviewer call failed on this turn; a neutral line was spoken instead. */
   engineError?: string
+  /** The model gave no words of its own; what the server did instead. */
+  emptyReply?: string
   /** Milliseconds from the driver's turn arriving: model's first text, first sentence sent, reply complete. */
   timing?: { modelFirstText: number | null; firstSentence: number | null; total: number; model: string }
 }

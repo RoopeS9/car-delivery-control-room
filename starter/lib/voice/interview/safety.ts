@@ -15,6 +15,22 @@ export const SAFETY_TEMPLATES = {
 export type SafetyId = keyof typeof SAFETY_TEMPLATES
 export const SAFETY_IDS = Object.keys(SAFETY_TEMPLATES) as SafetyId[]
 
+// Safety signals the driver can mention at any point in the call. The
+// interviewer reports them in the strict tool field `safety_signal` (so a
+// paraphrase like "it smells like gas" counts); the server then speaks the
+// templates, raises the urgency and records a `safety_signal` slot.
+export const SAFETY_SIGNALS = {
+  FUEL_SMELL: { label: "Fuel smell", urgency: "URGENT", templates: ["LEAVE_CAR_BARRIER"], rank: 2 },
+  FLUID_LEAK: { label: "Leaking fluid, possibly fuel", urgency: "URGENT", templates: ["LEAVE_CAR_BARRIER"], rank: 2 },
+  BURNING_SMELL: { label: "Burning smell", urgency: "URGENT", templates: ["LEAVE_CAR_BARRIER"], rank: 2 },
+  OVERHEATING: { label: "Overheating warning", urgency: "URGENT", templates: ["LEAVE_CAR_BARRIER"], rank: 1 },
+  SMOKE: { label: "Smoke", urgency: "EMERGENCY", templates: ["CALL_112", "LEAVE_CAR_BARRIER"], rank: 3 },
+  FIRE: { label: "Fire", urgency: "EMERGENCY", templates: ["CALL_112", "LEAVE_CAR_BARRIER"], rank: 4 },
+} as const satisfies Record<string, { label: string; urgency: "URGENT" | "EMERGENCY"; templates: SafetyId[]; rank: number }>
+
+export type SafetySignalKind = keyof typeof SAFETY_SIGNALS
+export const SAFETY_SIGNAL_KINDS = Object.keys(SAFETY_SIGNALS) as SafetySignalKind[]
+
 const TAG = /\[\[\s*([A-Z_0-9]+)\s*\]\]/g
 
 export type SpokenPart = { kind: "safety"; id: SafetyId; text: string } | { kind: "free"; text: string }

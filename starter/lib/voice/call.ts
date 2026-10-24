@@ -8,13 +8,13 @@ import { clipMime, storeClip } from "./clips"
 import { simNow } from "./clock"
 import { TTS_DOLLARS_PER_CHAR, voiceConfig } from "./config"
 import { loadCallContext, type CallContext } from "./context"
-import { MAX_QUESTIONS, checklistFor, slotLabel } from "./interview/checklists"
+import { MAX_QUESTIONS, NOTHING_ELSE, SAFETY_SIGNAL_SLOT, SPOKEN_QUESTIONS, checklistFor, slotLabel } from "./interview/checklists"
 import { runInterviewer } from "./interview/engine"
 import {
   EMERGENCY_SAFETY, FILLERS, NO_RESPONSE_LINES, READBACK_ACK, REPROMPT_PREFIX, SCREEN_REPLACEMENT, SCREEN_REPLACEMENT_OTHER, goodbyeLine, nextCheckMinutes, nextStepLines, openingLine,
 } from "./interview/phrases"
 import { INTERVIEWER_SYSTEM, contextBlock, stepNote, type RecordInput, type Step } from "./interview/prompt"
-import { SAFETY_TEMPLATES, expandSafetyTags, freeSafetyTemplate, type SafetyId } from "./interview/safety"
+import { SAFETY_SIGNALS, SAFETY_TEMPLATES, expandSafetyTags, freeSafetyTemplate, type SafetyId } from "./interview/safety"
 import { audioFormatFromMime, voiceProvider } from "./provider"
 import { isMetaTalk, screenDriverUtterance } from "./screen"
 import { getCall, insertCall, insertTurn, listTurns, updateCall, updateTurn, type CallRow, type TurnRow } from "./store"
@@ -253,7 +253,8 @@ async function runDriverTurn(callId: string, input: DriverInput, emit: Emit, opt
     slots: call.slots, questions: state.questions, context: contextFromCall(call),
   })
   const last = messages[messages.length - 1]
-  last.content = `${last.content as string}\n\n(System note, not said by the driver)\n${note}`
+  const driverContent = last.content as string
+  last.content = `${driverContent}\n\n(System note, not said by the driver)\n${note}`
 
   // After a read-back, "Thanks, that's noted." fits both a yes and a correction, so say it at once.
   if (held) say(READBACK_ACK)
@@ -283,7 +284,6 @@ async function runDriverTurn(callId: string, input: DriverInput, emit: Emit, opt
   if (held && engine.record?.readback_answer === "CORRECTED" && engine.record.did_readback) {
     for (const line of held) say(line.text, line.safetyId)
   }
-  if (!spoken.length && step !== "closing") say("Sorry, could you tell me a little more about what's happening?")
 
   // Apply what the interviewer recorded.
   const turnIdFor = (turnNumber: number) => {
@@ -318,15 +318,68 @@ async function runDriverTurn(callId: string, input: DriverInput, emit: Emit, opt
     state.urgencyQuote = "(not stated; treated as urgent)"
     state.urgencyAt = simNow().toISOString()
   }
+  // A plain "no, nothing else" after the anything-else question closes that item.
+  const lastAgentText = [...turns].reverse().find((turn) => turn.speaker === "agent")?.textFinal ?? ""
+  if (!slots.anything_else && /anything else/i.test(lastAgentText) && NOTHING_ELSE.test(liveText)) {
+    slots.anything_else = { value: "Nothing else", turn_id: driverTurnId, quote: liveText, confidence: 0.9 }
+  }
+
+  // Safety signal (fuel or burning smell, smoke, fire, leak, overheating), from the strict tool field.
+  const signal = record?.safety_signal
+  if (signal && signal.kind !== "NONE" && SAFETY_SIGNALS[signal.kind]) {
+    const spec = SAFETY_SIGNALS[signal.kind]
+    const known = Object.values(SAFETY_SIGNALS).find((item) => item.label === slots[SAFETY_SIGNAL_SLOT]?.value)
+    if (!known || spec.rank > known.rank) {
+      slots[SAFETY_SIGNAL_SLOT] = { value: spec.label, turn_id: turnIdFor(signal.turn), quote: signal.quote || liveText, confidence: 0.9 }
+      if (!urgency || URGENCY_RANK[spec.urgency] > URGENCY_RANK[urgency]) {
+        urgency = spec.urgency
+        patch.urgency = urgency
+        patch.urgencyTurnId = turnIdFor(signal.turn)
+        state.urgencyQuote = signal.quote || liveText
+        state.urgencyAt = simNow().toISOString()
+      }
+      // Speak the templates in this turn if the model did not lead with them.
+      for (const safetyId of spec.templates) if (!flags.safetyTemplates!.includes(safetyId)) say(SAFETY_TEMPLATES[safetyId], safetyId, true)
+    }
+  }
   if (urgency === "EMERGENCY" && before !== "EMERGENCY" && !flags.safetyTemplates!.includes("CALL_112")) {
     for (const safetyId of EMERGENCY_SAFETY) say(SAFETY_TEMPLATES[safetyId], safetyId, true)
+  }
+
+  // The model said nothing of its own (only templates, or nothing at all): decide from the
+  // interview state instead of a vague re-prompt. Read back if the checklist is complete,
+  // otherwise ask the next missing item with its fixed question.
+  let forcedReadback = false
+  const ownWords = spoken.filter((text) => !SAFETY_ID_TEXTS.has(text) && text !== READBACK_ACK)
+  if (!engineFailed && !ownWords.length && (step === "urgency" || step === "checklist" || step === "readback")) {
+    const missing = checklistFor(urgency, situation).filter((key) => !slots[key])
+    const full = !missing.length || state.questions >= MAX_QUESTIONS[urgency ?? "URGENT"] || step === "readback"
+    if (urgency && full) {
+      flags.emptyReply = "read-back generated after an empty reply"
+      const readbackNote = stepNote({ step: "readback", urgency, urgencyQuote: state.urgencyQuote, situation, slots, questions: state.questions, context: contextFromCall(call) })
+      last.content = `${driverContent}\n\n(System note, not said by the driver)\n${readbackNote}`
+      try {
+        const second = await runInterviewer({ system, messages, model: options.model, onSentence })
+        await chain
+        state.spend.llm += second.cost
+        forcedReadback = spoken.some((text) => /\?$/.test(text))
+      } catch (error) {
+        flags.engineError = error instanceof Error ? error.message.slice(0, 300) : String(error)
+      }
+    }
+    if (!forcedReadback) {
+      const next = urgency ? missing[0] : null
+      flags.emptyReply ??= `asked ${next ?? "the urgency question"} after an empty reply`
+      onSentence(next ? SPOKEN_QUESTIONS[next] ?? "Is there anything else we should know?" : "First: are you safe, and is this urgent?")
+      await chain
+    }
   }
 
   // Move the interview on.
   const reply = spoken.join(" ")
   const asked = reply.trim().endsWith("?")
   // A read-back the model forgot to flag still counts: a recap of several facts ending "Is that right?".
-  const didReadback = Boolean(record?.did_readback) || (/\bis that (right|correct)\?$/i.test(reply.trim()) && reply.split(",").length >= 3)
+  const didReadback = forcedReadback || Boolean(record?.did_readback) || (/\bis that (right|correct)\?$/i.test(reply.trim()) && reply.split(",").length >= 3)
   let phase: CallPhase = state.phase
   if (engineFailed) {
     // Nothing was decided this turn: ask again on the same step.

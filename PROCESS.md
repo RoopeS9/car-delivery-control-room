@@ -188,3 +188,66 @@ Changed / rejected:
 - Not verified: a live microphone call in Chrome. The browser extension
   was not connected in this session, so the call screen is only typechecked,
   built and rendered on the server.
+
+## 2026-10-24 13:05 UTC · local Claude Code agent (worktree, branch voice/core) · V voice, review fixes
+
+Asked: the coordinator reviewed `traces/voice-warning-light.json` and found
+two problems. Every scripted check had passed. The first one came from a
+human-style read of the transcript, not from any check.
+1. The driver said "No smoke, but a bit of a petrol smell" and the
+   interviewer moved on. A fuel smell is a safety signal.
+2. After "Is there anything else we should know?" and "No, that's
+   everything.", the interviewer said "Sorry, could you tell me a little more
+   about what's happening?" before the read-back.
+
+Got (cause of 2): the model returned no speakable text on that turn, even
+after the engine's own "now say your reply" follow-up. My empty-reply rule
+then filled the gap with the generic re-prompt. Neither the step logic nor
+the error fallback caused it (no engine error on that turn).
+
+Changed:
+- **Safety signals detected in the extraction step.** The strict
+  `record_call_state` schema now has a required `safety_signal` field
+  (`NONE`, `FUEL_SMELL`, `BURNING_SMELL`, `SMOKE`, `FIRE`, `FLUID_LEAK`,
+  `OVERHEATING`, plus quote and turn), so a paraphrase like "smells like gas"
+  is caught. The prompt also explains negation ("no smoke" is not a signal).
+  - The prompt tells the model to lead its reply with the template tags. If
+    it doesn't, the server speaks the templates in the same turn
+    (`LEAVE_CAR_BARRIER`, with `CALL_112` for smoke or fire).
+  - The server raises urgency to at least URGENT (EMERGENCY for smoke or
+    fire) and records a `safety_signal` slot with quote and turn.
+  - The read-back note puts the signal first.
+  - After a signal the model must never ask the driver to start, move or get
+    back into the car. A run showed it asking "when you turn the key, does
+    the car start?" after the petrol smell, an item that isn't in the
+    warning-light checklist. It may now ask only listed missing items.
+- **Empty replies decided from the interview state.** If the model says
+  nothing of its own, the server reads back when the checklist is complete,
+  otherwise it asks the next missing item with a fixed question
+  (`SPOKEN_QUESTIONS`). The generic re-prompt is gone, and so is the
+  engine's follow-up call. A plain "no, nothing else" after the
+  anything-else question closes that slot deterministically.
+- **Harness.** Scenario A now expects `safety_signal` and checks four things:
+  - the agent turn right after the petrol smell speaks the leave-the-car
+    template
+  - the slot has its quote and turn
+  - urgency is at least URGENT
+  - the read-back leads with the signal
+
+  A new script, `burning-smell`, has a driver mention "a burning smell"
+  partway through a battery-light call, with the same checks. A new check
+  fails any re-prompt after an answered turn, and any question repeated
+  after the driver's answer filled that slot. (A first version flagged a
+  legitimate repeat where the scripted driver hadn't answered, so it now
+  looks at the slot.)
+
+Checked by running it: all five scripts pass. Scenario A came from a rerun
+after the last prompt change; the other four are from the full run just
+before it. In the new scenario A trace the server's empty-reply path fired
+once and asked the next item ("asked light after an empty reply"), not a
+vague re-prompt. Spend for these fixes was $0.41 (two targeted runs and one
+full run). `npm run typecheck` and `npm run build` pass.
+
+Lesson: the scripted checks tested what we had thought of. Reading the
+transcript as a person found the petrol smell. Both findings are now
+assertions.
