@@ -12,7 +12,7 @@ type Payload = {
   order: { id: string; reference: string }
   car: { phone: "LIVE" | "STALE" | "NONE"; phoneNote: string | null; driverId: string; lastGpsAt: string | null; codes: string[]; mil: string } | null
   telemetry: { gps: Row[]; obd: Row[] }
-  events: { id: string; caseId: string | null; at: string; actorType: string; actorId: string | null; kind: string; channel: string; body: string }[]
+  events: { id: string; caseId: string | null; at: string; actorType: string; actorId: string | null; kind: string; channel: string; body: string; milestone?: string }[]
   cases: { id: string; kind: string; status: string; urgency: string; title: string; summary: string; openedAt: string; updatedAt: string; waitingFor: string | null; nextCheckAt: string | null }[]
   /** Messages written in the app's helpdesk since the snapshot (the dataset's own messages are already in the dossier). */
   messages?: { id: string; conversationId: string; at: string; authorType: string; authorId: string | null; channel: string; body: string; internal: boolean }[]
@@ -74,7 +74,7 @@ export function liveFromPayload(ds: Dataset, orderId: string, p: Payload, stored
     ...p.telemetry.obd.map((row) => mapObd(row, orderId, item?.vehicle_id ?? "veh-none")).filter(keep),
   ].sort((a, b) => a.at.localeCompare(b.at))
   const events = p.events.map((e) => {
-    const r = AppEvent.safeParse({ kind: "APP_EVENT", id: e.id, orderId, caseId: e.caseId && idOk(e.caseId) ? e.caseId : null, at: e.at, actor: e.actorType, actorId: e.actorId, eventKind: e.kind, channel: e.channel, text: e.body.slice(0, 1000) })
+    const r = AppEvent.safeParse({ kind: "APP_EVENT", id: e.id, orderId, caseId: e.caseId && idOk(e.caseId) ? e.caseId : null, at: e.at, actor: e.actorType, actorId: e.actorId, eventKind: e.kind, channel: e.channel, text: e.body.slice(0, 1000), milestone: e.milestone ?? null })
     return r.success ? r.data : null
   }).filter(keep)
   for (const m of p.messages ?? []) { const e = mapMessage(m, orderId); if (e) events.push(e); else dropped++ }

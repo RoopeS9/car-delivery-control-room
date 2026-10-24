@@ -38,6 +38,8 @@ export async function GET(_request: Request, context: { params: Promise<{ order:
     events: events.slice(-200).map((event) => ({
       id: event.id, caseId: event.caseId, at: event.at.toISOString(), actorType: event.actorType, actorId: event.actorId,
       kind: event.kind, channel: event.channel, body: event.body,
+      // A delivery step the driver reported in the app (collected, checked in, handed over).
+      ...(event.kind === "milestone" && typeof event.data.milestone === "string" ? { milestone: event.data.milestone } : {}),
     })),
     cases: cases.map((row) => ({
       id: row.id, kind: row.kind, status: row.status, urgency: row.urgency, title: row.title, summary: row.summary,

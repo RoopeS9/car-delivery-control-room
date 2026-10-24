@@ -82,7 +82,17 @@ export function derivePhase(ds: Dataset, orderId: string, asOf: string, overlay:
   return stillMoving ? { phase: "MOVING", basis: "primary car delivered, another item (trade-in) still in progress" } : { phase: "AFTER", basis: "delivered" }
 }
 
-export function buildDossier(ds: Dataset, orderId: string, live: Live = emptyLive(), asOf = ds.snapshotAt, overlay: Overlay = {}): Dossier {
+/** What the driver reported in the app moves the order on: collected is in transit, handed over is delivered. */
+export function liveOverlay(live: Live): Overlay {
+  const steps = new Set(live.events.map((event) => event.milestone).filter(Boolean))
+  if (steps.has("DELIVERED")) return { status: "DELIVERED", note: "handed over, reported in the driver app" }
+  if (steps.has("COLLECTED")) return { status: "IN_TRANSIT", note: "collected, reported in the driver app" }
+  return {}
+}
+
+export function buildDossier(ds: Dataset, orderId: string, live: Live = emptyLive(), asOf = ds.snapshotAt, given: Overlay = {}): Dossier {
+  // A run's own overlay (a simulated timeline) wins over the steps the app recorded.
+  const overlay: Overlay = given.status ? given : { ...liveOverlay(live), ...given }
   const order = ds.rows.orders.find((r) => r.id === orderId)
   if (!order) throw new Error(`no order ${orderId}`)
   const picked = new Map<string, { c: CollectionName; r: object; m: Membership }>()

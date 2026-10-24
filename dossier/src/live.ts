@@ -162,10 +162,12 @@ export const AppEvent = z.object({
   kind: z.literal("APP_EVENT"),
   id: Id, orderId: Id, caseId: Id.nullable(), at: IsoDateTime,
   actor: z.enum(["driver", "site", "customer", "operator", "agent", "obd", "phone", "system"]), actorId: Text.nullable(),
-  eventKind: z.enum(["message", "voice_turn", "photo", "telemetry_snapshot", "dtc", "lookup", "tool_call", "proposal", "decision", "effect", "note"]),
+  eventKind: z.enum(["message", "voice_turn", "photo", "telemetry_snapshot", "dtc", "lookup", "tool_call", "proposal", "decision", "effect", "note", "milestone"]),
   channel: z.enum(["driver_chat", "driver_voice", "site_chat", "operator_chat", "customer_email", "internal", "telemetry", "system", "safety"]),
   /** The event's plain-language text, as the timeline shows it. */
   text: Text,
+  /** For a delivery step the driver reported in the app: which one. */
+  milestone: z.enum(["ARRIVED_PICKUP", "COLLECTED", "CHECKED_IN", "ARRIVED_DELIVERY", "DELIVERED"]).nullable().optional(),
 }).strict()
 export type AppEvent = z.infer<typeof AppEvent>
 

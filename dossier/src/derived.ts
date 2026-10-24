@@ -57,7 +57,9 @@ function facts(d: Dossier) {
   const site = items(d, "sites").find((i) => i.record.id === order.record.pickup_site_id) ?? null
   const detail = items(d, "order_endpoint_details").find((i) => i.record.boundary === "PICKUP") ?? null
   const ferry = items(d, "travel_reservations").find((i) => i.record.kind === "FERRY" && i.record.status === "BOOKED") ?? null
-  const gateScan = ferry ? items(d, "ferry_terminal_events").find((i) => i.record.reservation_id === ferry.record.id && i.record.kind === "CHECK_IN_ACCEPTED") ?? null : null
+  // A check-in the driver reported in the app stands in for the terminal's gate scan (simulated, and the event says so).
+  const appCheckIn = d.live.events.find((event) => event.milestone === "CHECKED_IN") ?? null
+  const gateScan = ferry ? items(d, "ferry_terminal_events").find((i) => i.record.reservation_id === ferry.record.id && i.record.kind === "CHECK_IN_ACCEPTED") ?? appCheckIn : null
   const tracking = items(d, "tracking_observations").sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""))[0] ?? null
   const gps = d.live.telemetry.filter((s) => s.kind === "GPS").sort((a, b) => b.at.localeCompare(a.at))[0] ?? null
   const calls = (purpose: CallPurpose) => d.live.calls.filter((c) => c.brief.purpose === purpose).sort((a, b) => b.startedAt.localeCompare(a.startedAt))
