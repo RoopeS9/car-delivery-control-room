@@ -17,9 +17,9 @@ export function voiceClient(): Anthropic {
   return holder.__voiceAnthropic
 }
 
-// Dollars per million tokens (input, output). Haiku measured 24 Oct from
-// OpenRouter's cost_details; the others are list prices, used only as an estimate.
-const PRICES: [RegExp, number, number][] = [[/haiku/i, 1, 5], [/sonnet/i, 3, 15], [/opus/i, 5, 25]]
+// Dollars per million tokens (input, output). Haiku 5.5 and Sonnet 5.5 measured
+// 24 Oct from OpenRouter's reported cost; Opus is a list-price guess. Estimate only.
+const PRICES: [RegExp, number, number][] = [[/haiku/i, 1, 5], [/sonnet/i, 2, 10], [/opus/i, 5, 25]]
 
 type Usage = { cost?: unknown; input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null }
 

@@ -54,6 +54,10 @@ export type TurnFlags = {
   /** Which interview phase this agent turn served. */
   phase?: CallPhase
   sttError?: string
+  /** The interviewer call failed on this turn; a neutral line was spoken instead. */
+  engineError?: string
+  /** Milliseconds from the driver's turn arriving: model's first text, first sentence sent, reply complete. */
+  timing?: { modelFirstText: number | null; firstSentence: number | null; total: number; model: string }
 }
 
 export type CallState = {

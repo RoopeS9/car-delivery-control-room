@@ -1,0 +1,94 @@
+/* The driver's call screen: phone-sized, calm, big targets. Uses the
+   starter's tokens (globals.css) with fallbacks, and follows dark mode. */
+
+.phone {
+  --cs-bg: var(--birch, #fffef7);
+  --cs-panel: var(--canvas, #f5f3ec);
+  --cs-line: var(--hair, #e6e1d6);
+  --cs-ink: var(--ink, #12110e);
+  --cs-muted: var(--muted, #726958);
+  --cs-agent: var(--teal-bg, #e9f5f7);
+  --cs-agent-ink: var(--teal-ink, #1f6f7b);
+  --cs-driver: var(--tray, #faf8f2);
+  --cs-green: var(--green, #29af77);
+  --cs-red: var(--red, #fd4a61);
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 400px;
+  height: min(760px, 100dvh);
+  margin: 0 auto;
+  padding: 20px 18px 24px;
+  border-radius: 28px;
+  background: var(--cs-bg);
+  color: var(--cs-ink);
+  box-shadow: 0 0 0 1px var(--cs-line), 0 12px 40px rgba(66, 61, 51, 0.12);
+  font-family: var(--font-body, Arial, sans-serif);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .phone {
+    --cs-bg: #171613; --cs-panel: #201f1b; --cs-line: #34312a; --cs-ink: #f3f0e8; --cs-muted: #a89f8e;
+    --cs-agent: #16323a; --cs-agent-ink: #8fd3df; --cs-driver: #24221d;
+  }
+}
+:root[data-theme="dark"] .phone {
+  --cs-bg: #171613; --cs-panel: #201f1b; --cs-line: #34312a; --cs-ink: #f3f0e8; --cs-muted: #a89f8e;
+  --cs-agent: #16323a; --cs-agent-ink: #8fd3df; --cs-driver: #24221d;
+}
+
+.header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.who { display: flex; flex-direction: column; }
+.name { font-family: var(--font-display, Arial, sans-serif); font-size: 18px; font-weight: 600; }
+.meta { color: var(--cs-muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+.badge { padding: 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+.emergency { background: var(--red-bg, #fff0f2); color: var(--red-ink, #b42c42); box-shadow: 0 0 0 1px var(--cs-red); }
+.urgent { background: var(--orange-bg, #fff1ea); color: var(--orange-ink, #b04617); }
+.routine { background: var(--cs-agent); color: var(--cs-agent-ink); }
+
+.stage { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 22px 0 14px; }
+.orb {
+  width: 96px; height: 96px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff 0, var(--cs-agent) 45%, var(--cs-agent-ink) 140%);
+  box-shadow: 0 0 0 0 rgba(67, 175, 193, 0.35);
+  transition: transform 200ms ease;
+}
+.orbSpeaking { animation: pulse 1.4s ease-in-out infinite; }
+.orbHearing { transform: scale(1.06); box-shadow: 0 0 0 10px rgba(41, 175, 119, 0.18); }
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(67, 175, 193, 0.35); }
+  50% { box-shadow: 0 0 0 18px rgba(67, 175, 193, 0); }
+}
+@media (prefers-reduced-motion: reduce) { .orbSpeaking { animation: none; } }
+.status { font-size: 16px; font-weight: 500; min-height: 24px; text-align: center; }
+.error { color: var(--red-ink, #b42c42); font-size: 14px; text-align: center; max-width: 30ch; }
+
+.captions {
+  flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;
+  padding: 12px; border-radius: 18px; background: var(--cs-panel);
+}
+.caption { max-width: 88%; padding: 10px 13px; border-radius: 16px; font-size: 16px; line-height: 1.4; }
+.speaker { display: block; font-size: 12px; font-weight: 600; color: var(--cs-muted); margin-bottom: 2px; }
+.agent { align-self: flex-start; background: var(--cs-agent); border-bottom-left-radius: 6px; }
+.driver { align-self: flex-end; background: var(--cs-driver); box-shadow: 0 0 0 1px var(--cs-line); border-bottom-right-radius: 6px; }
+.pending { opacity: 0.65; }
+
+.talk {
+  margin-top: 14px; min-height: 64px; border: 0; border-radius: 18px; font-size: 18px; font-weight: 600;
+  background: var(--cs-panel); color: var(--cs-ink); box-shadow: 0 0 0 1px var(--cs-line); touch-action: none; user-select: none;
+}
+.talkHeld { background: var(--cs-green); color: #fff; }
+.talk:disabled { opacity: 0.5; }
+
+.controls { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding-top: 18px; }
+.small {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; justify-self: center;
+  min-width: 84px; padding: 8px; border: 0; border-radius: 14px; background: transparent; color: var(--cs-ink); font-size: 13px;
+}
+.small[aria-pressed="true"] { background: var(--cs-panel); }
+.small:disabled { opacity: 0.4; cursor: default; }
+.big { width: 76px; height: 76px; border: 0; border-radius: 50%; display: grid; place-items: center; color: #fff; }
+.answer { background: var(--cs-green); }
+.hangup { background: var(--cs-red); }
+.big:focus-visible, .small:focus-visible, .talk:focus-visible { outline: 3px solid var(--cs-ink); outline-offset: 3px; }

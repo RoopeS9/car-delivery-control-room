@@ -159,6 +159,8 @@ async function runDriverTurn(callId: string, input: DriverInput, emit: Emit, opt
   const driverTurnId = `${callId}-${seq}`
   const doSpeak = options.speak !== false
   const state: CallState = { ...call.state, spend: { ...call.state.spend } }
+  const turnStart = Date.now()
+  let firstSentenceMs: number | null = null
 
   // Store the driver's audio and transcribe it (text of record), beside the live text.
   let liveText = (input.liveText ?? "").trim()
@@ -203,6 +205,7 @@ async function runDriverTurn(callId: string, input: DriverInput, emit: Emit, opt
     }
     if (!safetyId && !SAFETY_ID_TEXTS.has(text)) state.spend.tts += doSpeak ? text.length * TTS_DOLLARS_PER_CHAR : 0
     spoken.push(text)
+    firstSentenceMs ??= Date.now() - turnStart
     emit({ event: "sentence", data: { index: index++, text, audioUrl } })
   }
 
@@ -254,20 +257,28 @@ async function runDriverTurn(callId: string, input: DriverInput, emit: Emit, opt
 
   // After a read-back, "Thanks, that's noted." fits both a yes and a correction, so say it at once.
   if (held) say(READBACK_ACK)
+  const engineStart = Date.now()
   let engine
+  let engineFailed = false
   try {
     engine = await runInterviewer({ system, messages, model: options.model, onSentence })
   } catch (error) {
     await chain
+    engineFailed = true
     const message = error instanceof Error ? error.message : String(error)
     console.warn(`[voice] interviewer failed: ${message}`)
-    // Keep the call alive with a neutral line; the turn is still on record.
+    flags.engineError = message.slice(0, 300)
+    // Keep the call alive with a neutral line and stay on the same step; the turn is still on record.
     if (!spoken.length) say("Sorry, I didn't catch that. Could you say it again?")
     engine = { text: "", record: null, cost: 0, model: options.model ?? voiceConfig.interviewModel(), ms: 0, firstTextMs: null }
   }
   await chain
   state.spend.llm += engine.cost
   flags.rawText = engine.text
+  flags.timing = {
+    modelFirstText: engine.firstTextMs === null ? null : engineStart - turnStart + engine.firstTextMs,
+    firstSentence: firstSentenceMs, total: Date.now() - turnStart, model: engine.model,
+  }
   // Confirmed: nothing more, the system closes. Corrected: the corrected read-back.
   if (held && engine.record?.readback_answer === "CORRECTED" && engine.record.did_readback) {
     for (const line of held) say(line.text, line.safetyId)
@@ -314,23 +325,27 @@ async function runDriverTurn(callId: string, input: DriverInput, emit: Emit, opt
   // Move the interview on.
   const reply = spoken.join(" ")
   const asked = reply.trim().endsWith("?")
+  // A read-back the model forgot to flag still counts: a recap of several facts ending "Is that right?".
+  const didReadback = Boolean(record?.did_readback) || (/\bis that (right|correct)\?$/i.test(reply.trim()) && reply.split(",").length >= 3)
   let phase: CallPhase = state.phase
-  if (step === "urgency") {
-    if (urgency) phase = record?.did_readback ? "readback" : "checklist"
+  if (engineFailed) {
+    // Nothing was decided this turn: ask again on the same step.
+  } else if (step === "urgency") {
+    if (urgency) phase = didReadback ? "readback" : "checklist"
     if (asked && phase === "checklist") state.questions += 1
   } else if (step === "checklist") {
-    if (record?.did_readback) phase = "readback"
+    if (didReadback) phase = "readback"
     else if (asked) state.questions += 1
   } else if (step === "readback") {
     phase = "readback"
   } else if (step === "readback_answer") {
     if (record?.readback_answer === "CONFIRMED") { patch.readbackConfirmed = true; phase = "closing" }
-    else if (record?.readback_answer === "CORRECTED" && record.did_readback) phase = "readback"
+    else if (record?.readback_answer === "CORRECTED" && didReadback) phase = "readback"
     else phase = "closing"
   } else {
     phase = "closing"
   }
-  if (phase === "readback" && (step !== "readback_answer" || record?.did_readback)) {
+  if (phase === "readback" && (step !== "readback_answer" || didReadback)) {
     state.readbacks += 1
     state.readbackTurnId = `${callId}-${seq + 1}`
     flags.phase = "readback"
