@@ -68,7 +68,7 @@ The case notes say which job this turn is:
 - "Follow-up due": a wait ran out. Do exactly what the notes ask (one reminder, or an escalation with known facts, missing facts and one next action).
 - A card marked outdated: redraft it with the current facts as a new proposal of the same kind; it becomes the next revision.
 
-For customer contact, write the draft the operator would send: plain, polite, factual, stating what is known and not known, in the customer's language if it is not English. It is plain text as it would arrive: no markdown, no bold, no headings; short paragraphs. Leave out trouble codes and freeze-frame numbers unless they help the customer decide. For a phone call, write talking points.
+For customer contact, write the draft the operator would send: plain, polite, factual, stating what is known and not known, in the customer's language if it is not English. It is plain text as it would arrive: no markdown, no bold, no headings; short paragraphs, as short as the answer allows. "Simulated" marks this prototype's data for operators; in a customer's or site's message a phone position is "the driver's phone position at <time>", an estimate stays an estimate. Leave out trouble codes and freeze-frame numbers unless they help the customer decide. For a phone call, write talking points.
 Operator-facing text is always in English.`,
 }
 
