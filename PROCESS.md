@@ -82,3 +82,47 @@ Checked / changed / rejected:
 - Added: channel API contract (4.2c), triggers and per-case run lock, decision
   options and per-action effects (4.2b), live judging prep, a second cloud
   instance for stream C (we ended up with three cloud instances, one each for A, B and C).
+
+## 2026-10-24 ~12:00 UTC · Claude Code (stream C, cloud instance 3) · simulator, route shapes, dashboard photo, scenario A, /demo
+
+Asked: own stream C. Until instance 1 pushes the channel stubs, build the GPS
+and OBD generators, route shapes through the ferry terminals and the
+dashboard photo; then scenario `warning-light-584`, the `/demo` reset and the
+driver app shell.
+
+Got: `lib/sim/` (fleet, motion, sync, scenarios, status), `/api/sim/*`
+(scenarios, tick, state, telemetry per order), `/demo`,
+`knowledge/routes/routes.json` (27 road legs, 2 sea lanes) and
+`public/sim/dashboard-misfire.{svg,jpg}`.
+
+Checked / changed / rejected:
+- A "moving car" is an in-progress driver assignment, not an `IN_TRANSIT`
+  order: three trade-in returns move while the order says delivered. Two
+  cars in the data (CD-420735, CD-421013) have no app position at all; the
+  sim gives them none and the panel says "position unknown" instead of
+  inventing one. Its first draft did place them at the pickup city.
+- Road shapes come from the public OSRM router once and are committed; sea
+  lanes are drawn by hand. Rendered every route on a map and looked: the
+  first West Baltic lane cut straight across Gotland, so it now runs east of
+  the island. The Hamburg lane follows the Elbe and the Kiel Canal.
+- The first sync back-filled ten minutes of simulated samples *before* the
+  09:00 snapshot, where the dataset's own tracking records are the truth.
+  Samples now start at the snapshot; stale phones keep only their last real
+  report ("Last app position near Göttingen at 05:00").
+- OBD follows the phone (the dongle relays through the driver app), so
+  CD-420322, stopped with a dataset tracking gap, shows no invented engine
+  data until its own scenario.
+- Fault state lives in the `dtc` event's `data.sim`, not in memory: a
+  restart keeps the scenario, a reset removes it, and the car's behaviour is
+  a pure function of the plan and the sim clock. Compressed the stop to
+  about 90 s (limp, pull in, idle, engine off) so a live demo does not wait.
+- Dashboard photo is drawn (no brand marks) and rendered to JPEG with
+  Playwright. First render had dial numbers off their ticks; recomputed from
+  the scale angles. Checked by eye that the warning text and lamp read; a
+  Claude vision check still needs an API key on a machine that has one.
+- Not built here (stream A owns them): the channel routes and the agent
+  trigger. The scenario calls `POST /api/agent/trigger {kind:
+  "telemetry_fault", orderId, eventId}` and logs a 404 until it exists;
+  that path is a proposal for instance 1, one constant to change.
+- For streams A and B: call `syncTelemetry()` from `lib/sim/sync.ts` (or
+  `POST /api/sim/tick`) before reading `cr_telemetry`; it is idempotent.
