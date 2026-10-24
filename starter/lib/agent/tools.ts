@@ -6,6 +6,8 @@ import { readFileSync } from "node:fs"
 import path from "node:path"
 import type Anthropic from "@anthropic-ai/sdk"
 import { appendEvent, getEvent, latestTelemetry, listProposals, resolveOrder, telemetrySince, updateCase } from "@/lib/cr/queries"
+import { crDb } from "@/lib/cr/db"
+import { sql } from "drizzle-orm"
 import { simNow } from "@/lib/cr/clock"
 import {
   CASE_KINDS, URGENCIES, ACTION_TYPES,
@@ -27,6 +29,8 @@ export type FollowUp =
 
 export type TurnState = GateContext & {
   runId: string
+  /** Record ids the agent was shown in this turn (case notes and tool results): what it may cite. */
+  seenIds?: Set<string>
   driverId: string | null
   driverName: string | null
   siteEnd: End | null
@@ -598,6 +602,10 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
 
   async propose_action(state, input) {
     const proposal = proposalFrom(input)
+    const invented = await uncitableSources(state, [...proposal.handover.facts.flatMap((fact) => fact.sources ?? []), ...proposal.evidence_refs])
+    if (invented.length) {
+      return { content: `Not recorded: ${invented.length === 1 ? "this source is" : "these sources are"} not in the records you were shown: ${invented.map((ref) => `${ref.label ?? ref.kind} (${ref.id})`).join("; ")}. Cite the source objects exactly as the tools gave them; for a message or an operator's instruction, read get_timeline and cite its entry.`, isError: true, gate: "REFUSED" }
+    }
     if (str(input.booking_quote_id).trim()) {
       const selection = await recordedTravelSelection(state.caseRow.id, str(input.booking_quote_id).trim())
       if (!selection) return { content: "Not recorded: that quote is not on this case. Search travel options and choose one returned quote_id.", isError: true, gate: "REFUSED" }
@@ -652,6 +660,29 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
   },
 }
 
+/** Ids in a text: every `"id": "…"` a tool result or the case notes carried. */
+export function idsIn(text: string): string[] {
+  return [...text.matchAll(/"id":\s*"([^"]+)"|\b((?:evt|eff|tel|prop|case|msg|conv|ord|res|win|asg|ep|alert|inc|wi|track|veh|cust|site|drv)-[A-Za-z0-9-]+)/g)].map((match) => match[1] ?? match[2])
+}
+
+/**
+ * Sources an agent cites must be records it was shown or that exist: a citation of an invented id ("msg-latest")
+ * would look like evidence on the card. Guides (`knowledge:*`) are fixed files and always citable.
+ */
+async function uncitableSources(state: TurnState, refs: { kind?: string; id?: string; label?: string }[]): Promise<{ kind: string; id: string; label?: string }[]> {
+  const unknown = refs.filter((ref) => ref?.id && !String(ref.kind ?? "").startsWith("knowledge") && !state.seenIds?.has(String(ref.id)))
+    .map((ref) => ({ kind: String(ref.kind ?? ""), id: String(ref.id), label: ref.label }))
+  if (!unknown.length || !state.seenIds) return []
+  const ids = [...new Set(unknown.map((ref) => ref.id))]
+  const found = await crDb().execute(sql`
+    SELECT id FROM cr_events WHERE id IN ${ids} UNION SELECT id FROM cr_effects WHERE id IN ${ids}
+    UNION SELECT id FROM cr_telemetry WHERE id IN ${ids} UNION SELECT id FROM related_records WHERE id IN ${ids}
+    UNION SELECT id FROM orders WHERE id IN ${ids} UNION SELECT id FROM messages WHERE id IN ${ids}
+    UNION SELECT id FROM conversations WHERE id IN ${ids} UNION SELECT id FROM alerts WHERE id IN ${ids}`)
+  const exists = new Set((found as unknown as { id: string }[]).map((row) => row.id))
+  return unknown.filter((ref) => !exists.has(ref.id))
+}
+
 /** Run one tool call through the gate, then the handler, and log it. */
 export async function runTool(state: TurnState, name: string, rawInput: unknown): Promise<{ content: ToolContent; isError: boolean }> {
   const started = Date.now()
@@ -689,6 +720,7 @@ export async function runTool(state: TurnState, name: string, rawInput: unknown)
 
   trace.gate = outcome.gate ?? "ALLOWED"
   trace.is_error = Boolean(outcome.isError)
+  if (typeof outcome.content === "string") for (const id of idsIn(outcome.content)) state.seenIds?.add(id)
   trace.result = typeof outcome.content === "string" ? outcome.content.slice(0, 4000) : "[image and text]"
   trace.ms = Date.now() - started
   state.traces.push(trace)

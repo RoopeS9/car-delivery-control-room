@@ -18,7 +18,7 @@ import { submitProposal } from "./gate"
 import { localTime, relative, utcTime } from "./format"
 import { systemPrompt } from "./prompts"
 import { actorName, names } from "./timeline"
-import { holdForClearance, runTool, toolsFor, type FollowUp, type TurnState } from "./tools"
+import { holdForClearance, idsIn, runTool, toolsFor, type FollowUp, type TurnState } from "./tools"
 
 export type TurnTrigger = "inbound" | "telemetry" | "analysis" | "decision" | "ask" | "instruct" | "follow_up"
 
@@ -394,6 +394,7 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
     costUsd: 0,
     sideEffects: false,
     waitSet: false,
+    seenIds: new Set(idsIn(notes)),
   }
   const tools = toolsFor(request.audience, asking)
   const system: Anthropic.TextBlockParam[] = [{ type: "text", text: systemPrompt(request.audience), cache_control: { type: "ephemeral" } }]

@@ -238,6 +238,31 @@ describe("scenario A wiring", () => {
     assert.equal(await restarts(), before)
   })
 
+  test("a card citing a record nobody was shown is refused; the redraft with real sources is recorded", async () => {
+    const card = (sources: unknown[]) => ({
+      action_type: "OPERATOR_DECISION", title: "Decide the next step", rationale: "Test.", ...handover,
+      facts: [{ text: "The driver says the car was repaired.", sources }], changes: [],
+      draft_to: "", draft_channel: "", draft_subject: "", draft_body: "", draft_language: "",
+      options: [], evidence_refs: [], assumptions: [], window_start_utc: "", window_end_utc: "",
+      next_step_if_approved: "Next.", next_step_if_rejected: "Other.",
+    })
+    const model = scriptedModel([
+      { stop_reason: "tool_use", content: [tool("h1", "hand_over", { reason: "Needs a person." })] },
+      { stop_reason: "end_turn", content: [text("An operator will look at this now.")] },
+      { stop_reason: "tool_use", content: [tool("p1", "propose_action", card([{ kind: "messages", id: "msg-latest", label: "Driver, app chat", at: "" }]))] },
+      { stop_reason: "tool_use", content: [tool("p2", "propose_action", card(handover.facts[0].sources))] },
+      { stop_reason: "end_turn", content: [text("Card ready.")] },
+    ])
+    useTestLlm(model)
+    const { result } = await handleDriverMessage(await prepareDriverMessage({ orderRef: ORDER, driverId: DRIVER, text: "Repaired, can I go?", mode: "chat" }))
+    await runFollowUps(result.followUps)
+    assert.match(JSON.stringify(model.requests[3]), /not in the records you were shown/)
+    const cards = await listProposals({ caseId, statuses: ["PENDING"] })
+    assert.equal(cards.filter((row) => row.title === "Decide the next step").length, 1)
+    assert.ok(!JSON.stringify(cards).includes("msg-latest"))
+    for (const row of cards) await decide(caseId, row.id, { decision: "reject", decided_by: "ops-shift", note: "Test done." })
+  })
+
   test("hand-over builds a decision card in a separate turn", async () => {
     const model = scriptedModel([
       { stop_reason: "tool_use", content: [tool("t1", "hand_over", { reason: "Recovery is the owner's decision." })] },
