@@ -159,6 +159,21 @@ describe("scenario A wiring", () => {
     await decide(caseId, card.id, { decision: "reject", decided_by: "ops-shift", note: "Keep the car stopped." })
   })
 
+  test("a held answer is written again once without the clearance; the driver gets the answer and no card is made", async () => {
+    const model = scriptedModel([
+      { stop_reason: "end_turn", content: [text("P0135 is the oxygen sensor heater. It is usually not critical, so you can keep driving.")] },
+      { stop_reason: "end_turn", content: [text("P0135 is the oxygen sensor heater, usually not critical. An operator confirms whether you continue; does the car drive any differently?")] },
+    ])
+    useTestLlm(model)
+    const before = (await listProposals({ caseId, statuses: ["PENDING"] })).length
+    const { result } = await handleDriverMessage(await prepareDriverMessage({ orderRef: ORDER, driverId: DRIVER, text: "What does the engine light mean?", mode: "chat" }))
+    assert.match(result.reply, /oxygen sensor heater/)
+    assert.ok(!/keep driving/.test(result.reply))
+    assert.ok(!/An operator has to confirm before you drive on/.test(result.reply))
+    assert.match(JSON.stringify(model.requests[1]), /was held and not sent/)
+    assert.equal((await listProposals({ caseId, statuses: ["PENDING"] })).length, before, "no clearance card")
+  })
+
   test("the classifier catches a clearance the patterns miss", async () => {
     const model = scriptedModel([
       { stop_reason: "end_turn", content: [text("Good to hear. The amber light is nothing to worry about, head to the ferry.")] },

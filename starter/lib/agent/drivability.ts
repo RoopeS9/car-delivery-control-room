@@ -46,10 +46,21 @@ const CONDITIONAL = /\b(?:until|unless|before|once|after|when)\b[^.!?\n]{0,25}\b
  * safe to drive") and conditions ("until an operator confirms you can
  * drive") do not count. Returns the offending phrase, or null.
  */
+/** The car as the subject: "the car can keep going", "it is still drivable", "the car is fine to drive". */
+const CAR_CLEARANCE = /\b(?:the car|your car|the vehicle|it)\s+(?:can|may|could|should be able to|is (?:fine|ok|okay|safe|good|able) to)\s+(?:keep going|continue|carry on|be driven|drive on|keep driving|go on|make it)\b|\b(?:the car|your car|the vehicle|it)\s+is\s+(?:still\s+|normally\s+|perfectly\s+)?(?:drivable|driveable|roadworthy|fine to drive|safe to drive)\b/gi
+
 export function findClearance(text: string): string | null {
   for (const match of text.matchAll(CLEARANCE)) {
     const before = text.slice(Math.max(0, (match.index ?? 0) - 50), match.index)
     if (NEGATED.test(before) || CONDITIONAL.test(before)) continue
+    return match[0]
+  }
+  // With the car as the subject the negation sits inside the phrase ("the car cannot keep going"); words before it
+  // ("not critical and the car can keep going") do not negate it. A question about it ("whether the car can
+  // continue") or a condition ("until an operator confirms") does not clear anyone.
+  for (const match of text.matchAll(CAR_CLEARANCE)) {
+    const before = text.slice(Math.max(0, (match.index ?? 0) - 50), match.index)
+    if (/\b(?:not|n't|cannot)\b/i.test(match[0]) || /\b(?:whether|if)\s*$/i.test(before) || CONDITIONAL.test(before)) continue
     return match[0]
   }
   return null

@@ -65,7 +65,8 @@ export function warningLights(): WarningLight[] {
 /** Best keyword matches for a driver's description of a light, strongest first. */
 export function matchWarningLights(description: string): WarningLight[] {
   const text = description.toLowerCase()
-  const flashing = /flash|blink/.test(text)
+  // "not flashing", "doesn't blink": a steady light.
+  const flashing = /flash|blink/.test(text) && !/\b(?:not|n't|no|never)\s+(?:\w+\s+)?(?:flash|blink)/.test(text)
   return warningLights()
     .map((light) => {
       let score = light.keywords.filter((keyword) => text.includes(keyword)).length

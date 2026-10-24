@@ -643,6 +643,8 @@ describe("M1: the drivability screen blocks \"you can keep driving\"", () => {
     "You're fine to drive on.",
     "Feel free to carry on towards Hamburg.",
     "The light is amber, so you may continue.",
+    "It's usually not critical and the car can keep going, but fuel use may rise.",
+    "Your car is still drivable.",
   ]
   const safe = [
     "Please stop at the next safe place and switch the engine off.",
@@ -650,6 +652,9 @@ describe("M1: the drivability screen blocks \"you can keep driving\"", () => {
     "Do not drive on until an operator confirms you can continue.",
     "An operator will decide whether you can drive on.",
     "Nobody has cleared onward driving yet.",
+    "An operator confirms whether the car can continue.",
+    "The car cannot keep going with this light.",
+    "It is not safe to drive.",
   ]
   for (const text of clears) test(`blocks: ${text}`, async () => assert.equal((await screenDriverMessage(text)).allowed, false))
   for (const text of safe) test(`allows: ${text}`, () => assert.equal(findClearance(text), null))

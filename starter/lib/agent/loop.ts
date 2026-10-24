@@ -122,7 +122,17 @@ class ReplyGate {
   blocked: { reason: string | null } | null = null
   costUsd = 0
 
+  /** When set, a held reply sends nothing yet: the turn asks the model once to write it again (see `rewriteHeldReply`). */
+  deferFallback = false
+
   constructor(private readonly screen: ((text: string) => Promise<Screen>) | null, private readonly emit?: (text: string) => void) {}
+
+  /** The fixed line instead of a held reply. */
+  sendFallback() {
+    const fallback = `${this.text ? "\n\n" : ""}${DRIVE_ON_FALLBACK}`
+    this.text += fallback
+    this.emit?.(fallback)
+  }
 
   push(delta: string) {
     this.call += delta
@@ -162,15 +172,35 @@ class ReplyGate {
       this.costUsd += result.costUsd
       if (!result.allowed) {
         this.blocked = { reason: result.reason }
-        const fallback = `${this.text ? "\n\n" : ""}${DRIVE_ON_FALLBACK}`
-        this.text += fallback
-        this.emit?.(fallback)
+        if (!this.deferFallback) this.sendFallback()
         return
       }
       this.text += piece
       this.emit?.(piece)
     })
   }
+}
+
+/** One more call after a held driver reply: the same answer without any word on whether the car may be driven. */
+async function rewriteHeldReply(client: Anthropic, call: { model: string; system: Anthropic.TextBlockParam[]; tools: Anthropic.Tool[]; messages: Anthropic.MessageParam[]; effort: Effort },
+  held: ReplyGate, screen: (text: string) => Promise<Screen>, onText: ((text: string) => void) | undefined, usage: Usage): Promise<ReplyGate | null> {
+  const nudge = `Your reply to the driver was held and not sent: it reads as permission to drive on${held.blocked?.reason ? ` (${held.blocked.reason})` : ""}. Only an operator can say that. Write the reply to the driver again, answering what they asked, without saying or implying that they may keep driving, that the car is drivable or fine to drive. Say an operator confirms whether they continue. Reply with the message only, no tool calls.`
+  const messages: Anthropic.MessageParam[] = [...call.messages]
+  const last = messages.at(-1)
+  if (last?.role === "user") last.content = typeof last.content === "string" ? `${last.content}\n\n${nudge}` : [...last.content, { type: "text", text: nudge }]
+  else messages.push({ role: "user", content: nudge })
+  const gate = new ReplyGate(screen, onText)
+  gate.deferFallback = true
+  try {
+    const message = await callModel(client, { model: call.model, max_tokens: MAX_TOKENS, system: call.system, tools: call.tools, tool_choice: { type: "none" }, messages, output_config: { effort: call.effort } }, gate, usage)
+    gate.endCall(message.stop_reason === "tool_use" ? "end_turn" : message.stop_reason)
+    await gate.finish()
+  } catch (error) {
+    console.error("Road Desk: rewriting a held reply failed", error instanceof Error ? error.message : error)
+    return null
+  }
+  usage.cost_usd += gate.costUsd
+  return gate.blocked || !gate.text.trim() ? null : gate
 }
 
 // ---------------------------------------------------------------- one model call
@@ -414,6 +444,7 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
   const usage: Usage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, cost_usd: 0, calls: 0, attempts: 0 }
   let messages: Anthropic.MessageParam[] = []
   let gate = new ReplyGate(screen, holdsReply ? undefined : request.onText)
+  gate.deferFallback = request.audience === "driver"
   let stopReason: string | null = null
   let error: string | null = null
 
@@ -468,10 +499,27 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
       body: `The agent hit a problem (${error}) before anything was sent or changed; trying once more.`,
     })
     gate = new ReplyGate(screen, holdsReply ? undefined : request.onText)
+    gate.deferFallback = request.audience === "driver"
   }
   usage.cost_usd += gate.costUsd + state.costUsd
 
-  if (gate.blocked && !error) await holdForClearance(state, gate.written.trim(), gate.blocked.reason)
+  if (gate.blocked && !error && request.audience === "driver") {
+    // The driver asked something and the reply also read as permission to drive on. Ask once for the same reply
+    // without that; only if it is held again does the driver get the fixed line and an operator a clearance card.
+    const again = await rewriteHeldReply(client, { model, system, tools, messages, effort }, gate, screen!, request.onText, usage)
+    await appendEvent({
+      caseId: caseRow.id, orderId: caseRow.orderId, actorType: "system", actorId: "gate", kind: "tool_call", channel: "internal",
+      body: again
+        ? `Drivability screen held back a reply that read as permission to drive on (${gate.blocked.reason ?? "screen"}); the agent wrote it again without that, and the new reply was sent.`
+        : `Drivability screen held back a reply that read as permission to drive on (${gate.blocked.reason ?? "screen"}); the rewrite was held too.`,
+      data: { refused: true, rule: "drivability_screen", text: gate.written.trim(), rewritten: Boolean(again) },
+    })
+    if (again) gate = again
+    else { gate.sendFallback(); await holdForClearance(state, gate.written.trim(), gate.blocked.reason) }
+  } else if (gate.blocked && !error) {
+    gate.sendFallback()
+    await holdForClearance(state, gate.written.trim(), gate.blocked.reason)
+  }
 
   let reply = gate.text
   if (error && toPerson && !reply.trim() && !holdsReply) {
