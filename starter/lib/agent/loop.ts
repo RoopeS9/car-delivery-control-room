@@ -170,6 +170,8 @@ class ReplyGate {
     if (this.forPerson) {
       const parts = raw.split(/\n\s*(?:-{3,}|\*{3,}|_{3,})\s*(?:\n|$)/).map((part) => part.trim()).filter(Boolean)
       if (parts.length > 1) raw = parts.at(-1)!
+      // A phone chat shows text as written: no bold or heading marks.
+      raw = raw.replace(/\*\*([^*\n]+)\*\*/g, "$1").replace(/__([^_\n]+)__/g, "$1").replace(/^#{1,6}\s+/gm, "")
     }
     const piece = this.written ? `\n\n${raw.trim()}` : raw.trim()
     this.written += piece

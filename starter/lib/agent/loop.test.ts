@@ -253,7 +253,7 @@ describe("scenario A wiring", () => {
 
   test("notes before a separator line never reach the driver", async () => {
     useTestLlm(scriptedModel([
-      { stop_reason: "end_turn", content: [text("The driver has already been told. Let me just acknowledge them.\n\n---\n\nThanks, we are on it and will message you before you arrive.")] },
+      { stop_reason: "end_turn", content: [text("The driver has already been told. Let me just acknowledge them.\n\n---\n\nThanks, we are **on it** and will message you before you arrive.")] },
     ]))
     const { result } = await handleDriverMessage(await prepareDriverMessage({ orderRef: ORDER, driverId: DRIVER, text: "Any news?", mode: "chat" }))
     assert.equal(result.reply, "Thanks, we are on it and will message you before you arrive.")
