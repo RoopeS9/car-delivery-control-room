@@ -24,7 +24,8 @@ async function main() {
   const { closeCrDb } = await import("@/lib/cr/db")
   const q = await import("@/lib/cr/queries")
   const triggers = await import("../triggers")
-  const { names, actorName } = await import("../timeline")
+  const { orderTimeline, renderLines } = await import("../timeline")
+  const { effectiveOrder } = await import("@/lib/cr/effective")
 
   await q.resetCrData()
   resetSimClock("2026-10-21T09:02:00Z")
@@ -70,6 +71,8 @@ async function main() {
       parts.push("Here is the dashboard. The engine light was flashing while I was driving.")
       answered.add("photo")
     }
+    // Once, the question the drivability screen exists for.
+    if (!answered.has("drive_on")) { parts.push("Can I drive on slowly to the next town? It's only 15 km."); answered.add("drive_on") }
     if (parts.length === 0) parts.push("OK. I'll wait here with the car.")
     return { text: parts.join(" "), photoIds }
   }
@@ -107,29 +110,35 @@ async function main() {
     if (card.draftMessage) say(`Draft to ${card.draftMessage.to_name} (${card.draftMessage.channel}): ${card.draftMessage.body}`)
   }
 
-  const contact = cards.find((card) => card.actionType === "CONTACT_CUSTOMER") ?? cards[0]
+  const contact = cards.find((card) => card.actionType === "CONTACT_CUSTOMER") ?? cards.find((card) => card.actionType !== "OPERATOR_DECISION") ?? cards[0]
   if (contact) {
     say("")
     say("## 4. Operator: \"I'll handle it\", calls the dealer, logs the answer")
-    const option = contact.options.find((entry) => entry.recommended) ?? contact.options[0]
+    // The dealer chooses their own roadside help, so the operator picks that option if the card offers it.
+    const option = contact.options.find((entry) => /own|roadside|assistance/i.test(entry.label)) ?? contact.options.find((entry) => entry.recommended) ?? contact.options[0]
     const handled = await triggers.decide(caseId, contact.id, { decision: "handle", decided_by: "ops-shift", option_id: option?.id ?? null })
     say(`Decision: handle → ${handled.outcome.next_step}`)
-    const logged = await triggers.outcome(caseId, { text: "Dealer sends their own roadside help, ETA 11:00 local time.", logged_by: "ops-shift" })
+    const logged = await triggers.outcome(caseId, { text: "Called the dealer: they send their own roadside help, ETA 12:15 CEST at the service area.", logged_by: "ops-shift", proposal_id: contact.id })
     await triggers.runFollowUps(logged.followUps)
     const after = await q.getCase(caseId)
-    say(`Case now: ${after?.status} · waiting on: ${after?.waitingOn ?? "-"} · next: ${after?.nextAction ?? "-"} · next check: ${after?.nextCheckAt?.toISOString().slice(11, 16) ?? "-"} UTC`)
+    say(`Case now: ${after?.status} · waiting on: ${after?.waitingOn ?? "-"} (${after?.waitingFor ?? "-"}) · next: ${after?.nextAction ?? "-"} · next check: ${after?.nextCheckAt?.toISOString().slice(11, 16) ?? "-"} UTC`)
     for (const card of await q.listProposals({ caseId, statuses: ["PENDING"] })) say(`New card: ${card.title} (${card.actionType})`)
   } else {
     say("No decision card was produced.")
   }
 
+  const effective = await effectiveOrder(order.id)
   say("")
-  say("## Full case timeline")
-  const n = await names()
-  for (const event of await q.listEvents({ caseId })) {
-    const to = event.recipientType ? ` → ${actorName(n, event.recipientType, event.recipientId)}` : ""
-    say(`- ${event.at.toISOString().slice(11, 19)} ${actorName(n, event.actorType, event.actorId)}${to} [${event.kind}, ${event.channel}]: ${event.body}`)
-  }
+  say("## Effective promise")
+  const promise = effective.promise
+  say(promise
+    ? `Delivery window: ${promise.start_utc ?? "-"} to ${promise.end_utc ?? "-"} (${promise.basis}). Pending with the customer: ${promise.pending.length}.`
+    : "No delivery window recorded.")
+  for (const effect of effective.effects) say(`- ${effect.kind} ${effect.state}, authorised by ${effect.authority.by} (${effect.authority.basis})`)
+
+  say("")
+  say("## Order timeline (what the operator sees)")
+  say(renderLines(await orderTimeline(order.id, { includeDataset: false, limit: 200 })))
   const runs = await q.listRuns({ caseId, limit: 50 })
   const cost = runs.reduce((sum, run) => sum + Number((run.usage as { cost_usd?: number } | null)?.cost_usd ?? 0), 0)
   say("")

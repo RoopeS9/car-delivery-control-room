@@ -13,7 +13,7 @@
 //    the current facts, and executed at most once.
 
 import {
-  appendEvent, claimExecution, createProposal, getAutonomy, getCase, getEffect, getProposal, insertEffect, listEffects, listProposals,
+  appendEvent, claimExecution, createProposal, getAutonomy, getCase, getEffect, getProposal, insertEffect, listEffects, listEvents, listProposals,
   proposalsWithChangedFacts, transitionProposal, updateCase, type CaseRow, type EffectRow, type ProposalRow,
 } from "@/lib/cr/queries"
 import { simNow } from "@/lib/cr/clock"
@@ -73,6 +73,8 @@ export type GateContext = {
   facts: OrderFacts
   /** The operator's "Ask the agent" box: answers only, never changes or sends anything. */
   readOnly?: boolean
+  /** When this turn read the case. Messages up to then were in front of the agent. */
+  turnStartedAt?: Date
 }
 
 const READ_TOOLS: readonly ToolName[] = [
@@ -215,6 +217,24 @@ function later(minutes: number): Date {
 }
 
 /** Record a proposal. At ASK_FIRST it waits for a person; at a higher level the agent carries it out and says so. */
+/**
+ * "No new driver message after 09:02": the agent sees minute-precision times,
+ * so a message from 09:02:07 that it had already read would count as new and
+ * mark its own card outdated. Move the cut-off up to the latest message from
+ * that party that was in front of the agent when its turn started.
+ */
+async function anchorAssumptions(ctx: GateContext, assumptions: Assumption[]): Promise<Assumption[]> {
+  if (!assumptions.some((entry) => entry.kind === "no_new_message")) return assumptions
+  const seenUntil = ctx.turnStartedAt ?? simNow()
+  const events = (await listEvents({ caseId: ctx.caseRow.id })).filter((event) => event.at <= seenUntil)
+  return assumptions.map((entry) => {
+    if (entry.kind !== "no_new_message") return entry
+    const latest = events.filter((event) => event.actorType === entry.from).at(-1)
+    const after = Date.parse(entry.after)
+    return latest && (!Number.isFinite(after) || latest.at.getTime() > after) ? { ...entry, after: latest.at.toISOString() } : entry
+  })
+}
+
 export async function submitProposal(ctx: GateContext, input: ProposalInput): Promise<{ proposal: ProposalRow; level: AutonomyLevel; executed: boolean }> {
   const draft = resolveDraft(input.draft_message, ctx.facts)
   const level = await effectiveLevel(input.action_type, draft, ctx.facts)
@@ -237,7 +257,7 @@ export async function submitProposal(ctx: GateContext, input: ProposalInput): Pr
     changes: changes.length ? changes : input.proposed_window ? [{ label: input.action_type === "UPDATE_ETA" ? "ETA" : "Delivery promise", before: null, after: `${input.proposed_window.start_utc} – ${input.proposed_window.end_utc} UTC`, value: input.proposed_window }] : [],
     draftMessage: draft,
     evidenceRefs: input.evidence_refs,
-    assumptions: input.assumptions ?? [],
+    assumptions: await anchorAssumptions(ctx, input.assumptions ?? []),
     options: input.options,
     nextStepIfApproved: input.next_step_if_approved,
     nextStepIfRejected: input.next_step_if_rejected,

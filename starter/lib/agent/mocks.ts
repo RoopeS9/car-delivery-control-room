@@ -37,17 +37,19 @@ function seed(text: string): number {
 export function findNearbyHelp(input: { lat: number; lng: number; kind: HelpKind; make: string | null }) {
   const city = nearestCity(input.lat, input.lng)
   const [cityName, country] = city.key.split("|")
+  // Between the dataset's cities (most of a motorway), place the results around the position itself.
+  const near = city.km <= 30 ? `${cityName}, ${country}` : "the reported position"
   const prefixes = PREFIXES[country] ?? PREFIXES.default
   const word = KIND_WORDS[input.kind][country] ?? KIND_WORDS[input.kind].default
   const base = seed(`${input.kind}${Math.round(input.lat * 10)}${Math.round(input.lng * 10)}`)
   const results = [0, 1, 2].map((index) => {
     const prefix = prefixes[(base + index * 3) % prefixes.length]
-    const km = 3 + ((base >> (index * 4)) % 25) + index * 6
+    const km = 3 + ((base >>> (index * 4)) % 25) + index * 6
     const name = input.kind === "brand_workshop" && input.make ? `${input.make} Partner ${prefix}` : `${word} ${prefix}`
     const result: Record<string, unknown> = {
       name: `${name} (fictional)`,
       distance_km: km,
-      near: `${cityName}, ${country}`,
+      near,
       phone: `+00 555 01${String((base + index) % 100).padStart(2, "0")} (fictional)`,
     }
     if (input.kind === "tow") {
@@ -65,7 +67,7 @@ export function findNearbyHelp(input: { lat: number; lng: number; kind: HelpKind
   })
   return {
     note: "Mocked suggestions for this demo. Names are fictional. Prices are quotes, nothing is booked.",
-    searched_near: `${cityName}, ${country} (${city.km} km from the given position)`,
+    searched_near: city.km <= 30 ? `${cityName}, ${country} (${city.km} km from the given position)` : `the reported position (nearest listed city: ${cityName}, ${city.km} km away)`,
     results,
     source: { kind: "mock:nearby_help", id: `${input.kind}-${base}`, label: `Nearby ${input.kind.replace("_", " ")} search (mocked)` },
   }

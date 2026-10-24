@@ -148,9 +148,8 @@ describe("scenario A wiring", () => {
     const prepared = await prepareDriverMessage({ orderRef: ORDER, driverId: DRIVER, text: "The light changed to amber. Can I go on?", mode: "chat" })
     const { result } = await handleDriverMessage(prepared, (piece) => streamed.push(piece))
     const all = streamed.join("")
-    assert.ok(!/can continue/i.test(all), "the clearance never reached the driver")
-    assert.match(all, /Thanks for stopping\./)
-    assert.match(all, /An operator has to confirm/)
+    assert.ok(!/can continue|amber/i.test(all), "nothing of the held reply reached the driver")
+    assert.match(all, /^An operator has to confirm/)
     assert.equal(result.reply, all)
     const [card] = await listProposals({ caseId, statuses: ["PENDING"] })
     assert.equal(card.actionType, "CLEAR_TO_CONTINUE")
@@ -186,6 +185,38 @@ describe("scenario A wiring", () => {
     assert.ok((await listEvents({ caseId })).some((event) => /trying once more/.test(event.body)))
   })
 
+  test("text written before a tool call is the model's narration and never reaches the driver", async () => {
+    const model = scriptedModel([
+      { stop_reason: "tool_use", content: [text("The car shows speed 0 at a service area, so I'll add the engine-off instruction."), tool("s1", "safety_instruction", { template_id: "engine_off" })] },
+      { stop_reason: "end_turn", content: [text("Thanks. Please keep the engine off and stay near the car.")] },
+      // A reply written before a last bookkeeping call, with nothing after it, is still the reply.
+      { stop_reason: "tool_use", content: [text("Noted, thanks. Stay with the car."), tool("u1", "update_case", { title: "Flashing engine light", summary: "Driver parked, engine off.", kind: "VEHICLE_WARNING", urgency: "CRITICAL" })] },
+      { stop_reason: "end_turn", content: [] },
+    ])
+    useTestLlm(model)
+    const first = await handleDriverMessage(await prepareDriverMessage({ orderRef: ORDER, driverId: DRIVER, text: "I'm parked at a service area.", mode: "chat" }))
+    assert.ok(!/speed 0|I'll add/.test(first.result.reply), "the narration was not sent")
+    assert.match(first.result.reply, /keep the engine off/)
+    assert.ok(!model.screened.some((entry) => entry.includes("speed 0")))
+    const second = await handleDriverMessage(await prepareDriverMessage({ orderRef: ORDER, driverId: DRIVER, text: "OK.", mode: "chat" }))
+    assert.equal(second.result.reply, "Noted, thanks. Stay with the car.")
+  })
+
+  test("a tool call with broken JSON is made once more with a note, without restarting the turn", async () => {
+    const model = scriptedModel([
+      { throws: "Expected ',' or '}' after property value in JSON at position 435 (line 1 column 436)" },
+      { stop_reason: "end_turn", content: [text("Thanks, noted. Please stay with the car.")] },
+    ])
+    useTestLlm(model)
+    const restarts = async () => (await listEvents({ caseId })).filter((event) => /trying once more/.test(event.body)).length
+    const before = await restarts()
+    const { result } = await handleDriverMessage(await prepareDriverMessage({ orderRef: ORDER, driverId: DRIVER, text: "Still here.", mode: "chat" }))
+    assert.equal(result.error, null)
+    assert.match(result.reply, /stay with the car/)
+    assert.match(JSON.stringify(model.requests[1]), /could not be read/)
+    assert.equal(await restarts(), before)
+  })
+
   test("hand-over builds a decision card in a separate turn", async () => {
     const model = scriptedModel([
       { stop_reason: "tool_use", content: [tool("t1", "hand_over", { reason: "Recovery is the owner's decision." })] },
@@ -193,9 +224,10 @@ describe("scenario A wiring", () => {
       // The analysis turn:
       { stop_reason: "tool_use", content: [tool("t2", "propose_action", {
         action_type: "CONTACT_CUSTOMER", title: "Call the dealer about recovery", rationale: "The car cannot be driven on; recovery is the owner's call.",
-        handover, changes: [], draft_message: { to: "customer", channel: "phone_call", subject: "", body: "The car has stopped with a misfire. Your own roadside help, or should we arrange a tow?", language: "en" },
+        ...handover, changes: [],
+        draft_to: "customer", draft_channel: "phone_call", draft_subject: "", draft_body: "The car has stopped with a misfire. Your own roadside help, or should we arrange a tow?", draft_language: "en",
         options: [{ id: "own", label: "Dealer's own roadside help", description: "", recommended: true }, { id: "tow", label: "We arrange a tow", description: "", recommended: false }],
-        evidence_refs: handover.facts[0].sources, assumptions: [{ kind: "car_codes", codes: ["P0300", "P0302"], label: "Car still reports P0300 and P0302" }], proposed_window: null,
+        evidence_refs: handover.facts[0].sources, assumptions: [{ kind: "car_codes", codes: ["P0300", "P0302"], label: "Car still reports P0300 and P0302" }], window_start_utc: "", window_end_utc: "",
         next_step_if_approved: "The operator calls the dealer.", next_step_if_rejected: "The agent asks what to do instead.",
       })] },
       { stop_reason: "end_turn", content: [text("Decision card ready: call the dealer about recovery.")] },

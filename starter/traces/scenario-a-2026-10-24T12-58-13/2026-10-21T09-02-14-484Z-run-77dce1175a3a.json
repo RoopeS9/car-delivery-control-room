@@ -1,0 +1,574 @@
+{
+  "run": {
+    "id": "run-77dce1175a3a",
+    "caseId": "case-bf81e160b38a",
+    "orderId": "ord-00584",
+    "audience": "operator",
+    "startedAt": {},
+    "finishedAt": {},
+    "status": "DONE",
+    "model": "anthropic/claude-sonnet-5.5",
+    "effort": "medium",
+    "input": "Prepare the decision for operations now. Why: Bentley stopped with flashing check-engine light and misfire codes (STOP_NOW); recovery needs the owner's decision via operator, and today's ferry (check-in closes 17:30 CEST) and the Monday delivery are at risk.",
+    "toolCalls": [
+      {
+        "at": "2026-10-21T09:02:15.955Z",
+        "ms": 11,
+        "gate": "ALLOWED",
+        "name": "get_order_context",
+        "input": {
+          "order_ref": ""
+        },
+        "result": "{\n \"order\": {\n  \"reference\": \"CD-420584\",\n  \"stage\": \"car collected and on its way\",\n  \"route\": \"Rabenfarnstraße 88, Cologne, DE → Hohdelehdontie 24, Helsinki, FI\",\n  \"route_kind\": \"cross-border import\",\n  \"source\": {\n   \"kind\": \"orders\",\n   \"id\": \"ord-00584\",\n   \"label\": \"Order CD-420584\",\n   \"at\": null\n  }\n },\n \"vehicle\": {\n  \"make\": \"Bentley\",\n  \"model\": \"Continental GT\",\n  \"year\": 2025,\n  \"fuel\": \"petrol\",\n  \"plate\": \"not recorded\",\n  \"vin\": \"SYNSHJZ2Z7KK7GR6W\",\n  \"source\": {\n   \"kind\": \"vehicles\",\n   \"id\": \"veh-00584\",\n   \"label\": \"Vehicle record, Bentley Continental GT\",\n   \"at\": null\n  }\n },\n \"pickup\": {\n  \"place\": \"Norvarken Cologne\",\n  \"address\": \"Rabenfarnstraße 88, Cologne, DE\",\n  \"time_zone\": \"Europe/Berlin\",\n  \"opening_hours\": {\n   \"sat\": \"10:00-14:00\",\n   \"sun\": null,\n   \"mon_fri\": \"09:00-18:00\"\n  },\n  \"access_instruction\": \"Use the staffed rear vehicle gate; security checks the order reference and driver ID.\",\n  \"access_status\": \"CONFIRMED\",\n  \"contact\": {\n   \"name\": \"Nadia Alderfield\",\n   \"role\": \"site desk\",\n   \"handle\": \"site-045@example.test\",\n   \"status\": \"CONFIRMED\"\n  },\n  \"how_confirmed\": \"the site's standard profile, not a call about this car\",\n  \"confirmed_at\": \"2026-10-14 09:22 UTC\",\n  \"source\": {\n   \"kind\": \"order_endpoint_details\",\n   \"id\": \"ep-xd7653507b821d94a\",\n   \"label\": \"Pickup details, the site's standard profile, not a call about this car\",\n   \"at\": \"2026-10-14T09:22:00Z\"\n  },\n  \"site_rules\": {\n   \"handover_mode\": \"security_gate\",\n   \"requires_signed_release\": false,\n   \"release_document_rule\": \"Confirm order reference and driver ID with site staff before handover\",\n   \"advance_notice_minutes\": 0\n  },\n  \"belongs_to_customer\": false\n },\n \"delivery\": {\n  \"place\": \"Kavellora Helsinki\",\n  \"address\": \"Hohdelehdontie 24, Helsinki, FI\",\n  \"time_zone\": \"Europe/Helsinki\",\n  \"opening_hours\": {\n   \"sat\": \"08:00-12:00\",\n   \"sun\": null,\n   \"mon_fri\": \"08:00-17:00\"\n  },\n  \"access_instruction\": \"The fleet desk checks the plate documents and counts the keys at handover.\",\n  \"access_status\": \"CONFIRMED\",\n  \"contact\": {\n   \"name\": \"not recorded\",\n   \"role\": \"site desk\",\n   \"handle\": null,\n   \"status\": \"UNCONFIRMED\"\n  },\n  \"how_confirmed\": \"not confirmed for this order\",\n  \"confirmed_at\": null,\n  \"source\": {\n   \"kind\": \"order_endpoint_details\",\n   \"id\": \"ep-xfec1b15e70f6c739\",\n   \"label\": \"Delivery details, unconfirmed\",\n   \"at\": \"2026-10-14T09:22:00Z\"\n  },\n  \"site_rules\": {\n   \"handover_mode\": \"fleet_desk\",\n   \"requires_signed_release\": false,\n   \"release_document_rule\": \"Confirm order reference and driver ID with site staff before handover\",\n   \"advance_notice_minutes\": 0\n  },\n  \"belongs_to_customer\": true\n },\n \"driver\": {\n  \"name\": \"Leo Quellford\",\n  \"job_status\": \"IN_PROGRESS\",\n  \"journey_start\": {\n   \"recorded\": true,\n   \"at\": \"2026-10-21 06:21 UTC\",\n   \"text\": \"Journey start recorded 2 h 41 min ago\"\n  },\n  \"source\": {\n   \"kind\": \"work_assignments\",\n   \"id\": \"asg-x4db92d333204db52\",\n   \"label\": \"Driver booking, Leo Quellford\",\n   \"at\": \"2026-10-15T07:52:00Z\"\n  }\n },\n \"last_driver_app_progress\": {\n  \"observed\": \"2026-10-21 08:37 UTC\",\n  \"age\": \"25 min ago\",\n  \"received\": \"2026-10-21 08:39 UTC\",\n  \"progress_percent\": 8,\n  \"distance_remaining_km\": 1992,\n  \"app_estimate_of_delivery_utc\": \"2026-10-26T12:50:00Z\",\n  \"quality\": \"COARSE\",\n  \"note\": \"Coarse driver-app progress. It has no coordinates and is not a verified location.\",\n  \"source\": {\n   \"kind\": \"tracking_observations\",\n   \"id\": \"track-x74f6f5191eaf7a78\",\n   \"label\": \"Driver app progress, 2026-10-21 08:37 UTC\",\n   \"at\": \"2026-10-21T08:37:00Z\"\n  }\n },\n \"customer\": {\n  \"name\": \"Kavellora Car House\",\n  \"country\": \"FI\",\n  \"rule\": \"The customer pays Bahn. The agent never contacts them directly; use a CONTACT_CUSTOMER proposal.\",\n  \"source\": {\n   \"kind\": \"customers\",\n   \"id\": \"cus-003\",\n   \"label\": \"Customer account, Kavellora Car House\",\n   \"at\": null\n  }\n },\n \"delivery_promise\": {\n  \"start_utc\": \"2026-10-26T08:00:00Z\",\n  \"end_utc\": \"2026-10-26T14:00:00Z\",\n  ",
+        "is_error": false,
+        "gate_reason": null
+      },
+      {
+        "at": "2026-10-21T09:02:15.966Z",
+        "ms": 6,
+        "gate": "ALLOWED",
+        "name": "find_nearby_help",
+        "input": {
+          "kind": "tow"
+        },
+        "result": "{\n \"note\": \"Mocked suggestions for this demo. Names are fictional. Prices are quotes, nothing is booked.\",\n \"searched_near\": \"the reported position (nearest listed city: Düsseldorf, 102 km away)\",\n \"results\": [\n  {\n   \"name\": \"Abschleppdienst Rabenfeld (fictional)\",\n   \"distance_km\": 4,\n   \"near\": \"the reported position\",\n   \"phone\": \"+00 555 0151 (fictional)\",\n   \"eta_minutes\": 43,\n   \"price_quote\": \"about €304 to the nearest brand workshop (quote, not booked)\",\n   \"flatbed\": true\n  },\n  {\n   \"name\": \"Abschleppdienst Birkenhain (fictional)\",\n   \"distance_km\": 18,\n   \"near\": \"the reported position\",\n   \"phone\": \"+00 555 0152 (fictional)\",\n   \"eta_minutes\": 71,\n   \"price_quote\": \"about €388 to the nearest brand workshop (quote, not booked)\",\n   \"flatbed\": true\n  },\n  {\n   \"name\": \"Abschleppdienst Ostwalde (fictional)\",\n   \"distance_km\": 37,\n   \"near\": \"the reported position\",\n   \"phone\": \"+00 555 0153 (fictional)\",\n   \"eta_minutes\": 109,\n   \"price_quote\": \"about €502 to the nearest brand workshop (quote, not booked)\",\n   \"flatbed\": true\n  }\n ],\n \"source\": {\n  \"kind\": \"mock:nearby_help\",\n  \"id\": \"tow-3488549751\",\n  \"label\": \"Nearby tow search (mocked)\"\n },\n \"searched_from\": \"the latest simulated phone position (1 min ago)\"\n}",
+        "is_error": false,
+        "gate_reason": null
+      },
+      {
+        "at": "2026-10-21T09:02:15.972Z",
+        "ms": 4,
+        "gate": "ALLOWED",
+        "name": "find_nearby_help",
+        "input": {
+          "kind": "brand_workshop"
+        },
+        "result": "{\n \"note\": \"Mocked suggestions for this demo. Names are fictional. Prices are quotes, nothing is booked.\",\n \"searched_near\": \"the reported position (nearest listed city: Düsseldorf, 102 km away)\",\n \"results\": [\n  {\n   \"name\": \"Bentley Partner Kranichsee (fictional)\",\n   \"distance_km\": 26,\n   \"near\": \"the reported position\",\n   \"phone\": \"+00 555 0148 (fictional)\",\n   \"open_now\": true,\n   \"can_take_vehicle\": \"today\"\n  },\n  {\n   \"name\": \"Bentley Partner Rabenfeld (fictional)\",\n   \"distance_km\": 18,\n   \"near\": \"the reported position\",\n   \"phone\": \"+00 555 0149 (fictional)\",\n   \"open_now\": true,\n   \"can_take_vehicle\": \"tomorrow morning\"\n  },\n  {\n   \"name\": \"Bentley Partner Birkenhain (fictional)\",\n   \"distance_km\": 37,\n   \"near\": \"the reported position\",\n   \"phone\": \"+00 555 0150 (fictional)\",\n   \"open_now\": false,\n   \"can_take_vehicle\": \"tomorrow morning\"\n  }\n ],\n \"source\": {\n  \"kind\": \"mock:nearby_help\",\n  \"id\": \"brand_workshop-3387122548\",\n  \"label\": \"Nearby brand workshop search (mocked)\"\n },\n \"searched_from\": \"the latest simulated phone position (1 min ago)\"\n}",
+        "is_error": false,
+        "gate_reason": null
+      },
+      {
+        "at": "2026-10-21T09:02:35.605Z",
+        "ms": 16,
+        "gate": "PROPOSED",
+        "name": "propose_action",
+        "input": {
+          "facts": [
+            {
+              "text": "The check-engine light is flashing and the car reports P0300 and P0302. The code lookup rates P0300 as stop now. A code is a signal, not a diagnosis.",
+              "sources": [
+                {
+                  "at": "2026-10-21T09:01:00.007Z",
+                  "id": "tel-4be102994002",
+                  "kind": "cr_telemetry",
+                  "label": "OBD dongle, 2026-10-21 09:01 UTC"
+                }
+              ]
+            },
+            {
+              "text": "The car is stopped at Rastanlage Lindenhöhe, A1 northbound. This is a simulated phone position, not verified.",
+              "sources": [
+                {
+                  "at": "2026-10-21T09:01:00.003Z",
+                  "id": "tel-a82f32b5ab89",
+                  "kind": "cr_telemetry",
+                  "label": "Simulated phone GPS, 2026-10-21 09:01 UTC"
+                }
+              ]
+            },
+            {
+              "text": "The driver says he is safe. The car shook on acceleration and lost power. He saw no smoke and smelled no burning. He asked to drive 15 km on, and was told no.",
+              "sources": [
+                {
+                  "at": "2026-10-21T09:02:00Z",
+                  "id": "ord-00584",
+                  "kind": "order",
+                  "label": "Driver app chat, 09:02 UTC (case notes)"
+                }
+              ]
+            },
+            {
+              "text": "Ferry WBV-FERRY-00584 is booked, not checked in. Check-in closes Wed 21 Oct 17:30 CEST and departure is 19:30 CEST.",
+              "sources": [
+                {
+                  "at": "2026-10-15T08:21:00Z",
+                  "id": "res-x6196641f25ccf47f",
+                  "kind": "travel_reservations",
+                  "label": "ferry booking WBV-FERRY-00584"
+                }
+              ]
+            },
+            {
+              "text": "The delivery promise is Mon 26 Oct 10:00-16:00 EET, set by the customer. The driver app's coarse estimate is 26 Oct 12:50 UTC, before the breakdown, with 1992 km remaining.",
+              "sources": [
+                {
+                  "at": null,
+                  "id": "win-xb0be2fe33a52f53b",
+                  "kind": "time_windows",
+                  "label": "Delivery promise, set by the customer"
+                },
+                {
+                  "at": "2026-10-21T08:37:00Z",
+                  "id": "track-x74f6f5191eaf7a78",
+                  "kind": "tracking_observations",
+                  "label": "Driver app progress, 2026-10-21 08:37 UTC"
+                }
+              ]
+            },
+            {
+              "text": "Tow quotes (not booked, all flatbed): Rabenfeld 4 km, ETA 43 min, about €304. Birkenhain 18 km, ETA 71 min, about €388. Ostwalde 37 km, ETA 109 min, about €502. Prices are to the nearest brand workshop.",
+              "sources": [
+                {
+                  "at": "",
+                  "id": "tow-3488549751",
+                  "kind": "mock:nearby_help",
+                  "label": "Nearby tow search (mocked)"
+                }
+              ]
+            },
+            {
+              "text": "Brand workshops: Kranichsee (26 km) can take the car today. Rabenfeld (18 km) can take it tomorrow morning. Birkenhain (37 km) is closed now and can take it tomorrow morning.",
+              "sources": [
+                {
+                  "at": "",
+                  "id": "brand_workshop-3387122548",
+                  "kind": "mock:nearby_help",
+                  "label": "Nearby brand workshop search (mocked)"
+                }
+              ]
+            }
+          ],
+          "title": "Ask Kavellora how they want the Bentley recovered",
+          "changes": [],
+          "options": [
+            {
+              "id": "tow_kranichsee",
+              "label": "We book tow to Kranichsee",
+              "description": "Flatbed tow to the workshop that can take the car today, after the customer agrees.",
+              "recommended": true
+            },
+            {
+              "id": "own_assistance",
+              "label": "Customer's roadside assistance",
+              "description": "The owner arranges recovery and we wait for details.",
+              "recommended": false
+            },
+            {
+              "id": "tow_rabenfeld",
+              "label": "Tow to Rabenfeld",
+              "description": "Closer and cheaper, but the workshop takes the car only tomorrow morning.",
+              "recommended": false
+            }
+          ],
+          "draft_to": "customer",
+          "unknowns": [
+            "Whether the owner has their own roadside assistance or a preferred workshop",
+            "The actual fault and repair time, which only a workshop can establish",
+            "Whether the ferry can be rebooked and what it costs (no travel search done yet)",
+            "Exact verified position of the car"
+          ],
+          "agent_did": [
+            "Sent safety instructions: stop when safe, engine off, do not drive on",
+            "Asked the driver about safety and symptoms, and told him not to drive the 15 km",
+            "Read the order, codes and telemetry",
+            "Looked up tow and brand workshop options (quotes only)"
+          ],
+          "rationale": "The car shows a flashing check-engine light and misfire codes (stop-now severity) with shaking and power loss, and the driver has been told not to drive on. Recovery is the owner's decision. Today's ferry (check-in closes 17:30 CEST) is very likely lost, and the Monday delivery is at risk.",
+          "draft_body": "Dear Kavellora Car House team,\n\nThis morning (about 11:00 CEST) your Bentley Continental GT stopped at a rest area on the A1 northbound, in Germany. The driver is safe. The car showed a flashing check-engine light, shaking and loss of power. It reports misfire fault codes. These are only signals; the cause is not yet known. We have told the driver not to drive on.\n\nWe need your decision on recovery:\n1. You arrange it through your own roadside assistance, or\n2. We arrange a flatbed tow to a Bentley partner workshop. The nearest option that can take the car today is Bentley Partner Kranichsee, about 26 km away. The tow quote is roughly €300-€500 depending on the provider. This is a quote, not a booking.\n\nToday's ferry (check-in closes 17:30 CEST) will very probably be missed. The agreed delivery window is Monday 26 October, 10:00-16:00 Helsinki time. We cannot confirm it until the workshop has diagnosed the car. We will come back to you with a proposed new date if needed.\n\nPlease tell us how you would like to proceed.\n\nKind regards,\nBahn Operations",
+          "action_type": "CONTACT_CUSTOMER",
+          "assumptions": [
+            {
+              "kind": "car_codes",
+              "codes": [
+                "P0300",
+                "P0302"
+              ],
+              "label": "Car still reports P0300 and P0302"
+            },
+            {
+              "id": "res-x6196641f25ccf47f",
+              "kind": "record",
+              "field": "status",
+              "label": "Ferry WBV-FERRY-00584 is booked, not checked in",
+              "table": "travel_reservations",
+              "expected": "BOOKED"
+            },
+            {
+              "from": "driver",
+              "kind": "no_new_message",
+              "after": "2026-10-21T09:02:00Z",
+              "label": "No new driver message after 09:02 UTC"
+            }
+          ],
+          "alternatives": [
+            "The customer uses their own roadside assistance",
+            "Tow to Bentley Partner Rabenfeld, which is closer but takes the car only tomorrow morning",
+            "Operations books the tow directly after the customer agrees"
+          ],
+          "draft_channel": "email",
+          "draft_subject": "Your Bentley Continental GT (order CD-420584): breakdown on the way to Helsinki, recovery decision needed",
+          "evidence_refs": [
+            {
+              "at": "2026-10-21T09:01:00.007Z",
+              "id": "tel-4be102994002",
+              "kind": "cr_telemetry",
+              "label": "OBD dongle, 09:01 UTC"
+            },
+            {
+              "at": "2026-10-21T09:01:00.003Z",
+              "id": "tel-a82f32b5ab89",
+              "kind": "cr_telemetry",
+              "label": "Simulated phone GPS, 09:01 UTC"
+            },
+            {
+              "at": "2026-10-15T08:21:00Z",
+              "id": "res-x6196641f25ccf47f",
+              "kind": "travel_reservations",
+              "label": "ferry booking WBV-FERRY-00584"
+            },
+            {
+              "at": "",
+              "id": "win-xb0be2fe33a52f53b",
+              "kind": "time_windows",
+              "label": "Delivery promise, set by the customer"
+            },
+            {
+              "at": "",
+              "id": "tow-3488549751",
+              "kind": "mock:nearby_help",
+              "label": "Nearby tow search (mocked)"
+            },
+            {
+              "at": "",
+              "id": "brand_workshop-3387122548",
+              "kind": "mock:nearby_help",
+              "label": "Nearby brand workshop search (mocked)"
+            }
+          ],
+          "what_happened": "The Bentley stopped at a rest area on the A1 northbound with a flashing check-engine light, misfire codes P0300 and P0302, shaking and power loss. The driver is safe and has been told not to drive on.",
+          "draft_language": "en",
+          "recommendation": "Ask Kavellora Car House how they want recovery handled. Suggest a flatbed tow to Bentley Partner Kranichsee, which can take the car today. Tell them today's ferry will almost certainly be missed, and that the Monday delivery depends on the repair.",
+          "window_end_utc": "",
+          "window_start_utc": "",
+          "next_step_if_approved": "The email goes to the customer. Once they choose, I'll propose booking recovery and then the ferry and delivery changes.",
+          "next_step_if_rejected": "I'll redraft or follow the operator's instruction. The driver stays put with the engine off."
+        },
+        "result": "Recorded for an operator to decide: Ask Kavellora how they want the Bentley recovered. Nothing changes until they approve.",
+        "is_error": false,
+        "gate_reason": null
+      }
+    ],
+    "output": "I've sent operations one decision to approve: an email to Kavellora Car House asking how they want the Bentley recovered. Nothing has been booked or sent yet.\n\n- **Situation:** Leo is safe at a rest area on the A1 northbound (a simulated phone position). The car shows a flashing check-engine light, misfire codes P0300 and P0302, shaking and power loss. He has been told not to drive on, not even the 15 km he asked about.\n- **Recommendation:** Ask the customer, and suggest a flatbed tow to Bentley Partner Kranichsee, 26 km away, which can take the car today. Tow quotes run from about €304 to €502. All are quotes only.\n- **Ferry:** Today's ferry is booked but not checked in, and check-in closes at 17:30 CEST. It will very probably be missed, and I haven't searched for later sailings yet.\n- **Delivery:** The customer set the Monday 26 October promise, and I can't say if it holds until a workshop diagnoses the car.",
+    "stopReason": "end_turn",
+    "usage": {
+      "calls": 3,
+      "attempts": 1,
+      "cost_usd": 0.0814431,
+      "input_tokens": 19142,
+      "output_tokens": 3851,
+      "cache_read_input_tokens": 46491,
+      "cache_creation_input_tokens": 0
+    },
+    "error": null
+  },
+  "system_prompt": "systemPrompt(\"operator\")",
+  "case_notes": "# Case notes\nJob: Prepare a decision\nNow: 2026-10-21 09:02 UTC (simulated clock); local time: Wed 21 Oct 11:02 CEST (Europe/Berlin), Wed 21 Oct 12:02 EEST (Europe/Helsinki)\nOrder: CD-420584 · Bentley Continental GT · Cologne → Helsinki\nCase: Flashing check-engine light, misfire codes, Bentley stopped at rest area on A1 · vehicle warning · agent working · urgency critical · opened now\nYou are talking to: Operations (operator) via internal\nWaiting on: the agent since 2026-10-21 09:02 UTC, next check 2026-10-21 09:05 UTC\nNext action on record: The agent is preparing a decision for operations.\nDecisions waiting for an operator: none\n# Conversation and work on this case so far (oldest first)\n[2026-10-21 09:02 UTC] OBD dongle (telemetry): Check-engine light flashing, trouble codes P0300, P0302, reduced power message\n[2026-10-21 09:02 UTC] Road Desk agent → Leo Quellford (driver) (safety) [safety instruction]: Leo, please slow down and stop at the next safe place, then switch on your hazard lights.\n[2026-10-21 09:02 UTC] Road Desk agent (internal): Read the order record for CD-420584\n[2026-10-21 09:02 UTC] Road Desk agent → Leo Quellford (driver) (safety) [safety instruction]: Please switch the engine off and leave it off.\n[2026-10-21 09:02 UTC] Road Desk agent → Leo Quellford (driver) (driver chat): Leo, I've sent you two safety instructions. Please stop at the next safe place, switch on your hazard lights and switch the engine off.\n\nThe car's data shows a flashing check-engine light, a fault message and reduced power. The simulated phone position puts you at a rest area on the A1 northbound, and the car isn't moving.\n\nAre you safe and out of traffic? Please also tell me what you see on the dashboard and whether you've noticed any shaking, smells or smoke.\n[2026-10-21 09:02 UTC] Leo Quellford (driver) → Road Desk agent (driver chat): Yes, I'm safe. I slowed down and pulled off the motorway. It started shaking when I accelerated and lost power. No smoke and no burning smell. Can I drive on slowly to the next town? It's only 15 km.\n[2026-10-21 09:02 UTC] Road Desk agent (internal): Read the order record for CD-420584\n[2026-10-21 09:02 UTC] Road Desk agent (internal): Read the car's trouble codes: P0300, P0302, check-engine light flashing\n[2026-10-21 09:02 UTC] Road Desk agent (internal): Looked up P0300: random or multiple cylinder misfire, stop now\n[2026-10-21 09:02 UTC] Road Desk agent → Leo Quellford (driver) (safety) [safety instruction]: Please do not drive the car any further until an operator has confirmed what happens next.\n[2026-10-21 09:02 UTC] Road Desk agent (internal): Handing over to operations: Bentley stopped with flashing check-engine light and misfire codes (STOP_NOW); recovery needs the owner's decision via operator, and today's ferry (check-in closes 17:30 CEST) and the Monday delivery are at risk.\n[2026-10-21 09:02 UTC] Road Desk agent → Leo Quellford (driver) (driver chat): Leo, I'm glad you're safe. Please don't drive on, not even the 15 km. The car's data shows a flashing check-engine light and misfire codes. Together with the shaking and power loss, driving could cause serious damage. A code is only a signal, not a diagnosis.\n\nI've passed this to operations. They will sort out how the car gets recovered with the owner. They will also look at your ferry today and the Monday delivery.\n\nPlease stay in a safe place near the car, keep the engine off and the hazard lights on, and stay away from traffic. I'll message you as soon as I have news.\n# Now\nPrepare the decision for operations now. Why: Bentley stopped with flashing check-engine light and misfire codes (STOP_NOW); recovery needs the owner's decision via operator, and today's ferry (check-in closes 17:30 CEST) and the Monday delivery are at risk.",
+  "messages": [
+    {
+      "role": "user",
+      "content": "# Case notes\nJob: Prepare a decision\nNow: 2026-10-21 09:02 UTC (simulated clock); local time: Wed 21 Oct 11:02 CEST (Europe/Berlin), Wed 21 Oct 12:02 EEST (Europe/Helsinki)\nOrder: CD-420584 · Bentley Continental GT · Cologne → Helsinki\nCase: Flashing check-engine light, misfire codes, Bentley stopped at rest area on A1 · vehicle warning · agent working · urgency critical · opened now\nYou are talking to: Operations (operator) via internal\nWaiting on: the agent since 2026-10-21 09:02 UTC, next check 2026-10-21 09:05 UTC\nNext action on record: The agent is preparing a decision for operations.\nDecisions waiting for an operator: none\n# Conversation and work on this case so far (oldest first)\n[2026-10-21 09:02 UTC] OBD dongle (telemetry): Check-engine light flashing, trouble codes P0300, P0302, reduced power message\n[2026-10-21 09:02 UTC] Road Desk agent → Leo Quellford (driver) (safety) [safety instruction]: Leo, please slow down and stop at the next safe place, then switch on your hazard lights.\n[2026-10-21 09:02 UTC] Road Desk agent (internal): Read the order record for CD-420584\n[2026-10-21 09:02 UTC] Road Desk agent → Leo Quellford (driver) (safety) [safety instruction]: Please switch the engine off and leave it off.\n[2026-10-21 09:02 UTC] Road Desk agent → Leo Quellford (driver) (driver chat): Leo, I've sent you two safety instructions. Please stop at the next safe place, switch on your hazard lights and switch the engine off.\n\nThe car's data shows a flashing check-engine light, a fault message and reduced power. The simulated phone position puts you at a rest area on the A1 northbound, and the car isn't moving.\n\nAre you safe and out of traffic? Please also tell me what you see on the dashboard and whether you've noticed any shaking, smells or smoke.\n[2026-10-21 09:02 UTC] Leo Quellford (driver) → Road Desk agent (driver chat): Yes, I'm safe. I slowed down and pulled off the motorway. It started shaking when I accelerated and lost power. No smoke and no burning smell. Can I drive on slowly to the next town? It's only 15 km.\n[2026-10-21 09:02 UTC] Road Desk agent (internal): Read the order record for CD-420584\n[2026-10-21 09:02 UTC] Road Desk agent (internal): Read the car's trouble codes: P0300, P0302, check-engine light flashing\n[2026-10-21 09:02 UTC] Road Desk agent (internal): Looked up P0300: random or multiple cylinder misfire, stop now\n[2026-10-21 09:02 UTC] Road Desk agent → Leo Quellford (driver) (safety) [safety instruction]: Please do not drive the car any further until an operator has confirmed what happens next.\n[2026-10-21 09:02 UTC] Road Desk agent (internal): Handing over to operations: Bentley stopped with flashing check-engine light and misfire codes (STOP_NOW); recovery needs the owner's decision via operator, and today's ferry (check-in closes 17:30 CEST) and the Monday delivery are at risk.\n[2026-10-21 09:02 UTC] Road Desk agent → Leo Quellford (driver) (driver chat): Leo, I'm glad you're safe. Please don't drive on, not even the 15 km. The car's data shows a flashing check-engine light and misfire codes. Together with the shaking and power loss, driving could cause serious damage. A code is only a signal, not a diagnosis.\n\nI've passed this to operations. They will sort out how the car gets recovered with the owner. They will also look at your ferry today and the Monday delivery.\n\nPlease stay in a safe place near the car, keep the engine off and the hazard lights on, and stay away from traffic. I'll message you as soon as I have news.\n# Now\nPrepare the decision for operations now. Why: Bentley stopped with flashing check-engine light and misfire codes (STOP_NOW); recovery needs the owner's decision via operator, and today's ferry (check-in closes 17:30 CEST) and the Monday delivery are at risk."
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01RAm4TeCTZd6GpC1SCn1dBQ",
+          "caller": {
+            "type": "direct"
+          },
+          "name": "get_order_context",
+          "input": {
+            "order_ref": ""
+          }
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_019BcmAimvpxBLShyBbG1RCG",
+          "caller": {
+            "type": "direct"
+          },
+          "name": "find_nearby_help",
+          "input": {
+            "kind": "tow"
+          }
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_016qaQcjgzRiYaYcZ3BFW7HW",
+          "caller": {
+            "type": "direct"
+          },
+          "name": "find_nearby_help",
+          "input": {
+            "kind": "brand_workshop"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_01RAm4TeCTZd6GpC1SCn1dBQ",
+          "content": "{\n \"order\": {\n  \"reference\": \"CD-420584\",\n  \"stage\": \"car collected and on its way\",\n  \"route\": \"Rabenfarnstraße 88, Cologne, DE → Hohdelehdontie 24, Helsinki, FI\",\n  \"route_kind\": \"cross-border import\",\n  \"source\": {\n   \"kind\": \"orders\",\n   \"id\": \"ord-00584\",\n   \"label\": \"Order CD-420584\",\n   \"at\": null\n  }\n },\n \"vehicle\": {\n  \"make\": \"Bentley\",\n  \"model\": \"Continental GT\",\n  \"year\": 2025,\n  \"fuel\": \"petrol\",\n  \"plate\": \"not recorded\",\n  \"vin\": \"SYNSHJZ2Z7KK7GR6W\",\n  \"source\": {\n   \"kind\": \"vehicles\",\n   \"id\": \"veh-00584\",\n   \"label\": \"Vehicle record, Bentley Continental GT\",\n   \"at\": null\n  }\n },\n \"pickup\": {\n  \"place\": \"Norvarken Cologne\",\n  \"address\": \"Rabenfarnstraße 88, Cologne, DE\",\n  \"time_zone\": \"Europe/Berlin\",\n  \"opening_hours\": {\n   \"sat\": \"10:00-14:00\",\n   \"sun\": null,\n   \"mon_fri\": \"09:00-18:00\"\n  },\n  \"access_instruction\": \"Use the staffed rear vehicle gate; security checks the order reference and driver ID.\",\n  \"access_status\": \"CONFIRMED\",\n  \"contact\": {\n   \"name\": \"Nadia Alderfield\",\n   \"role\": \"site desk\",\n   \"handle\": \"site-045@example.test\",\n   \"status\": \"CONFIRMED\"\n  },\n  \"how_confirmed\": \"the site's standard profile, not a call about this car\",\n  \"confirmed_at\": \"2026-10-14 09:22 UTC\",\n  \"source\": {\n   \"kind\": \"order_endpoint_details\",\n   \"id\": \"ep-xd7653507b821d94a\",\n   \"label\": \"Pickup details, the site's standard profile, not a call about this car\",\n   \"at\": \"2026-10-14T09:22:00Z\"\n  },\n  \"site_rules\": {\n   \"handover_mode\": \"security_gate\",\n   \"requires_signed_release\": false,\n   \"release_document_rule\": \"Confirm order reference and driver ID with site staff before handover\",\n   \"advance_notice_minutes\": 0\n  },\n  \"belongs_to_customer\": false\n },\n \"delivery\": {\n  \"place\": \"Kavellora Helsinki\",\n  \"address\": \"Hohdelehdontie 24, Helsinki, FI\",\n  \"time_zone\": \"Europe/Helsinki\",\n  \"opening_hours\": {\n   \"sat\": \"08:00-12:00\",\n   \"sun\": null,\n   \"mon_fri\": \"08:00-17:00\"\n  },\n  \"access_instruction\": \"The fleet desk checks the plate documents and counts the keys at handover.\",\n  \"access_status\": \"CONFIRMED\",\n  \"contact\": {\n   \"name\": \"not recorded\",\n   \"role\": \"site desk\",\n   \"handle\": null,\n   \"status\": \"UNCONFIRMED\"\n  },\n  \"how_confirmed\": \"not confirmed for this order\",\n  \"confirmed_at\": null,\n  \"source\": {\n   \"kind\": \"order_endpoint_details\",\n   \"id\": \"ep-xfec1b15e70f6c739\",\n   \"label\": \"Delivery details, unconfirmed\",\n   \"at\": \"2026-10-14T09:22:00Z\"\n  },\n  \"site_rules\": {\n   \"handover_mode\": \"fleet_desk\",\n   \"requires_signed_release\": false,\n   \"release_document_rule\": \"Confirm order reference and driver ID with site staff before handover\",\n   \"advance_notice_minutes\": 0\n  },\n  \"belongs_to_customer\": true\n },\n \"driver\": {\n  \"name\": \"Leo Quellford\",\n  \"job_status\": \"IN_PROGRESS\",\n  \"journey_start\": {\n   \"recorded\": true,\n   \"at\": \"2026-10-21 06:21 UTC\",\n   \"text\": \"Journey start recorded 2 h 41 min ago\"\n  },\n  \"source\": {\n   \"kind\": \"work_assignments\",\n   \"id\": \"asg-x4db92d333204db52\",\n   \"label\": \"Driver booking, Leo Quellford\",\n   \"at\": \"2026-10-15T07:52:00Z\"\n  }\n },\n \"last_driver_app_progress\": {\n  \"observed\": \"2026-10-21 08:37 UTC\",\n  \"age\": \"25 min ago\",\n  \"received\": \"2026-10-21 08:39 UTC\",\n  \"progress_percent\": 8,\n  \"distance_remaining_km\": 1992,\n  \"app_estimate_of_delivery_utc\": \"2026-10-26T12:50:00Z\",\n  \"quality\": \"COARSE\",\n  \"note\": \"Coarse driver-app progress. It has no coordinates and is not a verified location.\",\n  \"source\": {\n   \"kind\": \"tracking_observations\",\n   \"id\": \"track-x74f6f5191eaf7a78\",\n   \"label\": \"Driver app progress, 2026-10-21 08:37 UTC\",\n   \"at\": \"2026-10-21T08:37:00Z\"\n  }\n },\n \"customer\": {\n  \"name\": \"Kavellora Car House\",\n  \"country\": \"FI\",\n  \"rule\": \"The customer pays Bahn. The agent never contacts them directly; use a CONTACT_CUSTOMER proposal.\",\n  \"source\": {\n   \"kind\": \"customers\",\n   \"id\": \"cus-003\",\n   \"label\": \"Customer account, Kavellora Car House\",\n   \"at\": null\n  }\n },\n \"delivery_promise\": {\n  \"start_utc\": \"2026-10-26T08:00:00Z\",\n  \"end_utc\": \"2026-10-26T14:00:00Z\",\n  \"zone\": \"Europe/Helsinki\",\n  \"start\": \"Mon 26 Oct 10:00 EET\",\n  \"end\": \"Mon 26 Oct 16:00 EET\",\n  \"basis\": \"set by the customer\",\n  \"source\": {\n   \"kind\": \"time_windows\",\n   \"id\": \"win-xb0be2fe33a52f53b\",\n   \"label\": \"Delivery promise, set by the customer\"\n  },\n  \"pending_changes\": [],\n  \"history\": []\n },\n \"windows\": [\n  {\n   \"what\": \"Pickup slot\",\n   \"selected\": true,\n   \"start\": \"Wed 21 Oct 09:00 CEST\",\n   \"end\": \"Wed 21 Oct 12:00 CEST\",\n   \"start_utc\": \"2026-10-21T07:00:00Z\",\n   \"end_utc\": \"2026-10-21T10:00:00Z\",\n   \"starts\": \"2 h 2 min ago\",\n   \"set_by\": \"selected by operations\",\n   \"source\": {\n    \"kind\": \"time_windows\",\n    \"id\": \"win-x41fc07b96bc6c022\",\n    \"label\": \"Pickup slot, selected by operations\",\n    \"at\": null\n   }\n  },\n  {\n   \"what\": \"Delivery promise\",\n   \"selected\": true,\n   \"start\": \"Mon 26 Oct 10:00 EET\",\n   \"end\": \"Mon 26 Oct 16:00 EET\",\n   \"start_utc\": \"2026-10-26T08:00:00Z\",\n   \"end_utc\": \"2026-10-26T14:00:00Z\",\n   \"starts\": \"in 5 days\",\n   \"set_by\": \"set by the customer\",\n   \"source\": {\n    \"kind\": \"time_windows\",\n    \"id\": \"win-xb0be2fe33a52f53b\",\n    \"label\": \"Delivery promise, set by the customer\",\n    \"at\": null\n   }\n  },\n  {\n   \"what\": \"Requested pickup (a wish, not agreed)\",\n   \"selected\": false,\n   \"start\": \"Wed 21 Oct 09:00 CEST\",\n   \"end\": \"Wed 21 Oct 12:00 CEST\",\n   \"start_utc\": \"2026-10-21T07:00:00Z\",\n   \"end_utc\": \"2026-10-21T10:00:00Z\",\n   \"starts\": \"2 h 2 min ago\",\n   \"set_by\": \"set by the customer\",\n   \"source\": {\n    \"kind\": \"time_windows\",\n    \"id\": \"win-x1776ef63a0657d9a\",\n    \"label\": \"Requested pickup (a wish, not agreed), set by the customer\",\n    \"at\": null\n   }\n  },\n  {\n   \"what\": \"Requested delivery (a wish, not agreed)\",\n   \"selected\": false,\n   \"start\": \"Tue 27 Oct 10:00 EET\",\n   \"end\": \"Tue 27 Oct 16:00 EET\",\n   \"start_utc\": \"2026-10-27T08:00:00Z\",\n   \"end_utc\": \"2026-10-27T14:00:00Z\",\n   \"starts\": \"in 6 days\",\n   \"set_by\": \"set by the customer\",\n   \"source\": {\n    \"kind\": \"time_windows\",\n    \"id\": \"win-xb9329ad9b0b2282f\",\n    \"label\": \"Requested delivery (a wish, not agreed), set by the customer\",\n    \"at\": null\n   }\n  }\n ],\n \"eta_estimate\": {\n  \"text\": \"Driver app estimate 2026-10-26T12:50:00Z\",\n  \"estimate_utc\": \"2026-10-26T12:50:00Z\",\n  \"basis\": \"driver app, coarse\",\n  \"source\": {\n   \"kind\": \"tracking_observations\",\n   \"id\": \"track-x74f6f5191eaf7a78\",\n   \"label\": \"Driver app progress\",\n   \"at\": \"2026-10-21T08:37:00Z\"\n  },\n  \"is_estimate\": true\n },\n \"travel_bookings\": [\n  {\n   \"kind\": \"ferry\",\n   \"status\": \"BOOKED\",\n   \"note\": \"A booking is not a check-in or boarding. Only a terminal gate scan confirms check-in.\",\n   \"provider\": null,\n   \"reference\": \"WBV-FERRY-00584\",\n   \"from\": \"West Baltic Vehicle Terminal\",\n   \"to\": \"South Finland Vehicle Terminal\",\n   \"departs\": \"Wed 21 Oct 19:30 CEST\",\n   \"departs_utc\": \"2026-10-21T17:30:00Z\",\n   \"departs_in\": \"in 8 h 28 min\",\n   \"check_in_closes\": \"Wed 21 Oct 17:30 CEST\",\n   \"check_in_closes_utc\": \"2026-10-21T15:30:00Z\",\n   \"arrives_utc\": \"2026-10-22T23:30:00Z\",\n   \"check_in_confirmed\": \"UNCONFIRMED\",\n   \"boarding_confirmed\": \"UNCONFIRMED\",\n   \"source\": {\n    \"kind\": \"travel_reservations\",\n    \"id\": \"res-x6196641f25ccf47f\",\n    \"label\": \"ferry booking WBV-FERRY-00584\",\n    \"at\": \"2026-10-15T08:21:00Z\"\n   }\n  }\n ],\n \"road_desk_bookings\": [],\n \"travel_quotes\": [],\n \"driver_fee\": \"€1,555.00\",\n \"phone_position\": {\n  \"lat\": 51.951,\n  \"lng\": 7.672,\n  \"place\": \"Rastanlage Lindenhöhe (fictional), A1 northbound\",\n  \"speed_kmh\": 0,\n  \"at\": \"2026-10-21 09:01 UTC\",\n  \"age\": \"1 min ago\",\n  \"note\": \"Simulated phone GPS for this demo, not a verified position.\",\n  \"source\": {\n   \"kind\": \"cr_telemetry\",\n   \"id\": \"tel-a82f32b5ab89\",\n   \"label\": \"Simulated phone GPS, 2026-10-21 09:01 UTC\",\n   \"at\": \"2026-10-21T09:01:00.003Z\"\n  }\n },\n \"car_status\": {\n  \"check_engine_light\": \"FLASHING\",\n  \"trouble_codes\": [\n   \"P0300\",\n   \"P0302\"\n  ],\n  \"speed_kmh\": 0,\n  \"at\": \"2026-10-21 09:01 UTC\",\n  \"age\": \"1 min ago\",\n  \"source\": {\n   \"kind\": \"cr_telemetry\",\n   \"id\": \"tel-4be102994002\",\n   \"label\": \"OBD dongle, 2026-10-21 09:01 UTC\",\n   \"at\": \"2026-10-21T09:01:00.007Z\"\n  }\n },\n \"open_records\": {\n  \"alerts\": [],\n  \"incidents\": [],\n  \"work_items\": [],\n  \"open_conversations\": []\n },\n \"expense_claims\": []\n}"
+        },
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_019BcmAimvpxBLShyBbG1RCG",
+          "content": "{\n \"note\": \"Mocked suggestions for this demo. Names are fictional. Prices are quotes, nothing is booked.\",\n \"searched_near\": \"the reported position (nearest listed city: Düsseldorf, 102 km away)\",\n \"results\": [\n  {\n   \"name\": \"Abschleppdienst Rabenfeld (fictional)\",\n   \"distance_km\": 4,\n   \"near\": \"the reported position\",\n   \"phone\": \"+00 555 0151 (fictional)\",\n   \"eta_minutes\": 43,\n   \"price_quote\": \"about €304 to the nearest brand workshop (quote, not booked)\",\n   \"flatbed\": true\n  },\n  {\n   \"name\": \"Abschleppdienst Birkenhain (fictional)\",\n   \"distance_km\": 18,\n   \"near\": \"the reported position\",\n   \"phone\": \"+00 555 0152 (fictional)\",\n   \"eta_minutes\": 71,\n   \"price_quote\": \"about €388 to the nearest brand workshop (quote, not booked)\",\n   \"flatbed\": true\n  },\n  {\n   \"name\": \"Abschleppdienst Ostwalde (fictional)\",\n   \"distance_km\": 37,\n   \"near\": \"the reported position\",\n   \"phone\": \"+00 555 0153 (fictional)\",\n   \"eta_minutes\": 109,\n   \"price_quote\": \"about €502 to the nearest brand workshop (quote, not booked)\",\n   \"flatbed\": true\n  }\n ],\n \"source\": {\n  \"kind\": \"mock:nearby_help\",\n  \"id\": \"tow-3488549751\",\n  \"label\": \"Nearby tow search (mocked)\"\n },\n \"searched_from\": \"the latest simulated phone position (1 min ago)\"\n}"
+        },
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_016qaQcjgzRiYaYcZ3BFW7HW",
+          "content": "{\n \"note\": \"Mocked suggestions for this demo. Names are fictional. Prices are quotes, nothing is booked.\",\n \"searched_near\": \"the reported position (nearest listed city: Düsseldorf, 102 km away)\",\n \"results\": [\n  {\n   \"name\": \"Bentley Partner Kranichsee (fictional)\",\n   \"distance_km\": 26,\n   \"near\": \"the reported position\",\n   \"phone\": \"+00 555 0148 (fictional)\",\n   \"open_now\": true,\n   \"can_take_vehicle\": \"today\"\n  },\n  {\n   \"name\": \"Bentley Partner Rabenfeld (fictional)\",\n   \"distance_km\": 18,\n   \"near\": \"the reported position\",\n   \"phone\": \"+00 555 0149 (fictional)\",\n   \"open_now\": true,\n   \"can_take_vehicle\": \"tomorrow morning\"\n  },\n  {\n   \"name\": \"Bentley Partner Birkenhain (fictional)\",\n   \"distance_km\": 37,\n   \"near\": \"the reported position\",\n   \"phone\": \"+00 555 0150 (fictional)\",\n   \"open_now\": false,\n   \"can_take_vehicle\": \"tomorrow morning\"\n  }\n ],\n \"source\": {\n  \"kind\": \"mock:nearby_help\",\n  \"id\": \"brand_workshop-3387122548\",\n  \"label\": \"Nearby brand workshop search (mocked)\"\n },\n \"searched_from\": \"the latest simulated phone position (1 min ago)\"\n}"
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01KZg8jyyZ17iEpYCbL5v67C",
+          "caller": {
+            "type": "direct"
+          },
+          "name": "propose_action",
+          "input": {
+            "action_type": "CONTACT_CUSTOMER",
+            "title": "Ask Kavellora how they want the Bentley recovered",
+            "rationale": "The car shows a flashing check-engine light and misfire codes (stop-now severity) with shaking and power loss, and the driver has been told not to drive on. Recovery is the owner's decision. Today's ferry (check-in closes 17:30 CEST) is very likely lost, and the Monday delivery is at risk.",
+            "what_happened": "The Bentley stopped at a rest area on the A1 northbound with a flashing check-engine light, misfire codes P0300 and P0302, shaking and power loss. The driver is safe and has been told not to drive on.",
+            "facts": [
+              {
+                "text": "The check-engine light is flashing and the car reports P0300 and P0302. The code lookup rates P0300 as stop now. A code is a signal, not a diagnosis.",
+                "sources": [
+                  {
+                    "kind": "cr_telemetry",
+                    "id": "tel-4be102994002",
+                    "label": "OBD dongle, 2026-10-21 09:01 UTC",
+                    "at": "2026-10-21T09:01:00.007Z"
+                  }
+                ]
+              },
+              {
+                "text": "The car is stopped at Rastanlage Lindenhöhe, A1 northbound. This is a simulated phone position, not verified.",
+                "sources": [
+                  {
+                    "kind": "cr_telemetry",
+                    "id": "tel-a82f32b5ab89",
+                    "label": "Simulated phone GPS, 2026-10-21 09:01 UTC",
+                    "at": "2026-10-21T09:01:00.003Z"
+                  }
+                ]
+              },
+              {
+                "text": "The driver says he is safe. The car shook on acceleration and lost power. He saw no smoke and smelled no burning. He asked to drive 15 km on, and was told no.",
+                "sources": [
+                  {
+                    "kind": "order",
+                    "id": "ord-00584",
+                    "label": "Driver app chat, 09:02 UTC (case notes)",
+                    "at": "2026-10-21T09:02:00Z"
+                  }
+                ]
+              },
+              {
+                "text": "Ferry WBV-FERRY-00584 is booked, not checked in. Check-in closes Wed 21 Oct 17:30 CEST and departure is 19:30 CEST.",
+                "sources": [
+                  {
+                    "kind": "travel_reservations",
+                    "id": "res-x6196641f25ccf47f",
+                    "label": "ferry booking WBV-FERRY-00584",
+                    "at": "2026-10-15T08:21:00Z"
+                  }
+                ]
+              },
+              {
+                "text": "The delivery promise is Mon 26 Oct 10:00-16:00 EET, set by the customer. The driver app's coarse estimate is 26 Oct 12:50 UTC, before the breakdown, with 1992 km remaining.",
+                "sources": [
+                  {
+                    "kind": "time_windows",
+                    "id": "win-xb0be2fe33a52f53b",
+                    "label": "Delivery promise, set by the customer",
+                    "at": null
+                  },
+                  {
+                    "kind": "tracking_observations",
+                    "id": "track-x74f6f5191eaf7a78",
+                    "label": "Driver app progress, 2026-10-21 08:37 UTC",
+                    "at": "2026-10-21T08:37:00Z"
+                  }
+                ]
+              },
+              {
+                "text": "Tow quotes (not booked, all flatbed): Rabenfeld 4 km, ETA 43 min, about €304. Birkenhain 18 km, ETA 71 min, about €388. Ostwalde 37 km, ETA 109 min, about €502. Prices are to the nearest brand workshop.",
+                "sources": [
+                  {
+                    "kind": "mock:nearby_help",
+                    "id": "tow-3488549751",
+                    "label": "Nearby tow search (mocked)",
+                    "at": ""
+                  }
+                ]
+              },
+              {
+                "text": "Brand workshops: Kranichsee (26 km) can take the car today. Rabenfeld (18 km) can take it tomorrow morning. Birkenhain (37 km) is closed now and can take it tomorrow morning.",
+                "sources": [
+                  {
+                    "kind": "mock:nearby_help",
+                    "id": "brand_workshop-3387122548",
+                    "label": "Nearby brand workshop search (mocked)",
+                    "at": ""
+                  }
+                ]
+              }
+            ],
+            "agent_did": [
+              "Sent safety instructions: stop when safe, engine off, do not drive on",
+              "Asked the driver about safety and symptoms, and told him not to drive the 15 km",
+              "Read the order, codes and telemetry",
+              "Looked up tow and brand workshop options (quotes only)"
+            ],
+            "unknowns": [
+              "Whether the owner has their own roadside assistance or a preferred workshop",
+              "The actual fault and repair time, which only a workshop can establish",
+              "Whether the ferry can be rebooked and what it costs (no travel search done yet)",
+              "Exact verified position of the car"
+            ],
+            "recommendation": "Ask Kavellora Car House how they want recovery handled. Suggest a flatbed tow to Bentley Partner Kranichsee, which can take the car today. Tell them today's ferry will almost certainly be missed, and that the Monday delivery depends on the repair.",
+            "alternatives": [
+              "The customer uses their own roadside assistance",
+              "Tow to Bentley Partner Rabenfeld, which is closer but takes the car only tomorrow morning",
+              "Operations books the tow directly after the customer agrees"
+            ],
+            "changes": [],
+            "draft_to": "customer",
+            "draft_channel": "email",
+            "draft_subject": "Your Bentley Continental GT (order CD-420584): breakdown on the way to Helsinki, recovery decision needed",
+            "draft_body": "Dear Kavellora Car House team,\n\nThis morning (about 11:00 CEST) your Bentley Continental GT stopped at a rest area on the A1 northbound, in Germany. The driver is safe. The car showed a flashing check-engine light, shaking and loss of power. It reports misfire fault codes. These are only signals; the cause is not yet known. We have told the driver not to drive on.\n\nWe need your decision on recovery:\n1. You arrange it through your own roadside assistance, or\n2. We arrange a flatbed tow to a Bentley partner workshop. The nearest option that can take the car today is Bentley Partner Kranichsee, about 26 km away. The tow quote is roughly €300-€500 depending on the provider. This is a quote, not a booking.\n\nToday's ferry (check-in closes 17:30 CEST) will very probably be missed. The agreed delivery window is Monday 26 October, 10:00-16:00 Helsinki time. We cannot confirm it until the workshop has diagnosed the car. We will come back to you with a proposed new date if needed.\n\nPlease tell us how you would like to proceed.\n\nKind regards,\nBahn Operations",
+            "draft_language": "en",
+            "options": [
+              {
+                "id": "tow_kranichsee",
+                "label": "We book tow to Kranichsee",
+                "description": "Flatbed tow to the workshop that can take the car today, after the customer agrees.",
+                "recommended": true
+              },
+              {
+                "id": "own_assistance",
+                "label": "Customer's roadside assistance",
+                "description": "The owner arranges recovery and we wait for details.",
+                "recommended": false
+              },
+              {
+                "id": "tow_rabenfeld",
+                "label": "Tow to Rabenfeld",
+                "description": "Closer and cheaper, but the workshop takes the car only tomorrow morning.",
+                "recommended": false
+              }
+            ],
+            "evidence_refs": [
+              {
+                "kind": "cr_telemetry",
+                "id": "tel-4be102994002",
+                "label": "OBD dongle, 09:01 UTC",
+                "at": "2026-10-21T09:01:00.007Z"
+              },
+              {
+                "kind": "cr_telemetry",
+                "id": "tel-a82f32b5ab89",
+                "label": "Simulated phone GPS, 09:01 UTC",
+                "at": "2026-10-21T09:01:00.003Z"
+              },
+              {
+                "kind": "travel_reservations",
+                "id": "res-x6196641f25ccf47f",
+                "label": "ferry booking WBV-FERRY-00584",
+                "at": "2026-10-15T08:21:00Z"
+              },
+              {
+                "kind": "time_windows",
+                "id": "win-xb0be2fe33a52f53b",
+                "label": "Delivery promise, set by the customer",
+                "at": ""
+              },
+              {
+                "kind": "mock:nearby_help",
+                "id": "tow-3488549751",
+                "label": "Nearby tow search (mocked)",
+                "at": ""
+              },
+              {
+                "kind": "mock:nearby_help",
+                "id": "brand_workshop-3387122548",
+                "label": "Nearby brand workshop search (mocked)",
+                "at": ""
+              }
+            ],
+            "assumptions": [
+              {
+                "kind": "car_codes",
+                "codes": [
+                  "P0300",
+                  "P0302"
+                ],
+                "label": "Car still reports P0300 and P0302"
+              },
+              {
+                "kind": "record",
+                "table": "travel_reservations",
+                "id": "res-x6196641f25ccf47f",
+                "field": "status",
+                "expected": "BOOKED",
+                "label": "Ferry WBV-FERRY-00584 is booked, not checked in"
+              },
+              {
+                "kind": "no_new_message",
+                "from": "driver",
+                "after": "2026-10-21T09:02:00Z",
+                "label": "No new driver message after 09:02 UTC"
+              }
+            ],
+            "window_start_utc": "",
+            "window_end_utc": "",
+            "next_step_if_approved": "The email goes to the customer. Once they choose, I'll propose booking recovery and then the ferry and delivery changes.",
+            "next_step_if_rejected": "I'll redraft or follow the operator's instruction. The driver stays put with the engine off."
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_01KZg8jyyZ17iEpYCbL5v67C",
+          "content": "Recorded for an operator to decide: Ask Kavellora how they want the Bentley recovered. Nothing changes until they approve."
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "I've sent operations one decision to approve: an email to Kavellora Car House asking how they want the Bentley recovered. Nothing has been booked or sent yet.\n\n- **Situation:** Leo is safe at a rest area on the A1 northbound (a simulated phone position). The car shows a flashing check-engine light, misfire codes P0300 and P0302, shaking and power loss. He has been told not to drive on, not even the 15 km he asked about.\n- **Recommendation:** Ask the customer, and suggest a flatbed tow to Bentley Partner Kranichsee, 26 km away, which can take the car today. Tow quotes run from about €304 to €502. All are quotes only.\n- **Ferry:** Today's ferry is booked but not checked in, and check-in closes at 17:30 CEST. It will very probably be missed, and I haven't searched for later sailings yet.\n- **Delivery:** The customer set the Monday 26 October promise, and I can't say if it holds until a workshop diagnoses the car.",
+          "citations": []
+        }
+      ]
+    }
+  ]
+}
