@@ -639,6 +639,10 @@ export type InboxMessageView = {
 
 export type InboxThreadView = {
   id: string
+  /** "order": a conversation filed on an order (the helpdesk's threads); "inbox": mail that arrived before an order link was certain. */
+  source: "order" | "inbox"
+  /** The last message is from the other party and the thread is open: the desk owes an answer. */
+  unanswered: boolean
   category: string
   categoryLabel: string
   channel: string

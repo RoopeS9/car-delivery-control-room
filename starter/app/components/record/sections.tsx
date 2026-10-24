@@ -8,7 +8,6 @@ import { fmtClock, fmtDateTime, fmtDay, relativeTo } from "@/lib/present/time"
 import { Icon } from "../icons"
 import { ActorName, Chip, Empty, OrderLink, OrderLinks, Range, SectionHead, When } from "../ui"
 import { OrderFiles } from "./files"
-import { Composer, postJson, type Draft } from "../helpdesk/composer"
 import { NewConversation } from "../helpdesk/new-conversation"
 
 const ATTENTION_ICON: Record<AttentionItem["kind"], string> = {
@@ -127,7 +126,7 @@ export function ConversationsSection({ view, onChange }: { view: RecordView; onC
     {opening && <NewConversation view={view} orderId={orderId} onOpened={() => { setOpening(false); onChange?.() }} onCancel={() => setOpening(false)} />}
     {threads.length === 0 && notes.length === 0 && !opening && <Empty>No conversation is linked to this order. Open one with the customer, the driver or a site above.</Empty>}
     <div className="rows">
-      {ordered.map((thread) => <ThreadRow key={thread.id} thread={thread} view={view} onChange={onChange} />)}
+      {ordered.map((thread) => <ThreadRow key={thread.id} thread={thread} view={view} />)}
       {notes.map((note) => <div className="row" key={note.id}>
         <div className="row-main">
           <div className="row-title">Note from <ActorName actor={note.author} /></div>
@@ -139,46 +138,29 @@ export function ConversationsSection({ view, onChange }: { view: RecordView; onC
   </section>
 }
 
-function ThreadRow({ thread, view, onChange }: { thread: ThreadView; view: RecordView; onChange?: () => void }) {
-  // Threads open by default: the conversation is what an operator comes here to read and answer.
-  const [open, setOpen] = useState(true)
-  const [busy, setBusy] = useState(false)
-  const last = thread.messages[thread.messages.length - 1]
+function ThreadRow({ thread, view }: { thread: ThreadView; view: RecordView }) {
+  // The row is a summary; the conversation itself is read and answered in the inbox reader (one thread, the chat,
+  // drafts from the dossier). The map's deep link (#thread-…) still lands here and then leads on.
+  const last = [...thread.messages].sort((a, b) => a.at.localeCompare(b.at)).at(-1)
   const count = thread.messages.length
-  const orderId = view.header.id
-  const setStatus = async (status: "OPEN" | "CLOSED") => {
-    setBusy(true)
-    try { await postJson(`/api/threads/${encodeURIComponent(thread.id)}`, { status }, "PATCH"); onChange?.() } finally { setBusy(false) }
-  }
-  return <article className={`row thread${thread.status === "OPEN" ? "" : " closed"}`} id={`thread-${thread.id}`}>
+  const theirs = last && !last.internal && last.author.kind !== "operator" && last.author.kind !== "agent"
+  const waiting = thread.status === "OPEN" && !!theirs
+  void view
+  return <Link className={`row thread${thread.status === "OPEN" ? "" : " closed"}${waiting ? " waiting" : ""}`} id={`thread-${thread.id}`} href={`/inbox#${thread.id}`}>
     <div className="row-main">
-      <div className="row-title">{thread.categoryLabel} <Chip tone={thread.tone}>{thread.statusLabel}</Chip></div>
+      <div className="row-title">{thread.categoryLabel}{thread.counterparty ? <> with {thread.counterparty.name}</> : null} {waiting ? <Chip tone="danger" dot>Waiting on us</Chip> : <Chip tone={thread.tone}>{thread.statusLabel}</Chip>}</div>
       <div className="row-sub">
-        {thread.channelLabel}{thread.counterparty ? <> with <ActorName actor={thread.counterparty} /></> : ""} · {count} {count === 1 ? "message" : "messages"}
+        {thread.channelLabel} · {count} {count === 1 ? "message" : "messages"}
         {thread.waitingOn && ` · waiting on ${thread.waitingOn}`}{thread.owner && ` · ${thread.owner}`}
         {thread.relatedOrders.length > 0 && <> · also <OrderLinks orders={thread.relatedOrders} /></>}
       </div>
-      {last && !open && <div className="row-preview"><b>{last.author.name}:</b> {last.body}</div>}
-      {open && <ThreadMessages thread={thread} />}
-      {open && <Composer to={thread.counterparty?.name ?? null} channelLabel={thread.channelLabel}
-        suggest={(intent) => postJson<Draft>(`/api/threads/${encodeURIComponent(thread.id)}/suggest`, { orderId, intent })}
-        send={(body, internal, language) => postJson(`/api/threads/${encodeURIComponent(thread.id)}/messages`, { body, internal, language }).then(() => undefined)}
-        onSent={onChange} />}
-      <div className="thread-tools">
-        {count > 0 && <button type="button" className="show-more" onClick={() => setOpen((value) => !value)}>{open ? "Hide messages" : `Read ${count === 1 ? "the message" : `all ${count} messages`}`}</button>}
-        {thread.status === "OPEN"
-          ? <button type="button" className="show-more" disabled={busy} onClick={() => void setStatus("CLOSED")}>Close conversation</button>
-          : <button type="button" className="show-more" disabled={busy} onClick={() => void setStatus("OPEN")}>Reopen</button>}
-      </div>
+      {last && <div className="row-preview"><b>{last.author.name}:</b> {last.body}</div>}
+      <div className="thread-tools"><span className="show-more">Open the conversation</span></div>
     </div>
     <div className="row-side"><When at={thread.updatedAt} withZone={false} /></div>
-  </article>
+  </Link>
 }
 
-/**
- * A thread as a chat: the other party (customer, site, driver) on the left, Road Desk (operator, agent) on the right,
- * internal notes in the middle. Oldest first. Who speaks sits above the bubble, when it was said beneath it.
- */
 export type ChatMessage = Pick<MessageView, "id" | "author" | "recipient" | "at" | "body" | "internal" | "channelLabel"> & { otherOrder?: MessageView["otherOrder"] }
 
 export function ThreadMessages({ thread }: { thread: { messages: ChatMessage[] } }) {

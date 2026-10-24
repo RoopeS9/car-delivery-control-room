@@ -20,8 +20,14 @@ export function buildInboxView(threads: Row[], messages: Row[], dir: Directory, 
     const resolution = obj(thread.resolution)
     const counterpartyType = str(thread.counterparty_type)
     const counterparty: Actor | null = counterpartyType || str(thread.counterparty_id) ? dir.resolve(thread.counterparty_id, counterpartyType) : null
+    if (counterparty && str(thread.counterparty_name_snapshot)) counterparty.name = str(thread.counterparty_name_snapshot) as string
+    const own = messages.filter((message) => message.thread_id === id).sort((a, b) => String(a.authored_at).localeCompare(String(b.authored_at)))
+    const lastPublic = [...own].reverse().find((message) => str(message.visibility) !== "INTERNAL" && str(message.channel) !== "internal_note")
+    const lastKind = lastPublic ? dir.resolve(lastPublic.author_id, lastPublic.author_type).kind : null
     return {
-      id, category: str(thread.category) ?? "", categoryLabel: label(str(thread.category)) || humanize(str(thread.category)),
+      id, source: (thread.source === "order" ? "order" : "inbox") as "order" | "inbox",
+      unanswered: status === "OPEN" && lastKind !== null && lastKind !== "operator" && lastKind !== "agent",
+      category: str(thread.category) ?? "", categoryLabel: label(str(thread.category)) || humanize(str(thread.category)),
       channel: str(thread.channel) ?? "", channelLabel: label(str(thread.channel)) || humanize(str(thread.channel)),
       status, statusLabel: label(status), tone: (status === "OPEN" ? "accent" : "neutral") as Tone,
       linkState, linkStateLabel: label(linkState), linkTone: LINK_TONE[linkState] ?? "neutral",
