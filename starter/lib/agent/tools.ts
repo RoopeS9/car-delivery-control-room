@@ -198,7 +198,7 @@ export const TOOL_DEFINITIONS: Record<ToolName, Anthropic.Tool> = {
     description: "Bring operations one clear decision: what you recommend, what would change, the evidence, the assumptions it relies on, and what happens after yes or no. Anything that changes a booking, date, cost, driver, recovery, clearance to drive, or contacts the customer goes through here. Approving CHANGE_PROMISE only sends the question to the customer; the promise changes when they agree. Asking the dealer about recovery is not booking a tow.",
     input_schema: obj({
       action_type: { type: "string", enum: ACTION_TYPES.filter((type) => type !== "OPERATOR_DECISION") },
-      title: text("The recommendation as a short imperative, e.g. 'Call the dealer about recovery'."),
+      title: text("The recommendation as a short imperative in under twelve words, e.g. 'Call the dealer about recovery'. The reasons go in the rationale."),
       rationale: text("Why, in two or three sentences."),
       ...handoverFields,
       changes: { type: "array", description: "What changes if approved, before → after. Empty if nothing changes in the records.", items: obj({ label: text("What"), before: text("Current value, or empty."), after: text("New value.") }) },
@@ -222,7 +222,7 @@ export const TOOL_DEFINITIONS: Record<ToolName, Anthropic.Tool> = {
     name: "escalate",
     description: "Hand a question to operations when there is no single action to propose, e.g. facts conflict or the choice is a judgement call. Give the handover packet and the options.",
     input_schema: obj({
-      question: text("The question for the operator."),
+      question: text("The question for the operator in under twelve words, e.g. 'Call William on his phone?'. It is the card's title: the facts go in what_happened and the handover."),
       ...handoverFields,
       options: optionsSchema,
       evidence_refs: { type: "array", items: sourceRefSchema },

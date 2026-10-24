@@ -160,6 +160,8 @@ export function resolveDraft(draft: ProposalInput["draft_message"], facts: Order
 
 export function validateProposal(input: ProposalInput, facts: OrderFacts): GateVerdict {
   if (!input.title.trim() || !input.rationale.trim()) return { ok: false, reason: "A proposal needs a title and a rationale." }
+  // The title is the line an operator scans in the queue; the facts belong in the rationale and the handover.
+  if (input.title.trim().length > 110) return { ok: false, reason: "The title is too long for the queue: keep it under twelve words and put the facts in the rationale." }
   if (input.action_type === "BOOK_TRAVEL" || input.booking_selection) {
     const problem = bookingSelectionProblem(input.booking_selection, input.action_type)
     if (problem) return { ok: false, reason: problem }
@@ -446,11 +448,20 @@ async function performEffects(proposal: ProposalRow, actor: Actor): Promise<{ af
   const next = proposal.nextStepIfApproved
   switch (proposal.actionType) {
     case "CONTACT_CUSTOMER":
-    case "CONTACT_SITE_AS_CUSTOMER":
+    case "CONTACT_SITE_AS_CUSTOMER": {
+      // Is this the answer to something they wrote? Then nobody waits on them: the agent carries on from what they said.
+      const events = await listEvents({ caseId: proposal.caseId })
+      const lastIn = events.filter((event) => (event.actorType === "site" || event.actorType === "customer") && event.kind === "message").at(-1)
+      const lastOut = events.filter((event) => event.channel !== "internal" && (event.recipientType === "site" || event.recipientType === "customer")).at(-1)
+      const answersThem = Boolean(lastIn && (!lastOut || lastIn.at > lastOut.at))
       await sendDraft()
+      if (answersThem) {
+        return { after: { status: "AGENT_WORKING", waitingOn: "the agent", waitingFor: "agent", nextAction: `The agent carries on from what ${draft?.to_name ?? "they"} said.`, checkInMinutes: 3 }, result: { event_ids: ids, parked: false, answered: true } }
+      }
       // The message is out and a person decided to wait for the answer: the case parks at normal urgency. The answer
       // (or two hours of silence) brings it back to an operator; the agent has nothing to do meanwhile.
       return { after: { status: "WAITING_EXTERNAL", waitingOn: `${draft?.to_name ?? "the customer"}'s answer`, waitingFor: "customer", nextAction: `Waiting for ${draft?.to_name ?? "the customer"} to answer. ${next}`, checkInMinutes: 120, urgency: "NORMAL" }, result: { event_ids: ids, parked: true } }
+    }
     case "UPDATE_ETA": {
       const window = windowOf(proposal)
       const eta = await effect(proposal, "ETA_ESTIMATE", "RECORDED", { text: window.text, estimate_utc: window.end_utc ?? window.start_utc, start_utc: window.start_utc, end_utc: window.end_utc, basis: proposal.rationale }, authority)
