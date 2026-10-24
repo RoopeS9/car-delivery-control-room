@@ -1,9 +1,15 @@
+// Tables of the retired in-app voice interviewer (Roope's chained pipeline). Kept because stored calls from earlier
+// demos still live in them and the order view reads them as the transcript of record; nothing writes them any more.
 // Transcript of record for driver calls (PLAN.md 4.6). Voice owns these two
 // tables. No foreign keys into starter tables: the starter's reseed refuses
 // to run otherwise, so `order_id` and `driver_id` are plain text.
 
 import { boolean, index, integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core"
-import type { CallSlots, CallState, TurnFlags } from "./types"
+
+// The jsonb shapes the retired interviewer wrote. Loose on purpose: the readers only need a few fields.
+export type CallSlots = Record<string, { value: string; turn_id: string; quote: string; confidence: number }>
+export type CallState = { orderRef: string; driverName: string | null; urgencyQuote?: string | null; context?: { key: string; text: string; source: string; at: string | null }[]; [key: string]: unknown }
+export type TurnFlags = Record<string, unknown>
 
 export const crCalls = pgTable("cr_calls", {
   id: text("id").primaryKey(),

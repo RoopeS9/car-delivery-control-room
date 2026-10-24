@@ -61,7 +61,7 @@ test("call evidence uses the recorded transcript and preserves differing live wo
   assert.equal(view.urgencyQuote, "I am stopped safely.")
   assert.equal(view.turns[0].text, "I am stopped safely.")
   assert.equal(view.turns[0].liveText, "I am not stopped safely.")
-  assert.equal(view.turns[0].audioUrl, "/api/voice/calls/call-1/audio/turn-1")
+  assert.equal(view.turns[0].audioUrl, null)
   assert.equal(sourceChip({ kind: "cr_call_turns", id: "turn-1", label: "Driver's words", at: NOW }).href, "#call-turn-turn-1")
 })
 

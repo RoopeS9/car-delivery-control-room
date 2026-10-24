@@ -151,7 +151,8 @@ export function callTranscriptViews(bundle: Bundle): CallTranscriptView[] {
           at: turn.startedAt.toISOString(), text: recorded ?? live ?? "No words recorded.",
           liveText: recorded && live && recorded !== live ? live : null,
           transcriptLabel: driver ? recorded ? "Transcript of recording" : turn.flags.sttError ? "Live transcript; recording transcription unavailable" : "Live transcript; recording transcription pending" : "Agent's spoken words",
-          audioUrl: turn.audioKey ? `/api/voice/calls/${encodeURIComponent(call.id)}/audio/${encodeURIComponent(turn.id)}` : null,
+          // Recordings of the retired in-app interviewer are not served any more; the transcript of record stays.
+          audioUrl: null,
           interrupted: turn.interrupted,
         }
       }),
