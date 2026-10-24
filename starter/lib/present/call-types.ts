@@ -83,3 +83,21 @@ export type ActionStripView = {
   reference: string
   actions: { label: string; who: string | null; purpose: string | null; agentMay: boolean; reason: string | null; href: string; cardUrl: string | null }[]
 }
+
+/** The service's deterministic goal-alignment review of an outbound call. */
+export type CallReview = {
+  callId: string
+  coverage: { asked: string[]; answered: string[]; missing: string[]; ratio: number }
+  violations: { kind: string; turnSeq: number; text: string }[]
+  unsupportedNumbers: { turnSeq: number; value: string; text: string }[]
+  closingCount: number
+  callerTurns: number
+  calleeTurns: number
+  durationS: number
+  verdict: "PASS" | "PARTIAL" | "FAIL"
+  summary: string
+}
+
+/** A model-played run is a job polled until done; a scripted run answers at once. */
+export type RunStart = { jobId: string; status: string } | (CallRecord & { review?: CallReview | null })
+export type CallJob = { id: string; status: "running" | "done" | "failed"; call: CallRecord | null; review: CallReview | null; error: string | null }

@@ -2,7 +2,7 @@
 // loopback. Read on the server only. Every call here tolerates the service
 // being down: the map and the dossier still render without it.
 
-import type { CallRecord, CallScenario, OrderActions, ServiceDossier } from "./call-types"
+import type { CallJob, CallRecord, CallReview, CallScenario, OrderActions, RunStart, ServiceDossier } from "./call-types"
 import type { Strength } from "./dossier-types"
 
 export type { CallRecord, CallScenario, OrderActions, ServiceDossier }
@@ -31,19 +31,30 @@ export function serviceDossier(reference: string): Promise<ServiceDossier | null
   return get<ServiceDossier>(`/dossier/${encodeURIComponent(reference)}`, 1500)
 }
 
-/** Runs one simulated call. The model plays both sides from the dossier by default (20 to 60 s); `scripted` is the fast rule-based run. */
-export async function runCall(personaId: string, mode?: "llm" | "scripted"): Promise<{ ok: true; call: CallRecord } | { ok: false; error: string }> {
+/**
+ * Starts one simulated call. A model-played run (the default) comes back at once as a job to poll; a scripted run
+ * comes back as the finished record with its review.
+ */
+export async function runCall(personaId: string, mode?: "llm" | "scripted"): Promise<{ ok: true; start: RunStart } | { ok: false; error: string }> {
   try {
     const response = await fetch(`${BASE}/calls/run`, {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(mode ? { personaId, mode } : { personaId }),
-      cache: "no-store", signal: AbortSignal.timeout(180_000),
+      cache: "no-store", signal: AbortSignal.timeout(30_000),
     })
     const text = await response.text()
     if (!response.ok) return { ok: false, error: text.slice(0, 300) || `The call service answered ${response.status}.` }
-    return { ok: true, call: JSON.parse(text) as CallRecord }
-  } catch (error) {
-    return { ok: false, error: error instanceof Error && error.name === "TimeoutError" ? "The call took too long and was abandoned." : "The call service is not reachable." }
+    return { ok: true, start: JSON.parse(text) as RunStart }
+  } catch {
+    return { ok: false, error: "The call service is not reachable." }
   }
+}
+
+export function callJob(jobId: string): Promise<CallJob | null> {
+  return get<CallJob>(`/calls/jobs/${encodeURIComponent(jobId)}`, 5000)
+}
+
+export function callReview(callId: string): Promise<CallReview | null> {
+  return get<CallReview>(`/calls/${encodeURIComponent(callId)}/review`, 3000)
 }
 
 /** The dossier's evidence words, in the map's vocabulary. */

@@ -88,3 +88,31 @@
 .desk-phone li.me { justify-self: end; background: var(--ink); color: var(--birch); box-shadow: none; }
 .desk-phone p { padding: 18px; font-size: 13px; color: var(--muted); }
 @media (max-width: 1400px) { .call-stage { grid-template-columns: 1fr; } .call-stage > div:first-child { position: static; margin: 0 auto; } }
+
+/* Outbound review: the scorecard above, the card beside the transcript. */
+.scorecard { display: grid; gap: 10px; padding: 14px 16px; border-radius: 12px; background: var(--birch); box-shadow: var(--shadow-card); border-left: 4px solid var(--tone-fine); }
+.sc-ok { border-left-color: var(--green); }
+.sc-warn { border-left-color: var(--tone-watch); }
+.sc-danger { border-left-color: var(--tone-need); }
+.scorecard header { display: flex; align-items: baseline; gap: 12px; }
+.sc-verdict { font-family: var(--font-brand); font-size: 20px; letter-spacing: 0.01em; }
+.sc-ok .sc-verdict { color: var(--green-ink); }
+.sc-warn .sc-verdict { color: var(--orange-ink); }
+.sc-danger .sc-verdict { color: var(--red-ink); }
+.scorecard header p { font-size: 13.5px; color: var(--brown); }
+.sc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px 16px; }
+.sc-grid dt { font-size: 12px; color: var(--subtle); }
+.sc-grid dd { display: grid; gap: 1px; font-size: 13px; }
+.sc-grid b { font-family: var(--font-brand); font-weight: 400; font-size: 18px; }
+.sc-grid small { font-size: 12px; color: var(--muted); }
+.sc-lines { display: grid; gap: 4px; font-size: 12.5px; color: var(--brown); }
+.sc-lines a { color: var(--muted); }
+.call-columns.with-card { grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) 300px; }
+.call-card-col { display: grid; gap: 4px; align-content: start; padding: 14px 16px; border-radius: 12px; background: var(--tray); box-shadow: 0 0 0 1px var(--hair-soft); font-size: 12.5px; position: sticky; top: 20px; }
+.call-card-col h3 { font-size: 13px; font-weight: 600; color: var(--muted); }
+.call-card-col h4 { margin-top: 8px; font-size: 11.5px; font-weight: 600; color: var(--subtle); }
+.call-card-col p, .call-card-col li { color: var(--brown); line-height: 1.45; }
+.call-card-col ul { display: grid; gap: 3px; padding-left: 14px; list-style: disc; }
+.studio-right .call-columns.with-card { grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); }
+.studio-right .call-columns.with-card .call-side { grid-column: 1 / -1; }
+@media (max-width: 1300px) { .call-columns.with-card { grid-template-columns: 1fr; } .call-card-col { position: static; } }

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
-import { readToolArgument, slotLabel, slotValue, type CallRecord, type CallScenario } from "@/lib/present/call-types"
+import { readToolArgument, slotLabel, slotValue, type CallJob, type CallRecord, type CallReview, type CallScenario, type RunStart } from "@/lib/present/call-types"
 import { labelIn } from "@/lib/present/labels"
 import { fmtDateTime } from "@/lib/present/time"
 import { Icon } from "../icons"
@@ -26,7 +26,9 @@ export function CallSimulator({ scenarios, stored, orderIds, callees, drivers, o
   /** Optional: told which phone belongs to the chosen scenario. */
   onFocus?: (focus: PhoneFocus) => void
 }) {
-  const [selected, setSelected] = useState<string | null>((scenarios?.find((item) => item.inbound) ?? scenarios?.[0])?.id ?? null)
+  const [selected, setSelected] = useState<string | null>((scenarios?.find((item) => !item.inbound) ?? scenarios?.[0])?.id ?? null)
+  // Reviews of outbound calls, by call id: from the run itself, or fetched for a stored call when it is shown.
+  const [reviews, setReviews] = useState<Record<string, CallReview | null>>({})
   const [running, setRunning] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [calls, setCalls] = useState(stored)
@@ -55,17 +57,51 @@ export function CallSimulator({ scenarios, stored, orderIds, callees, drivers, o
     setError(null)
     try {
       const response = await fetch("/api/calls/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ personaId: item.id, mode }) })
-      const body = (await response.json()) as CallRecord | { error: string }
-      if (!response.ok || "error" in body) throw new Error("error" in body ? body.error : "The call did not run.")
-      setCalls((current) => ({ ...current, [item.orderRef]: [body, ...(current[item.orderRef] ?? []).filter((known) => known.id !== body.id)] }))
-      setShown((current) => ({ ...current, [item.id]: body.id }))
-      setFresh(body.id)
+      const started = (await response.json()) as RunStart | { error: string }
+      if (!response.ok || "error" in started) throw new Error("error" in started ? started.error : "The call did not run.")
+      let body: CallRecord
+      let review: CallReview | null = null
+      if ("jobId" in started) {
+        // A model-played run: poll the job every 2 s until it is done or failed (give up after four minutes).
+        const deadline = Date.now() + 4 * 60_000
+        for (;;) {
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+          const poll = await fetch(`/api/calls/jobs/${encodeURIComponent(started.jobId)}`, { cache: "no-store" })
+          const job = (await poll.json()) as CallJob | { error: string }
+          // Jobs live in the call service's memory: a restart mid-run loses them.
+          if (poll.status === 404) throw new Error("The call service restarted during the run and lost it. Simulate the call again.")
+          if ("error" in job && !("status" in job)) throw new Error(job.error)
+          const current = job as CallJob
+          if (current.status === "done" && current.call) { body = current.call; review = current.review; break }
+          if (current.status === "failed") throw new Error(current.error ?? "The model could not finish the call.")
+          if (Date.now() > deadline) throw new Error("The call took too long; it may still finish on the call service.")
+        }
+      } else {
+        body = started
+        review = started.review ?? null
+      }
+      const finished = body
+      setReviews((current) => ({ ...current, [finished.id]: review }))
+      setCalls((current) => ({ ...current, [item.orderRef]: [finished, ...(current[item.orderRef] ?? []).filter((known) => known.id !== finished.id)] }))
+      setShown((current) => ({ ...current, [item.id]: finished.id }))
+      setFresh(finished.id)
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "The call did not run.")
     } finally {
       setRunning(null)
     }
   }
+
+  // A stored outbound call shown without its review fetches it once.
+  useEffect(() => {
+    if (!call || call.direction !== "OUTBOUND" || call.id in reviews) return
+    let stopped = false
+    fetch(`/api/calls/review?id=${encodeURIComponent(call.id)}`, { cache: "no-store" })
+      .then((response) => response.ok ? response.json() as Promise<CallReview> : null)
+      .then((review) => { if (!stopped) setReviews((current) => ({ ...current, [call.id]: review })) })
+      .catch(() => undefined)
+    return () => { stopped = true }
+  }, [call, reviews])
 
   // The middle phone follows the chosen scenario: the driver's app, or the desk's side of the call.
   const focusKey = `${scenario?.id ?? ""}|${call?.id ?? ""}`
@@ -94,7 +130,7 @@ export function CallSimulator({ scenarios, stored, orderIds, callees, drivers, o
 
     {scenarios && <div className="calls-layout">
       <div className="calls-list" aria-label="Scenarios">
-        {[{ title: "Inbound: the driver calls in", items: scenarios.filter((item) => item.inbound) }, { title: "Outbound checks", items: scenarios.filter((item) => !item.inbound) }].map((group) => group.items.length > 0 && <section key={group.title}>
+        {[{ title: "Outbound checks", items: scenarios.filter((item) => !item.inbound) }, { title: "Inbound: the driver calls in", items: scenarios.filter((item) => item.inbound) }].map((group) => group.items.length > 0 && <section key={group.title}>
           <h2 className="calls-group">{group.title}</h2>
           <ul>{group.items.map((item) => {
             const count = calls[item.orderRef]?.length ?? 0
@@ -142,7 +178,7 @@ export function CallSimulator({ scenarios, stored, orderIds, callees, drivers, o
             {fmtDateTime(item.startedAt)} · {labelIn(item.outcome).toLowerCase()}
           </button>)}
         </div>}
-        {call ? <div ref={record} className={`call-record-wrap${fresh === call.id ? " fresh-call" : ""}`}><CallRecordView call={call} /></div>
+        {call ? <div ref={record} className={`call-record-wrap${fresh === call.id ? " fresh-call" : ""}`}><CallRecordView call={call} review={reviews[call.id] ?? null} /></div>
           : running !== scenario.id && <p className="calls-quiet">No call stored for this order yet. Simulate one to see the transcript.</p>}
       </section>}
     </div>}
@@ -150,7 +186,48 @@ export function CallSimulator({ scenarios, stored, orderIds, callees, drivers, o
   </section>
 }
 
-function CallRecordView({ call }: { call: CallRecord }) {
+const VERDICT_TONE: Record<CallReview["verdict"], string> = { PASS: "ok", PARTIAL: "warn", FAIL: "danger" }
+const MUST_NOT_WORDS: Record<string, string> = {
+  CUSTOMER_DETAILS: "Customer details", PRICES: "Prices", OTHER_ORDERS: "Other orders", MECHANICAL_ADVICE: "Mechanical advice", PROMISE_CHANGES: "Promise changes", CLEARANCE_TO_DRIVE: "Clearance to drive",
+}
+
+/** The review of an outbound call, above its transcript: verdict, coverage, forbidden lines, numbers not in the card, closings, turns. */
+function Scorecard({ review }: { review: CallReview }) {
+  return <section className={`scorecard sc-${VERDICT_TONE[review.verdict]}`} aria-label="Review of the call">
+    <header>
+      <span className="sc-verdict">{review.verdict}</span>
+      <p>{review.summary.replace(/\b[A-Z][A-Z_]{3,}\b/g, (code) => slotLabel(code).toLowerCase())}</p>
+    </header>
+    <dl className="sc-grid">
+      <div><dt>Coverage</dt><dd><b>{review.coverage.answered.length}/{review.coverage.asked.length}</b> asks answered
+        {review.coverage.missing.length > 0 && <small>Missing: {review.coverage.missing.map(slotLabel).join(", ")}</small>}</dd></div>
+      <div><dt>Forbidden lines</dt><dd><b>{review.violations.length}</b>{review.violations.length === 0 && <small>None said</small>}</dd></div>
+      <div><dt>Numbers not in the card</dt><dd><b>{review.unsupportedNumbers.length}</b>{review.unsupportedNumbers.length === 0 && <small>None</small>}</dd></div>
+      <div><dt>Closings</dt><dd><b>{review.closingCount}</b><small>{review.closingCount === 1 ? "Closed once" : review.closingCount === 0 ? "Never closed" : "Closed more than once"}</small></dd></div>
+      <div><dt>Turns</dt><dd><b>{review.callerTurns + review.calleeTurns}</b><small>Mira {review.callerTurns} · desk {review.calleeTurns} · {Math.round(review.durationS)} s</small></dd></div>
+    </dl>
+    {review.violations.length > 0 && <ul className="sc-lines">{review.violations.map((item, index) => <li key={index}>
+      <span className="chip-s s-missed">{MUST_NOT_WORDS[item.kind] ?? labelIn(item.kind)}</span> <a href={`#turn-${item.turnSeq}`}>turn {item.turnSeq}</a>: <q>{item.text}</q>
+    </li>)}</ul>}
+    {review.unsupportedNumbers.length > 0 && <ul className="sc-lines">{review.unsupportedNumbers.map((item, index) => <li key={index}>
+      <span className="chip-s s-unverified">“{item.value}” not in the card</span> <a href={`#turn-${item.turnSeq}`}>turn {item.turnSeq}</a>: <q>{item.text}</q>
+    </li>)}</ul>}
+  </section>
+}
+
+/** The card Mira was given, to read beside what she said. */
+function CardColumn({ brief }: { brief: NonNullable<CallRecord["brief"]> }) {
+  return <aside className="call-card-col" aria-label="The card Mira was given">
+    <h3>Mira&apos;s card</h3>
+    {brief.opening && <><h4>Opening</h4><p>{brief.opening}</p></>}
+    {brief.mayState?.length ? <><h4>May say</h4><ul>{brief.mayState.map((line) => <li key={line}>{line}</li>)}</ul></> : null}
+    {brief.ask?.length ? <><h4>Must find out</h4><ul>{brief.ask.map((slot) => <li key={slot}>{slotLabel(slot)}</li>)}</ul></> : null}
+    {brief.mustNot?.length ? <><h4>Must not</h4><p>{brief.mustNot.map((code) => (MUST_NOT_WORDS[code] ?? labelIn(code)).toLowerCase()).join(", ")}</p></> : null}
+    {brief.closing && <><h4>Closing</h4><p>{brief.closing}</p></>}
+  </aside>
+}
+
+function CallRecordView({ call, review }: { call: CallRecord; review: CallReview | null }) {
   const callee = call.brief?.callee.name ?? "Other party"
   const said = new Set(call.slots.map((slot) => slot.value.slot))
   const missing = (call.brief?.ask ?? []).filter((slot) => !said.has(slot))
@@ -170,8 +247,10 @@ function CallRecordView({ call }: { call: CallRecord }) {
       <span className="calls-quiet">{fmtDateTime(call.startedAt)}{call.endedAt ? ` to ${fmtDateTime(call.endedAt).split(" ").slice(-2).join(" ")}` : ""} · {call.engine === "SIMULATED_LLM" ? "Model-simulated" : call.engine === "SIMULATED" ? "Scripted" : "Call"} · attempt {call.attempt ?? 1}</span>
     </div>
     {triage?.quote && <p className="call-quote">Triage rests on turn {String(triage.turnSeq ?? "")}: <q>{String(triage.quote)}</q></p>}
+    {call.direction === "OUTBOUND" && (review ? <Scorecard review={review} /> : <p className="calls-quiet">Reviewing the call…</p>)}
 
-    <div className="call-columns">
+    <div className={`call-columns${call.direction === "OUTBOUND" && call.brief ? " with-card" : ""}`}>
+      {call.direction === "OUTBOUND" && call.brief && <CardColumn brief={call.brief} />}
       <ol className="transcript" aria-label="Transcript">
         {call.turns.map((turn) => <li key={turn.seq} id={`turn-${turn.seq}`} className={ours(turn.speaker) ? "us" : "them"}>
           <span className="turn-who">{nameOf(turn.speaker)} <span>turn {turn.seq} · {fmtDateTime(turn.startedAt).split(" ").slice(-2).join(" ")}</span></span>
@@ -202,7 +281,7 @@ function CallRecordView({ call }: { call: CallRecord }) {
             {typeof tool.turnSeq === "number" && <a href={`#turn-${tool.turnSeq}`} className="slot-cite">turn {tool.turnSeq}</a>}
           </li>)}</ul>
         </>}
-        {call.brief && <details className="call-brief">
+        {call.brief && call.direction !== "OUTBOUND" && <details className="call-brief">
           <summary>The brief the caller was given{call.engine === "SIMULATED_LLM" ? " (composed by the model)" : ""}</summary>
           {call.brief.mayState?.length ? <><h4>May say</h4><ul>{call.brief.mayState.map((line) => <li key={line}>{line}</li>)}</ul></> : null}
           {call.brief.mustNot?.length ? <><h4>Must not</h4><p>{call.brief.mustNot.map((code) => labelIn(code).toLowerCase()).join(", ")}</p></> : null}
