@@ -1,7 +1,8 @@
 # Road Desk concept: what was added on this branch
 
 - starter/: the control room, rebuilt as four roles (Operator map, Driver, Dealer, Bahn demo controller), an in-app call screen, a call simulator and a node panel per order. Run steps are unchanged (see README), plus set OPENROUTER_API_KEY (and optionally LINE_CALLER) in starter/.env. Keys are never committed: .env is gitignored.
-- dossier/: the typed dossier project (strict generated record schemas, evidence-strength ladder, call briefs, simulated counterparts, DeepSeek reasoning, call-service HTTP API on :8799). dossier/data/dataset is a symlink to ../../dataset/data. 
+- dossier/: the typed dossier project (strict generated record schemas, evidence-strength ladder, call briefs, simulated counterparts, DeepSeek reasoning, call-service HTTP API on :8799). dossier/data/dataset is a symlink to ../../dataset/data. It also holds the live pull from the app, the derived layer (what is due, at risk, silent or in conflict) and the delivery run: see dossier/docs/RUN.md.
+- tools/deploy.sh: what a pull hook on the integration branch runs on the box (build and restart the app, sync dossier/ into the live service, keep its .env and stored calls). 
 up to date, audited 10 packages in 840ms
 
 3 packages are looking for funding
