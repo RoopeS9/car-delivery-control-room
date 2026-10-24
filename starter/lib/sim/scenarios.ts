@@ -5,6 +5,7 @@
 // start: no cases, no events, a fresh sim clock at the snapshot time.
 
 import { and, eq } from "drizzle-orm"
+import { beginRuntimeReset, RuntimeBusyError, withRuntimeWork } from "@/lib/cr/activity"
 import { resetSimClock, simNow } from "@/lib/cr/clock"
 import { crDb } from "@/lib/cr/db"
 import { appendEvent, insertTelemetry } from "@/lib/cr/queries"
@@ -96,8 +97,17 @@ export type ScenarioResult = {
 }
 
 export async function runScenario(name: string, origin: string, options: { keepRoutine?: boolean } = {}): Promise<ScenarioResult> {
+  try {
+    if (name === "reset") return await reset(options.keepRoutine ?? true)
+    return await withRuntimeWork("scenario preparation", () => prepareScenario(name, origin, options))
+  } catch (error) {
+    if (error instanceof RuntimeBusyError) return { ok: false, name: name as ScenarioName, message: error.message }
+    throw error
+  }
+}
+
+async function prepareScenario(name: string, origin: string, options: { keepRoutine?: boolean }): Promise<ScenarioResult> {
   switch (name) {
-    case "reset": return reset(options.keepRoutine ?? true)
     case "warning-light-584": return warningLight584()
     case "catch-up-322": return driverWrites("catch-up-322", "CD-420322",
       "Still waiting at the service area with the Bentley. Has anyone decided who is collecting the car? I need to know if I should stay.")
@@ -111,9 +121,14 @@ export async function runScenario(name: string, origin: string, options: { keepR
 }
 
 async function reset(keepRoutine: boolean): Promise<ScenarioResult> {
-  await clearDemoData({ keepRoutine })
-  resetSimDriver()
-  resetSimClock()
+  const finishReset = beginRuntimeReset()
+  try {
+    await clearDemoData({ keepRoutine })
+    resetSimDriver()
+    resetSimClock()
+  } finally { finishReset() }
+  // Polling writes are paused while records are cleared. Regenerate the
+  // current clock's samples only after the reset releases its guard.
   await loadFleet({ fresh: true })
   await syncTelemetry()
   return { ok: true, name: "reset", message: `Demo reset${keepRoutine ? ", routine cases kept" : ""}. Sim clock back at ${simNow().toISOString().slice(11, 16)} UTC.` }

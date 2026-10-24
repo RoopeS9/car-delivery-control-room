@@ -20,7 +20,7 @@ export function MakeMark({ make, size = 22 }: { make: string | null; size?: numb
 function QueueItem({ row }: { row: QueueRow }) {
   const records = row.origin === "records"
   return <li>
-    <Link className={`q-row${records ? " q-records" : ""}`} data-tone={row.tone} href={`/orders/${row.orderId}${row.caseId ? "#case" : ""}`}>
+    <Link className={`q-row${records ? " q-records" : ""}`} data-tone={row.tone} href={`/orders/${row.orderId}${row.caseId ? "#case" : records ? "#attention" : ""}`}>
       <span className="q-bar" aria-hidden="true" />
       <MakeMark make={row.vehicleMake} />
       <span className="q-main">
@@ -31,7 +31,7 @@ function QueueItem({ row }: { row: QueueRow }) {
         {(row.waitingOn || row.nextCheckLabel) && !records && (row.who !== "Waiting for you" || row.overdue) && <span className={`q-wait${row.overdue ? " overdue" : ""}`}><Icon name="waiting" size={13} />{row.waitingOn ? `Waiting on ${row.waitingOn}` : "Waiting"}{row.nextCheckLabel ? ` · ${row.nextCheckLabel}` : ""}</span>}
         {records && row.nextCheckLabel && <span className={`q-wait${row.overdue ? " overdue" : ""}`}><Icon name="waiting" size={13} />{row.nextCheckLabel}</span>}
         <span className="q-foot">
-          {records ? <span className="q-origin">From the records · {row.reasons[0]?.source ?? "record"}</span> : row.more && <span className="q-more">{row.more}</span>}
+          {records ? <><span className="q-origin">From the records · {row.reasons[0]?.source ?? "record"}</span>{row.reasons.length <= 1 && row.more && <span className="q-more">{row.more}</span>}</> : row.more && <span className="q-more">{row.more}</span>}
         </span>
       </span>
       <span className="q-side">

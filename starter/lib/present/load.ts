@@ -8,8 +8,9 @@ import {
   relatedRecords, sites, vehicles,
 } from "@/lib/schema"
 import { simNowIso } from "@/lib/cr/clock"
-import { effectiveOrder } from "@/lib/cr/effective"
-import { latestPositions, latestTelemetry, listCases, listEvents, listProposals, type TelemetryRow } from "@/lib/cr/queries"
+import { buildEffectiveOrder } from "@/lib/cr/effective"
+import { latestPositions, latestTelemetry, listCases, listEffects, listEvents, listProposals, type TelemetryRow } from "@/lib/cr/queries"
+import { crCalls, crCallTurns } from "@/lib/voice/schema"
 import { Directory, snapshotNames } from "./actors"
 import { type Bundle, type CrSlice, emptyCr, type PlaceRow, type RelatedRow, type SiteRow } from "./bundle"
 import type { Row } from "./types"
@@ -23,7 +24,7 @@ const iso = (value: Date | string | null | undefined): string => value instanceo
 export const BOARD_COLLECTIONS = [
   "time_windows", "tracking_observations", "work_assignments", "market_offers", "work_items", "agent_proposals",
   "order_endpoint_details", "transport_points", "transport_segments", "incidents", "endpoint_claims", "custody_assets",
-  "market_offer_exposures", "custody_reports",
+  "market_offer_exposures", "custody_reports", "travel_reservations",
 ]
 
 const SHARED_COLLECTIONS = ["operators", "agents", "support_inbox_threads"]
@@ -85,10 +86,10 @@ async function loadCr(orderId?: string): Promise<{ now: string; byOrder: Map<str
     return entry
   }
   try {
-    const [cases, proposals, events] = orderId
-      ? await Promise.all([listCases({ orderId }), listProposals({ orderId }), listEvents({ orderId })])
+    const [cases, proposals, events, effects] = orderId
+      ? await Promise.all([listCases({ orderId }), listProposals({ orderId }), listEvents({ orderId }), listEffects({ orderId })])
       // Cards waiting on a person, and outside actions whose result is unknown.
-      : await Promise.all([listCases(), listProposals({ statuses: ["PENDING", "UNKNOWN_OUTCOME"] }), Promise.resolve([])])
+      : await Promise.all([listCases(), listProposals({ statuses: ["PENDING", "UNKNOWN_OUTCOME"] }), Promise.resolve([]), listEffects({})])
     const since = Date.parse(now) - HANDLED_WINDOW_MS
     for (const row of cases) {
       const closed = row.status === "HANDLED_BY_AGENT" || row.status === "RESOLVED"
@@ -97,12 +98,25 @@ async function loadCr(orderId?: string): Promise<{ now: string; byOrder: Map<str
     }
     for (const row of proposals) slice(row.orderId).proposals.push(row)
     for (const row of events) slice(row.orderId).events.push(row)
+    for (const row of effects) slice(row.orderId).effects.push(row)
     if (orderId) {
-      const [obd, gps, effective] = await Promise.all([latestTelemetry(orderId, "OBD"), latestTelemetry(orderId, "PHONE_GPS"), effectiveOrder(orderId)])
-      Object.assign(slice(orderId), { obd, gps, effective })
+      const [obd, gps] = await Promise.all([latestTelemetry(orderId, "OBD"), latestTelemetry(orderId, "PHONE_GPS")])
+      Object.assign(slice(orderId), { obd, gps })
     }
   } catch (error) {
     console.warn("Control room tables could not be read; showing the snapshot only.", error instanceof Error ? error.message : error)
+  }
+  if (orderId) {
+    // Read by order as well as case: an urgent call is visible while the analyst
+    // is still linking it, and missing voice tables must not hide road cases.
+    try {
+      const calls = await db.select().from(crCalls).where(eq(crCalls.orderId, orderId)).orderBy(desc(crCalls.startedAt))
+      const callTurns = calls.length ? await db.select().from(crCallTurns)
+        .where(inArray(crCallTurns.callId, calls.map((call) => call.id))).orderBy(asc(crCallTurns.seq)) : []
+      Object.assign(slice(orderId), { calls, callTurns })
+    } catch (error) {
+      console.warn("Voice transcripts could not be read.", error instanceof Error ? error.message : error)
+    }
   }
   return { now, byOrder }
 }
@@ -168,7 +182,8 @@ export function makeBundle(input: {
     dir: input.dir,
     inboxThreads: inboxFor(shared, order.id),
     bundleOrderRefs: input.bundleOrderRefs,
-    cr: input.cr,
+    cr: { ...input.cr, effective: buildEffectiveOrder(order.id,
+      Object.entries(input.related).flatMap(([collection, records]) => (records ?? []).map((record) => ({ collection, details: record.details }))), input.cr.effects) },
   }
 }
 

@@ -6,7 +6,7 @@ import { boolean, index, integer, jsonb, pgTable, text, timestamp } from "drizzl
 import type {
   ActionType, ActorType, Assumption, Audience, AutonomyLevel, CaseKind, CaseStatus, Channel, DraftMessage, EffectAuthority,
   EffectKind, EffectState, EventKind, HandoverPacket, ProposalChange, ProposalOption, ProposalStatus, RunStatus, SourceRef,
-  TelemetrySource, ToolCallTrace, Urgency, WaitingFor,
+  TelemetrySource, ToolCallTrace, Urgency, WaitingFor, BookingSelection,
 } from "./types"
 
 const at = (name: string) => timestamp(name, { withTimezone: true })
@@ -91,6 +91,8 @@ export const crProposals = pgTable("cr_proposals", {
   handover: jsonb("handover").$type<HandoverPacket>(),
   changes: jsonb("changes").$type<ProposalChange[]>().notNull().default([]),
   draftMessage: jsonb("draft_message").$type<DraftMessage>(),
+  /** Exact selected quote. Nullable for old proposals; BOOK_TRAVEL cannot execute without it. */
+  bookingSelection: jsonb("booking_selection").$type<BookingSelection>(),
   evidenceRefs: jsonb("evidence_refs").$type<SourceRef[]>().notNull().default([]),
   /** What the card relied on. Rechecked against the effective state before anything executes. */
   assumptions: jsonb("assumptions").$type<Assumption[]>().notNull().default([]),

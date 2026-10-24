@@ -560,12 +560,39 @@ export type RecordView = {
   cases: CaseView[]
   /** Dataset messages and events merged with our case timeline, oldest first. */
   timeline: TimelineEntry[]
+  /** Driver calls with the recording transcript, kept separate from analyst interpretations. */
+  calls: CallTranscriptView[]
   /** The simulated clock when the view was built. Live "x min ago" is measured from here. */
   simNow: string
   /** Latest simulated OBD and GPS, when the car has reported. */
   telemetry: TelemetryStripView | null
   /** The delivery promise as it stands now: the dataset window unless the customer agreed to a change. */
   promise: PromiseView | null
+}
+
+export type CallTranscriptView = {
+  id: string
+  caseId: string | null
+  driverName: string
+  startedAt: string
+  endedAt: string | null
+  directionLabel: string
+  urgencyLabel: string | null
+  tone: Tone
+  urgencyQuote: string | null
+  urgencyTurnId: string | null
+  readbackConfirmed: boolean
+  turns: {
+    id: string
+    speaker: "driver" | "agent"
+    speakerName: string
+    at: string
+    text: string
+    liveText: string | null
+    transcriptLabel: string
+    audioUrl: string | null
+    interrupted: boolean
+  }[]
 }
 
 /** From lib/cr/effective.ts. A proposed change is pending until the customer answers. */
@@ -674,6 +701,12 @@ export type DecisionCardView = {
   recommendation: string | null
   alternatives: string[]
   changes: { label: string; before: string | null; after: string }[]
+  booking: {
+    kind: string; provider: string; from: string; to: string
+    departureAt: string | null; arrivalAt: string | null; checkInCutoffAt: string | null
+    priceAmount: number; currency: string; quotedAt: string
+    replaces: string | null; source: SourceChip
+  } | null
   draft: DraftView | null
   /** The operator's version, when they edited the draft before approving. */
   editedDraft: DraftView | null
@@ -860,6 +893,8 @@ export type MapMarker = {
   caseId: string | null
   caseTitle: string | null
   ask: string | null
+  /** Executed changes to promise/ETA, with their authority. */
+  timing: string | null
   speedKmh: number | null
   placeLabel: string | null
   /** Always true in this prototype; shown on every position. */

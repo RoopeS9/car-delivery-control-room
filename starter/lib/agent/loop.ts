@@ -6,12 +6,13 @@ import { mkdirSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import type Anthropic from "@anthropic-ai/sdk"
 import { simNow } from "@/lib/cr/clock"
+import { beginRuntimeWork } from "@/lib/cr/activity"
 import { appendEvent, finishRun, getCase, listEvents, listProposals, startRun, updateCase, type CaseRow, type EventRow } from "@/lib/cr/queries"
 import type { Audience, Channel, ToolCallTrace } from "@/lib/cr/types"
 import { agentModel, llm, usageCost } from "./client"
 import { AGENT_ID, MAX_ITERATIONS, MAX_TOKENS, deepEffort, fastEffort, type Effort } from "./config"
 import { loadOrderFacts, type End, type OrderFacts } from "./context"
-import { screenDriverMessage, type Screen } from "./drivability"
+import { loadDriverSafetyContext, screenDriverMessage, type Screen } from "./drivability"
 import { agentCouldNotFinish, ensureOpenCaseFields, replyDeadlineMinutes } from "./followup"
 import { submitProposal } from "./gate"
 import { localTime, relative, utcTime } from "./format"
@@ -77,6 +78,7 @@ const lockHolder = globalThis as unknown as { __roadDeskLocks?: Map<string, Prom
 
 /** One run at a time per case. A message that arrives mid-run is stored first and seen by the next turn. */
 export async function withCaseLock<T>(caseId: string, work: () => Promise<T>): Promise<T> {
+  const release = beginRuntimeWork("agent work")
   const locks = (lockHolder.__roadDeskLocks ??= new Map())
   const previous = locks.get(caseId) ?? Promise.resolve()
   const run = previous.catch(() => undefined).then(work)
@@ -85,6 +87,7 @@ export async function withCaseLock<T>(caseId: string, work: () => Promise<T>): P
     return await run
   } finally {
     if (locks.get(caseId) === run) locks.delete(caseId)
+    release()
   }
 }
 
@@ -305,7 +308,8 @@ async function deliver(request: TurnRequest, caseRow: CaseRow, facts: OrderFacts
   if (request.audience === "driver") {
     const event = await appendEvent({
       caseId: caseRow.id, orderId: caseRow.orderId, actorType: "agent", actorId: AGENT_ID, kind: request.voice ? "voice_turn" : "message",
-      channel: request.replyChannel, recipientType: "driver", recipientId: request.counterpart.id, body: text, data: extra,
+      channel: request.replyChannel, recipientType: "driver", recipientId: request.counterpart.id, body: text,
+      data: { ...extra, ...(request.trigger === "telemetry" ? { call: true } : {}) },
     })
     return { eventId: event.id, held: false }
   }
@@ -352,7 +356,7 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
   const toPerson = request.audience !== "operator"
   const holdsReply = request.audience === "site" && (request.siteEnd === "delivery" ? facts.delivery : facts.pickup).customerSide
   const asking = request.trigger === "ask"
-  const screen = request.audience === "driver" ? (text: string) => screenDriverMessage(text, { driverSaid: request.input }) : null
+  const screen = request.audience === "driver" ? async (text: string) => screenDriverMessage(text, { driverSaid: request.input, safety: await loadDriverSafetyContext(facts, caseRow) }) : null
 
   const client = llm()
   if (!client) {

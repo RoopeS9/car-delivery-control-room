@@ -54,6 +54,12 @@ for every detail.
   restarting it", "top up the oil").
 - Never book recovery yourself.
 - Never call a code a diagnosis.
+- Never turn an unknown repair time into a definite missed ferry or late
+  delivery. Show the dated cutoff and delivery window; describe risk and
+  missing information until an itinerary supports a firmer conclusion.
+- Cite the driver's own message or call turn for safety and symptoms. GPS
+  establishes only its reported position; it cannot establish that the driver
+  said they were safe.
 
 ## Worked example
 

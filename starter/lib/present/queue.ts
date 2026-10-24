@@ -5,7 +5,7 @@
 
 import type { CaseRow, ProposalRow } from "@/lib/cr/queries"
 import { OPEN_CASE_STATUSES } from "@/lib/cr/types"
-import { deriveAttention } from "./attention"
+import { changedTiming, deriveAttention } from "./attention"
 import type { Bundle } from "./bundle"
 import { CASE_KIND_LABELS, caseStatusLabel, ownerName, plainText, statusIs, urgencyLabel, urgencyRank, urgencyTone } from "./cases"
 import { label } from "./labels"
@@ -124,7 +124,17 @@ export function buildQueue(bundles: Bundle[], snapshotAt: string | null, now: st
       const placed = open.map((kase) => caseRow(bundle, kase, pendingFor(kase), records, open.length - 1, now))
       const order = { decide: 0, agentWorking: 1, waiting: 2, routine: 3, handled: 4 }
       placed.sort((a, b) => order[a.section] - order[b.section] || a.row.rank - b.row.rank)
-      view[placed[0].section].push(placed[0].row)
+      let primary = placed[0]
+      // A road case does not take over unrelated dispatch, document or support
+      // work. Such a decision must not disappear into the Waiting section.
+      const linked = new Set(open.flatMap((kase) => kase.linkedRecords.map((ref) => ref.id)))
+      const unlinked = records.filter((item) => !linked.has(item.recordId))
+      const recorded = unlinked.length ? recordsRow(bundle, unlinked, now) : null
+      if (recorded?.section === "decide" && (primary.section !== "decide" || recorded.row.rank < primary.row.rank)) {
+        recorded.row.more = `${primary.row.statusLabel}: ${primary.row.headline}${recorded.row.more ? ` · ${recorded.row.more}` : ""}`
+        primary = recorded
+      }
+      view[primary.section].push(primary.row)
     } else if (records.length) {
       const placed = recordsRow(bundle, records, now)
       view[placed.section].push(placed.row)
@@ -139,6 +149,12 @@ export function buildQueue(bundles: Bundle[], snapshotAt: string | null, now: st
     a.rank - b.rank || Number(b.origin === "agent") - Number(a.origin === "agent") || String(a.since ?? "~").localeCompare(String(b.since ?? "~"))
   const newestFirst = (a: QueueRow, b: QueueRow) => String(b.since).localeCompare(String(a.since))
   const soonestCheck = (a: QueueRow, b: QueueRow) => String(a.nextCheckAt ?? "~").localeCompare(String(b.nextCheckAt ?? "~"))
+  const byId = new Map(bundles.map((bundle) => [bundle.order.id, bundle]))
+  for (const row of [...view.decide, ...view.routine, ...view.agentWorking, ...view.waiting, ...view.handled]) {
+    const bundle = byId.get(row.orderId)
+    const timing = bundle ? changedTiming(bundle) : null
+    if (timing) row.more = [row.more, timing].filter(Boolean).join(" · ")
+  }
   view.decide.sort(urgentFirst)
   view.routine.sort(urgentFirst)
   view.agentWorking.sort(newestFirst)

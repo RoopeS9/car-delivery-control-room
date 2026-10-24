@@ -12,7 +12,7 @@ import { relatedRecords } from "@/lib/schema"
 import { crDb } from "./db"
 import { listEffects, type EffectRow } from "./queries"
 import { crEvents, crTelemetry } from "./schema"
-import type { Assumption, AssumptionCheck, ObdData, SourceRef } from "./types"
+import type { Assumption, AssumptionCheck, BookingSelection, ObdData, SourceRef } from "./types"
 
 type Raw = Record<string, unknown>
 const str = (value: unknown): string | null => (typeof value === "string" && value.length > 0 ? value : null)
@@ -31,7 +31,12 @@ export type EffectivePromise = {
 
 export type EffectiveEta = { text: string; estimate_utc: string | null; basis: string; source: SourceRef; is_estimate: true }
 
-export type EffectiveBooking = { kind: string; reference: string | null; provider: string | null; status: string; basis: string; source: SourceRef }
+export type EffectiveBooking = {
+  kind: string; reference: string | null; provider: string | null; status: string; basis: string; source: SourceRef
+  /** Approved quote, unchanged through booking and reconciliation. Null for original dataset records. */
+  selection: BookingSelection | null
+  replacesReservationId: string | null
+}
 
 export type EffectiveOrder = {
   orderId: string
@@ -56,6 +61,11 @@ export async function effectiveOrder(orderId: string): Promise<EffectiveOrder> {
       .where(and(eq(relatedRecords.orderId, orderId), inArray(relatedRecords.collection, ["time_windows", "travel_reservations", "tracking_observations"]))),
     listEffects({ orderId }),
   ])
+  return buildEffectiveOrder(orderId, related, effects)
+}
+
+/** Pure projection shared by single-order and batched fleet reads. Original rows are never changed. */
+export function buildEffectiveOrder(orderId: string, related: { collection: string; details: Raw }[], effects: EffectRow[]): EffectiveOrder {
   const rows = (collection: string) => related.filter((row) => row.collection === collection).map((row) => row.details)
 
   // Promise: the dataset's selected window, unless the customer agreed to a change.
@@ -95,17 +105,39 @@ export async function effectiveOrder(orderId: string): Promise<EffectiveOrder> {
       ? { text: `Driver app estimate ${lastTrack.estimated_delivery_at}`, estimate_utc: str(lastTrack.estimated_delivery_at), basis: "driver app, coarse", source: { kind: "tracking_observations", id: String(lastTrack.id), label: "Driver app progress", at: str(lastTrack.observed_at) }, is_estimate: true }
       : null
 
-  // Bookings: the dataset's reservations plus our (simulated) bookings. A quote is never here.
+  // Reconciliation replaces an uncertain booking with its confirmed record,
+  // or records that nothing was booked. Preserve both events in effects,
+  // while exposing only the current result in bookings.
+  const supersededBookings = new Set(effects.filter((effect) => effect.kind === "BOOKING").map((effect) => effect.supersedesId).filter(Boolean))
+  const bookingOutcomes = new Map<string, boolean>()
+  for (const effect of effects) {
+    if (effect.kind === "OUTCOME_LOGGED" && effect.proposalId && typeof effect.value.booking_exists === "boolean") {
+      bookingOutcomes.set(effect.proposalId, effect.value.booking_exists)
+    }
+  }
+
+  const currentBookingEffects = effects.filter((effect) => effect.kind === "BOOKING" && !supersededBookings.has(effect.id)
+    && !(effect.proposalId && bookingOutcomes.get(effect.proposalId) === false))
+  const selectionOf = (effect: EffectRow): BookingSelection | null =>
+    effect.value.booking_selection && typeof effect.value.booking_selection === "object" ? effect.value.booking_selection as BookingSelection : null
+  // An attempted replacement does not cancel an existing reservation. Only a
+  // confirmed booking (including a reconciled confirmation) replaces it here.
+  const replacedReservations = new Set(currentBookingEffects.filter((effect) => effect.state === "RECORDED")
+    .map((effect) => selectionOf(effect)?.replaces_reservation_id).filter(Boolean))
+
+  // Bookings: the dataset's reservations plus our current (simulated) bookings. A quote is never here.
   const bookings: EffectiveBooking[] = [
-    ...rows("travel_reservations").map((row) => ({
+    ...rows("travel_reservations").filter((row) => !replacedReservations.has(String(row.id))).map((row) => ({
       kind: String(row.kind ?? "TRAVEL").toLowerCase(), reference: str(row.booking_reference), provider: str(row.provider),
       status: String(row.status ?? "unknown").toLowerCase(), basis: "booking record",
       source: { kind: "travel_reservations", id: String(row.id), label: `Booking ${str(row.booking_reference) ?? ""}`.trim(), at: str(row.booked_at) } as SourceRef,
+      selection: null, replacesReservationId: null,
     })),
-    ...effects.filter((effect) => effect.kind === "BOOKING").map((effect) => ({
+    ...currentBookingEffects.filter((effect) => !replacedReservations.has(effect.id)).map((effect) => ({
       kind: String(effect.value.kind ?? "booking"), reference: str(effect.value.reference), provider: str(effect.value.provider),
       status: effect.state === "UNCONFIRMED" ? "not confirmed by the provider" : "booked (simulated)", basis: effect.authority.basis,
       source: effectRef(effect, `Road Desk booking ${str(effect.value.reference) ?? ""}`.trim()),
+      selection: selectionOf(effect), replacesReservationId: selectionOf(effect)?.replaces_reservation_id ?? null,
     })),
   ]
 

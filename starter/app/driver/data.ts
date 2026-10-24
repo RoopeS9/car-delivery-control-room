@@ -5,8 +5,10 @@
 
 import { and, asc, eq, inArray, or } from "drizzle-orm"
 import { crDb } from "@/lib/cr/db"
+import { effectiveOrder } from "@/lib/cr/effective"
 import { crEvents } from "@/lib/cr/schema"
 import type { PhotoData } from "@/lib/cr/types"
+import { currentFerrySchedule, historicalFerrySchedules, type BookingSchedule } from "@/lib/present/bookings"
 import { addresses, drivers, messages, orderItems, orders, relatedRecords, sites, vehicles } from "@/lib/schema"
 
 type Row = Record<string, unknown>
@@ -38,10 +40,9 @@ export type DriverJob = {
   delivery: Stop
   pickupSlot: Window | null
   deliveryPromise: Window | null
-  ferry: {
-    origin: string; destination: string; timezone: string; departureAt: string; checkInCutoffAt: string | null
-    bookingReference: string | null; checkInConfirmed: boolean
-  } | null
+  roadDeskBookings: { kind: string; reference: string | null; status: string }[]
+  ferry: BookingSchedule | null
+  historicalFerries: BookingSchedule[]
 }
 
 export type DriverListing = { id: string; name: string; homeCity: string; jobs: { reference: string; status: DriverJob["status"]; vehicle: string; route: string }[] }
@@ -118,14 +119,13 @@ export async function loadDriver(driverId: string): Promise<{ id: string; name: 
   const assignments = (await related("work_assignments")).filter((row) => row.driver_id === driverId && ACTIVE.includes(String(row.status)))
   const orderIds = [...new Set(assignments.map((row) => String(row.order_id)))]
   if (orderIds.length === 0) return { id: driver.id, name: driver.displayName, homeCity: driver.homeCity, jobs: [] }
-  const [orderRows, segments, points, windows, endpoints, reservations, terminals, itemRows] = await Promise.all([
+  const [orderRows, segments, points, windows, endpoints, reservations, itemRows] = await Promise.all([
     db.select().from(orders).where(inArray(orders.id, orderIds)),
     related("transport_segments", { orderIds }),
     related("transport_points", { orderIds }),
     related("time_windows", { orderIds }),
     related("order_endpoint_details", { orderIds }),
     related("travel_reservations", { orderIds }),
-    related("ferry_terminals"),
     db.select({ item: orderItems, vehicle: vehicles }).from(orderItems).innerJoin(vehicles, eq(orderItems.vehicleId, vehicles.id))
       .where(inArray(orderItems.orderId, orderIds)),
   ])
@@ -172,9 +172,14 @@ export async function loadDriver(driverId: string): Promise<{ id: string; name: 
         ?? windows.find((candidate) => candidate.purpose === purpose && candidate.is_selected && candidate.order_id === order.id)
       return row ? { startAt: String(row.start_at), endAt: String(row.end_at), timezone: String(row.timezone), source: str(row.source) } : null
     }
-    const ferryRow = segment.transport_mode === "DRIVE_WITH_FERRY"
-      ? reservations.find((row) => row.kind === "FERRY" && row.status === "BOOKED" && row.order_id === order.id)
-      : undefined
+    const effective = await effectiveOrder(order.id)
+    const orderReservations = reservations.filter((row) => row.order_id === order.id)
+    const deliveryPromise = effective.promise ? {
+      startAt: effective.promise.start_utc,
+      endAt: effective.promise.end_utc,
+      timezone: effective.promise.zone ?? delivery.timezone,
+      source: effective.promise.basis,
+    } : window("CUSTOMER_DELIVERY_PROMISE", segment.to_point_id)
     jobs.push({
       assignmentId: String(assignment.id),
       status: assignment.status as DriverJob["status"],
@@ -184,13 +189,11 @@ export async function loadDriver(driverId: string): Promise<{ id: string; name: 
       pickup,
       delivery,
       pickupSlot: window("SELECTED_PICKUP_SLOT", segment.from_point_id),
-      deliveryPromise: window("CUSTOMER_DELIVERY_PROMISE", segment.to_point_id),
-      ferry: ferryRow ? {
-        origin: String(ferryRow.origin_terminal), destination: String(ferryRow.destination_terminal),
-        timezone: str(terminals.find((row) => row.id === ferryRow.origin_terminal_id)?.timezone) ?? "UTC",
-        departureAt: String(ferryRow.departure_at), checkInCutoffAt: str(ferryRow.check_in_cutoff_at), bookingReference: str(ferryRow.booking_reference),
-        checkInConfirmed: ferryRow.check_in_confirmation === "CONFIRMED",
-      } : null,
+      deliveryPromise,
+      roadDeskBookings: effective.bookings.filter((booking) => booking.source.kind === "cr_effects")
+        .map((booking) => ({ kind: booking.kind, reference: booking.reference, status: booking.status })),
+      ferry: segment.transport_mode === "DRIVE_WITH_FERRY" ? currentFerrySchedule(effective, orderReservations) : null,
+      historicalFerries: historicalFerrySchedules(effective, orderReservations),
     })
   }
   const order = (job: DriverJob) => (job.status === "IN_PROGRESS" ? 0 : 1)
@@ -237,7 +240,8 @@ export async function loadThread(driverId: string, orderId: string): Promise<Thr
       id: row.id, at: row.at.toISOString(),
       from: mine ? "me" : row.actorType === "agent" ? "agent" : row.actorType === "operator" ? "operator" : "system",
       fromName: mine ? "You" : row.actorType === "agent" ? "Bahn assistant" : "Bahn operations",
-      kind: photo ? "photo" : row.channel === "safety" ? "safety" : request ? "photo_request" : "message",
+      kind: photo ? "photo" : row.channel === "safety" ? "safety" : row.data.call === true || typeof row.data.call_id === "string" ? "call" : request ? "photo_request" : "message",
+      callId: typeof row.data.call_id === "string" ? row.data.call_id : null,
       text: row.body, voice: row.kind === "voice_turn" || row.channel === "driver_voice",
       photo: photo ? photoUrl(photo) : null, photoSubject: photo?.subject ?? request, origin: null,
     }

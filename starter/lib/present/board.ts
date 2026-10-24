@@ -1,4 +1,4 @@
-import { deriveAttention, deriveKeyDates, latestTracking, strongestTone } from "./attention"
+import { currentEta, deriveAttention, deriveKeyDates, strongestTone } from "./attention"
 import { type Bundle, isBeforeSnapshot, num, rows, str, strings } from "./bundle"
 import { label } from "./labels"
 import { fmtDateTime, fmtMoney, relativeTo } from "./time"
@@ -37,8 +37,9 @@ export function buildBoardCard(bundle: Bundle): BoardCard {
     const returnLeg = rows(bundle, "transport_segments").some((segment) => segmentIds.includes(segment.id) && tradeInItems.has(String(segment.details.order_item_id)))
     const prefix = returnLeg ? "Trade-in return · " : ""
     if (active.status === "IN_PROGRESS") {
-      const eta = latestTracking(bundle).direct?.eta ?? null
-      work.push({ icon: "driver", text: eta ? `${prefix}${name} driving · ETA ${fmtDateTime(eta, decisive?.zone ?? null)}` : `${prefix}${name} driving · no driver-app ETA`, tone: "neutral" })
+      const estimate = currentEta(bundle)
+      const eta = estimate?.at ?? null
+      work.push({ icon: "driver", text: eta ? `${prefix}${name} driving · ${estimate?.changed ? "Road Desk ETA estimate" : "ETA"} ${fmtDateTime(eta, decisive?.zone ?? null)}` : `${prefix}${name} driving · no driver-app ETA`, tone: "neutral" })
     } else {
       work.push({ icon: "driver", text: `${prefix}${name} assigned`, tone: "neutral" })
     }

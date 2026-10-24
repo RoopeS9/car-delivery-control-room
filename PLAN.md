@@ -455,6 +455,18 @@ What "execute" means per action type (all simulated, all logged as an
 | `CLEAR_TO_CONTINUE` | Driver gets the operator-approved instruction, attributed to the operator. |
 | `REASSIGN_DRIVER` | Out of scope for the demo; show as "handed to dispatch". |
 
+**Structured booking selection (approved during integration).** `BOOK_TRAVEL`
+requires `cr_proposals.booking_selection`: the recorded quote id and source,
+checked time, travel kind, provider, route, UTC departure/arrival/check-in
+times, numeric price and currency, and optional reservation being replaced.
+The search tool records quote snapshots; the agent selects an id and the
+server copies those values. Approval revalidates the exact quote and cutoff.
+Only a confirmed `BOOKING` effect replaces the previous reservation in the
+effective order. A provider timeout leaves the original current until
+reconciliation confirms a replacement. Driver, operator and voice views read
+the same effective schedule; replaced records stay in history. Legacy travel
+cards without a quote must be redrafted. Recovery remains a separate action.
+
 After every decision the card is replaced by one line in plain words: **what
 happens next, who does it, and when we check again.**
 

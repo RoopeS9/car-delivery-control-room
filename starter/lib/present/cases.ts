@@ -15,7 +15,7 @@ import { describeEvent } from "./events"
 import { type Bundle, str } from "./bundle"
 import { label } from "./labels"
 import { fmtClock, fmtDateTime, fmtRange, minutesBetween, relativeTo } from "./time"
-import type { AttentionItem, CaseView, DecisionCardView, DraftView, PromiseView, SourceChip, TelemetryStripView, TimelineEntry, Tone } from "./types"
+import type { AttentionItem, CallTranscriptView, CaseView, DecisionCardView, DraftView, PromiseView, SourceChip, TelemetryStripView, TimelineEntry, Tone } from "./types"
 
 export const AGENT_NAME = "Road agent"
 
@@ -126,8 +126,36 @@ export function sourceChip(ref: SourceRef): SourceChip {
     kind: ref.kind, id: ref.id,
     label: ref.label || DATASET_SOURCE_LABELS[ref.kind] || label(ref.kind.replace(/^[a-z]+:/, "")),
     at: ref.at ?? null,
-    href: onPage ? `#t-${ref.id}` : null,
+    href: ref.kind === "cr_call_turns" ? `#call-turn-${ref.id}` : ref.kind === "cr_calls" ? `#call-${ref.id}` : onPage ? `#t-${ref.id}` : null,
   }
+}
+
+/** Keep recorded speech distinct from extracted slots and the analyst's conclusions. */
+export function callTranscriptViews(bundle: Bundle): CallTranscriptView[] {
+  return [...bundle.cr.calls].sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime()).map((call) => {
+    const driverName = bundle.dir.driverName(call.driverId) ?? "Driver"
+    const urgency = call.urgency
+    return {
+      id: call.id, caseId: call.caseId, driverName, startedAt: call.startedAt.toISOString(), endedAt: iso(call.endedAt),
+      directionLabel: call.direction === "AGENT_INITIATED" ? "Agent called driver" : "Driver called Road Desk",
+      urgencyLabel: urgency === "EMERGENCY" ? "Emergency" : urgency === "URGENT" ? "Urgent" : urgency === "ROUTINE" ? "Routine" : null,
+      tone: urgency === "EMERGENCY" ? "danger" : urgency === "URGENT" ? "warn" : "neutral",
+      urgencyQuote: call.state.urgencyQuote ?? null, urgencyTurnId: call.urgencyTurnId, readbackConfirmed: call.readbackConfirmed,
+      turns: bundle.cr.callTurns.filter((turn) => turn.callId === call.id).sort((a, b) => a.seq - b.seq).map((turn) => {
+        const driver = turn.speaker === "driver"
+        const recorded = turn.textFinal?.trim() || null
+        const live = turn.textLive?.trim() || null
+        return {
+          id: turn.id, speaker: driver ? "driver" : "agent", speakerName: driver ? driverName : "Road Desk interviewer",
+          at: turn.startedAt.toISOString(), text: recorded ?? live ?? "No words recorded.",
+          liveText: recorded && live && recorded !== live ? live : null,
+          transcriptLabel: driver ? recorded ? "Transcript of recording" : turn.flags.sttError ? "Live transcript; recording transcription unavailable" : "Live transcript; recording transcription pending" : "Agent's spoken words",
+          audioUrl: turn.audioKey ? `/api/voice/calls/${encodeURIComponent(call.id)}/audio/${encodeURIComponent(turn.id)}` : null,
+          interrupted: turn.interrupted,
+        }
+      }),
+    }
+  })
 }
 
 // ---------------------------------------------------------------- attention
@@ -242,6 +270,10 @@ export function decisionCardView(bundle: Bundle, proposal: ProposalRow): Decisio
   const mode = button === "handle" || awaitingOutcome || outcome ? "operator" : button === "instruct" ? "instruction" : button === "refresh" ? "refresh" : null
   const reconcile = bundle.cr.events.find((event) => event.data?.proposal_id === proposal.id && typeof event.data?.booking_exists === "boolean")
   const reconciled = reconcile ? reconcile.data.booking_exists === true : null
+  const selected = proposal.bookingSelection
+  const replaces = selected?.replaces_reservation_id
+    ? bundle.related.travel_reservations?.find((row) => row.id === selected.replaces_reservation_id)?.details : null
+  const replacedEffect = selected?.replaces_reservation_id ? bundle.cr.effects.find((effect) => effect.id === selected.replaces_reservation_id) : null
   return {
     id: proposal.id, caseId: proposal.caseId, actionType: proposal.actionType,
     actionLabel: ACTION_LABELS[proposal.actionType] ?? label(proposal.actionType),
@@ -254,6 +286,13 @@ export function decisionCardView(bundle: Bundle, proposal: ProposalRow): Decisio
     recommendation: handover?.recommendation ?? null,
     alternatives: handover?.alternatives ?? [],
     changes: proposal.changes,
+    booking: selected ? {
+      kind: label(selected.kind), provider: selected.provider, from: selected.from, to: selected.to,
+      departureAt: selected.departure_at, arrivalAt: selected.arrival_at, checkInCutoffAt: selected.check_in_cutoff_at,
+      priceAmount: selected.price_amount, currency: selected.currency, quotedAt: selected.quoted_at,
+      replaces: selected.replaces_reservation_id ? str(replaces?.booking_reference) ?? str(replacedEffect?.value.reference) ?? "Earlier reservation (reference not recorded)" : null,
+      source: sourceChip(selected.quote_source),
+    } : null,
     draft: draftView(proposal.draftMessage),
     editedDraft: proposal.editedDraftMessage ? draftView(proposal.editedDraftMessage) : null,
     options: proposal.options.map((option) => ({ id: option.id, label: option.label, description: option.description ?? null, recommended: !!option.recommended })),

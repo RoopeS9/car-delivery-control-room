@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { FeedMessage, GpsData, ObdData } from "@/lib/cr/types"
 import type { SimObd } from "@/lib/sim/motion"
-import { fmtDateTime, fmtRange } from "@/lib/present/time"
+import { fmtDateTime, fmtMoney, fmtRange } from "@/lib/present/time"
 import { Icon } from "../components/icons"
 import { fetchFeed, sendMessage, shrinkImage, uploadPhoto } from "./channel"
 import type { DriverJob, ThreadMessage } from "./data"
@@ -36,7 +36,6 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow }: {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState("")
   const [readings, setReadings] = useState<Readings | null>(null)
-  const [hasVoice, setHasVoice] = useState(false)
   const [photoMenu, setPhotoMenu] = useState(false)
   const since = useRef<string>(serverNow)
   // Messages added here carry sim time, like everything the server stores.
@@ -62,6 +61,7 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow }: {
       try {
         const feed = await fetchFeed(`/api/channels/driver/${driver.id}/feed`, since.current)
         since.current = feed.now
+        clockOffset.current = Date.parse(feed.now) - Date.now()
         if (!stopped) add(feed.messages.filter((message) => message.orderId === job.orderId).map(fromFeed))
       } catch { /* the next poll tries again */ }
     }
@@ -84,11 +84,6 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow }: {
     const timer = setInterval(read, 3000)
     return () => { stopped = true; clearInterval(timer) }
   }, [job])
-
-  // The call screen is built by the voice stream; show the button once it exists.
-  useEffect(() => {
-    fetch("/driver/voice", { method: "HEAD" }).then((response) => setHasVoice(response.ok)).catch(() => setHasVoice(false))
-  }, [])
 
   useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }) }, [thread, streaming])
 
@@ -151,7 +146,7 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow }: {
         <b>{driver.name}</b>
         <Link href="/driver">Switch driver</Link>
       </div>
-      {hasVoice && job && <Link className={styles.callButton} href={`/driver/voice?driver=${driver.id}&order=${job.reference}`}>
+      {job && <Link className={styles.callButton} href={`/driver/voice?driver=${driver.id}&order=${job.reference}`}>
         <PhoneIcon /> Call
       </Link>}
     </header>
@@ -182,7 +177,7 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow }: {
           return <div key={message.id}>
             {index === 0 && message.origin === "dataset" && <p className={styles.divider}>Earlier on this job</p>}
             {firstNew && <p className={styles.divider}>Today</p>}
-            <Bubble message={message} callHref={hasVoice ? `/driver/voice?driver=${driver.id}&order=${job.reference}` : null} />
+            <Bubble message={message} callHref={`/driver/voice?driver=${driver.id}&order=${job.reference}&direction=AGENT_INITIATED`} />
           </div>
         })}
         {streaming !== null && <div className={`${styles.bubble} ${styles.theirs}`}>
@@ -312,13 +307,25 @@ function JobCard({ job }: { job: DriverJob }) {
     {open && <div className={styles.jobMore}>
       <dl className={styles.jobFacts}>
         {job.pickupSlot && <Fact label="Pick up" value={fmtRange(job.pickupSlot.startAt, job.pickupSlot.endAt, job.pickupSlot.timezone)} />}
-        {job.ferry && <Fact label="Ferry" value={`Check in by ${fmtDateTime(job.ferry.checkInCutoffAt, job.ferry.timezone)}`} hint={`${job.ferry.origin}, departs ${fmtDateTime(job.ferry.departureAt, job.ferry.timezone)}`} />}
-        {job.deliveryPromise && <Fact label="Deliver" value={fmtRange(job.deliveryPromise.startAt, job.deliveryPromise.endAt, job.deliveryPromise.timezone)} />}
+        {job.ferry && <Fact label="Current ferry" value={job.ferry.checkInCutoffAt ? `Check in by ${fmtDateTime(job.ferry.checkInCutoffAt, job.ferry.timezone)}` : "Check-in cutoff unknown"}
+          hint={`${job.ferry.origin ?? "Origin unknown"}, ${job.ferry.departureAt ? `departs ${fmtDateTime(job.ferry.departureAt, job.ferry.timezone)}` : "departure time unknown"}${job.ferry.simulated ? " · simulated booking" : ""}`} />}
+        {job.deliveryPromise && <Fact label="Deliver" value={fmtRange(job.deliveryPromise.startAt, job.deliveryPromise.endAt, job.deliveryPromise.timezone)} hint={job.deliveryPromise.source ?? undefined} />}
       </dl>
       <StopBlock stop={job.pickup} title="Pick-up" />
       <StopBlock stop={job.delivery} title="Delivery" />
-      {job.ferry && <p className={styles.jobNote}>Ferry to {job.ferry.destination}{job.ferry.bookingReference ? <>, booking <span className="mono">{job.ferry.bookingReference}</span></> : null}.
+      {job.ferry && <p className={styles.jobNote}>Current ferry to {job.ferry.destination ?? "an unrecorded destination"}{job.ferry.reference ? <>, booking <span className="mono">{job.ferry.reference}</span></> : null}.
+        {job.ferry.arrivalAt && <> Arrival {fmtDateTime(job.ferry.arrivalAt, job.ferry.timezone)}.</>}
+        {job.ferry.priceAmount !== null && <> Price {fmtMoney(job.ferry.priceAmount * 100, job.ferry.currency)}.</>}
+        {job.ferry.simulated && " Simulated booking."}
         {job.ferry.checkInConfirmed ? " Check-in confirmed." : " Check-in not confirmed yet."}</p>}
+      {job.historicalFerries.map((booking, index) => <p className={styles.jobNote} key={booking.reference ?? index}>
+        Historical ferry reservation{booking.reference ? <> <span className="mono">{booking.reference}</span></> : null}, replaced by the current booking.
+        {booking.departureAt && <> Original departure {fmtDateTime(booking.departureAt, booking.timezone)}.</>}
+        {booking.checkInCutoffAt && <> Original check-in cutoff {fmtDateTime(booking.checkInCutoffAt, booking.timezone)}.</>}
+      </p>)}
+      {job.roadDeskBookings.filter((booking) => booking.reference !== job.ferry?.reference).map((booking, index) => <p className={styles.jobNote} key={booking.reference ?? index}>
+        Road Desk {booking.kind.replace(/_/g, " ").toLowerCase()}{booking.reference ? <> <span className="mono">{booking.reference}</span></> : null}: {booking.status}.
+      </p>)}
     </div>}
   </section>
 }
@@ -327,6 +334,7 @@ function JobCard({ job }: { job: DriverJob }) {
 function nextLine(job: DriverJob): string {
   if (job.status === "ASSIGNED" && job.pickupSlot) return `Pick up ${fmtRange(job.pickupSlot.startAt, job.pickupSlot.endAt, job.pickupSlot.timezone)}`
   if (job.ferry?.checkInCutoffAt) return `Ferry check-in by ${fmtDateTime(job.ferry.checkInCutoffAt, job.ferry.timezone)}`
+  if (job.ferry) return job.ferry.departureAt ? `Ferry departs ${fmtDateTime(job.ferry.departureAt, job.ferry.timezone)}` : "Ferry sailing time unknown"
   if (job.deliveryPromise) return `Deliver ${fmtRange(job.deliveryPromise.startAt, job.deliveryPromise.endAt, job.deliveryPromise.timezone)}`
   return "Tap for the pick-up and delivery details"
 }

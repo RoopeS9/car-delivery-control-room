@@ -66,7 +66,7 @@ function crEventLine(n: Names, event: EventRow): TimelineLine {
     who: `${who}${to}`,
     channel: event.channel.replace(/_/g, " "),
     text: event.kind === "photo" ? `[photo, event ${event.id}] ${event.body}` : event.body,
-    source: { kind: "cr_events", id: event.id, label: `${who}, ${event.channel.replace(/_/g, " ")}, ${utcTime(event.at)}`, at: event.at.toISOString() },
+    source: event.sourceRefs.find((ref) => ref.kind === "cr_call_turns") ?? { kind: "cr_events", id: event.id, label: `${who}, ${event.channel.replace(/_/g, " ")}, ${utcTime(event.at)}`, at: event.at.toISOString() },
   }
 }
 

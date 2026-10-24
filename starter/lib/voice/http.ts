@@ -1,11 +1,12 @@
 // Shared helpers for the /api/voice routes. Errors go to the screen as plain
 // sentences, never stack traces.
 
+import { RuntimeBusyError } from "@/lib/cr/activity"
 import { CallError } from "./call"
 import { CallContextError } from "./context"
 
 export function errorResponse(error: unknown): Response {
-  if (error instanceof CallError || error instanceof CallContextError) {
+  if (error instanceof CallError || error instanceof CallContextError || error instanceof RuntimeBusyError) {
     return Response.json({ error: error.message }, { status: error.status })
   }
   console.error("[voice]", error)

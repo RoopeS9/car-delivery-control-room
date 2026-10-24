@@ -111,6 +111,7 @@ export function CallScreen({ orderRef, driverId, direction, telemetryHint, onEnd
     const id = call.current?.callId
     if (id) {
       if (!callEnded.current) {
+        callEnded.current = true
         await fetch(`/api/voice/calls/${id}/end`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ reason }) }).catch(() => undefined)
       }
       onEnded?.(id)
@@ -274,6 +275,16 @@ export function CallScreen({ orderRef, driverId, direction, telemetryHint, onEnd
     stopCapture()
     player.current?.stop()
     closeMic(mic.current)
+    const id = call.current?.callId
+    if (id && !callEnded.current) {
+      callEnded.current = true
+      // Preserve the transcript and analyst handoff when the driver returns
+      // to chat or closes the page instead of pressing the hang-up button.
+      void fetch(`/api/voice/calls/${id}/end`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reason: "left_call_screen" }), keepalive: true,
+      }).catch(() => undefined)
+    }
   }, [])
 
   const toggleMute = () => {

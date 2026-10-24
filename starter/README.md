@@ -1,4 +1,11 @@
-# Optional Control Room starter
+# Road Desk application
+
+This folder now contains the integrated control room, road agent, driver app,
+simulation and voice interview. Start with the [repository README](../README.md)
+for current setup, scenarios, configuration and verification. The notes below
+describe the original snapshot-reading API and remain useful for the dataset.
+
+## Original starter reference
 
 This is a small read-only starting point for the Car Delivery Control Room challenge. It uses Next.js with TypeScript, Postgres, Drizzle and Next.js API routes. The database comes from the fictional dataset in `../dataset/data`. No live Bahn system is connected.
 

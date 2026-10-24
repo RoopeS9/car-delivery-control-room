@@ -34,7 +34,7 @@ export async function feedMessages(events: EventRow[]): Promise<FeedMessage[]> {
     return {
       id: event.id, at: event.at.toISOString(), caseId: event.caseId, orderId: event.orderId, from: event.actorType,
       fromName: actorName(n, event.actorType, event.actorId).replace(/ \((driver|site|customer)\)$/, ""),
-      kind: event.channel === "safety" ? "safety" : typeof event.data.call_id === "string" ? "call" : photo ? "photo_request" : "message",
+      kind: event.channel === "safety" ? "safety" : event.data.call === true || typeof event.data.call_id === "string" ? "call" : photo ? "photo_request" : "message",
       text: event.body, photoRequest: photo ? { subject: String(event.data.subject) } : null,
       callId: typeof event.data.call_id === "string" ? event.data.call_id : null,
     }

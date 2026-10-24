@@ -3,10 +3,10 @@
 // the call (`cr_calls.state.triggers`) whether or not the agent picked it up,
 // so the analyst can catch up from the table.
 //
-// TODO(stream A): the agent has no call trigger route yet. When it ships,
-// make it accept POST { trigger, callId, orderRef, urgency } at
-// VOICE_AGENT_TRIGGER_PATH (default /api/agent/call) and read the call via
-// GET /api/voice/calls/:id. Until then the POST returns 404 and is a no-op.
+// The analyst accepts POST { trigger, callId, orderRef, urgency } at
+// VOICE_AGENT_TRIGGER_PATH (default /api/agent/call). It persists the case
+// link before responding, then analyses the canonical transcript after the
+// response, so this request stays outside the slow tool loop.
 
 import { voiceConfig } from "./config"
 import { simNow } from "./clock"
@@ -26,7 +26,7 @@ export async function fireTrigger(input: {
     })
     return {
       trigger: input.trigger, at, delivered: response.ok, status: response.status,
-      note: response.ok ? "Agent accepted the trigger." : response.status === 404 ? "Agent call trigger not built yet (stream A); recorded only." : `Agent answered ${response.status}.`,
+      note: response.ok ? "Agent accepted the trigger." : `Agent answered ${response.status}.`,
     }
   } catch (error) {
     return { trigger: input.trigger, at, delivered: false, status: null, note: `Agent unreachable: ${error instanceof Error ? error.message : String(error)}` }

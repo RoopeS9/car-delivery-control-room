@@ -14,7 +14,7 @@
     "smoke": "tsx scripts/smoke.ts",
     "voice:test": "tsx --import ./scripts/voice-register.mjs scripts/voice-test.ts",
     "voice:prerender": "tsx --import ./scripts/voice-register.mjs scripts/voice-prerender.ts",
-    "test": "tsx --test lib/agent/*.test.ts lib/sim/*.test.ts",
+    "test": "node --import ./scripts/voice-register.mjs --import tsx --test --test-concurrency=1 lib/agent/*.test.ts lib/cr/*.test.ts lib/sim/*.test.ts lib/present/*.test.ts",
     "agent:scenario-a": "tsx lib/agent/dev/scenario-a.ts",
     "cr:reset-schema": "tsx lib/cr/dev/reset-schema.ts",
     "sim:seed-routine": "tsx lib/sim/seed-routine.ts"

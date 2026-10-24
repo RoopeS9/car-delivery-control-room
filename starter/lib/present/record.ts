@@ -5,7 +5,7 @@ import { chosenWindows, deriveAttention, deriveKeyDates, latestTracking, stronge
 import {
   type Bundle, type RelatedRow, activePoints, bool, journeyPlan, list, num, obj, recordedAt, refCount, rows, str, strings,
 } from "./bundle"
-import { caseViews, mergedTimeline, promiseView, telemetryStrip } from "./cases"
+import { callTranscriptViews, caseViews, mergedTimeline, promiseView, telemetryStrip } from "./cases"
 import { describeEvent } from "./events"
 import { humanize, label, labelIn, laneLabel } from "./labels"
 import { dayKey, fmtDateTime, fmtDay, fmtDayHeading, fmtMoney, fmtRange, fmtWeekday, isBefore, relativeTo } from "./time"
@@ -721,7 +721,7 @@ export function buildRecordView(bundle: Bundle): RecordView {
     snapshotAt, story, tiles, header, attention, journey, alerts, workItems, incidents, threads, proofs, documents, custody, siteVisits, notes,
     proposals, notifications, offers, assignments, reservations, options, confirmations, terminalEvents, expenses,
     history, historyTotal: bundle.events.length, inboxHints, otherRecords, sections,
-    cases, timeline, simNow: bundle.cr.now, telemetry: telemetryStrip(bundle), promise,
+    cases, timeline, calls: callTranscriptViews(bundle), simNow: bundle.cr.now, telemetry: telemetryStrip(bundle), promise,
   }
 }
 
@@ -781,7 +781,7 @@ function laneStory(bundle: Bundle, keyDates: KeyDate[], assignments: AssignmentV
     const late = eta?.tone === "danger" || promise?.tone === "danger"
     const headline = driver ? `${driver} is driving it to ${to.city}.` : `It is on the road to ${to.city}.`
     const detail = eta
-      ? `ETA ${fmtDateTime(eta.start, eta.zone)} from the driver app${promise ? `, promised by ${fmtClockIn(promise.end ?? promise.start, promise.zone)}` : ""}.${late ? " That is after the promise." : ""}`
+      ? `${eta.label} ${fmtDateTime(eta.start, eta.zone)}${promise ? `, promised by ${fmtClockIn(promise.end ?? promise.start, promise.zone)}` : ""}.${late ? " That is after the promise." : ""}`
       : promise ? `Promised ${range(promise)}. No driver-app position in this packet.` : "No promise or position recorded."
     return { intro, headline: late ? `Running late to ${to.city}.` : headline, tone: late ? "danger" : "accent", detail }
   }

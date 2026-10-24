@@ -20,7 +20,7 @@ const DRIVER = "drv-042"
 async function main() {
   const { hasLlm, agentModel } = await import("../client")
   if (!hasLlm()) throw new Error("Set OPENROUTER_API_KEY in starter/.env first.")
-  const { resetSimClock, simNow } = await import("@/lib/cr/clock")
+  const { resetSimClock, advanceSimClock } = await import("@/lib/cr/clock")
   const { closeCrDb } = await import("@/lib/cr/db")
   const q = await import("@/lib/cr/queries")
   const triggers = await import("../triggers")
@@ -30,29 +30,29 @@ async function main() {
   await q.resetCrData()
   resetSimClock("2026-10-21T09:02:00Z")
   const order = (await q.resolveOrder(ORDER))!
-  const minutesAgo = (minutes: number) => new Date(simNow().getTime() - minutes * 60000)
-
-  // Simulated phone GPS along the A1 north of Münster, then stopped at a (fictional) service area.
-  await q.insertTelemetry([
-    { orderId: order.id, source: "PHONE_GPS", at: minutesAgo(9), data: { lat: 51.86, lng: 7.62, speed_kmh: 128, heading: 20, place_label: "A1 northbound" } },
-    { orderId: order.id, source: "PHONE_GPS", at: minutesAgo(4), data: { lat: 51.93, lng: 7.66, speed_kmh: 74, heading: 20, place_label: "A1 northbound" } },
-    { orderId: order.id, source: "PHONE_GPS", at: minutesAgo(1), data: { lat: 51.951, lng: 7.672, speed_kmh: 0, heading: 20, place_label: "Rastanlage Lindenhöhe (fictional), A1 northbound" } },
-  ])
-  // OBD: normal, then a misfire with a freeze frame, then parked.
-  await q.insertTelemetry([
-    { orderId: order.id, source: "OBD", at: minutesAgo(8), data: { speed_kmh: 126, rpm: 2400, engine_load_pct: 38, throttle_pct: 22, coolant_c: 91, battery_v: 14.2, misfire_count: 0, mil: "OFF", dtcs: [] } },
-    { orderId: order.id, source: "OBD", at: minutesAgo(5), data: { speed_kmh: 98, rpm: 2900, engine_load_pct: 61, throttle_pct: 55, coolant_c: 93, battery_v: 14.1, misfire_count: 41, mil: "FLASHING", dtcs: ["P0300", "P0302"], freeze_frame: { code: "P0300", at: minutesAgo(5).toISOString(), values: { rpm: 2850, engine_load_pct: 63, speed_kmh: 101, coolant_c: 93, fuel_trim_short_pct: 9.4 } } } },
-    { orderId: order.id, source: "OBD", at: minutesAgo(1), data: { speed_kmh: 0, rpm: 0, battery_v: 12.4, misfire_count: 57, mil: "FLASHING", dtcs: ["P0300", "P0302"] } },
-  ])
+  // Use the same fault plan as /demo so opening /driver cannot overwrite a
+  // parked car with an unrelated baseline stream.
+  const { runScenario } = await import("@/lib/sim/scenarios")
+  const { activeFaults, syncTelemetry } = await import("@/lib/sim/sync")
+  const scenario = await runScenario("warning-light-584", "http://localhost")
+  const fault = scenario.actions?.find((action) => action.kind === "telemetry")
+  if (!scenario.ok || fault?.kind !== "telemetry") throw new Error(scenario.message)
+  const stop = (await activeFaults()).get(order.id)
+  const stopLabel = stop?.profile === "misfire" ? stop.stopLabel : "the service area"
 
   const log: string[] = [`# Scenario A trace, ${stamp}`, "", `Model: ${agentModel()}. Order ${ORDER}, driver ${DRIVER}. Simulated clock starts 09:02 UTC.`, ""]
   const say = (line: string) => { console.log(line); log.push(line) }
 
   say("## 1. The car reports a fault; the agent contacts the driver first")
-  const first = await triggers.handleTelemetryFault({ orderRef: ORDER, codes: ["P0300", "P0302"], mil: "FLASHING", note: "reduced power message" })
+  const first = await triggers.handleTelemetryFault(fault.request)
   const caseId = first.caseId
   say(`Agent → driver: ${first.result.reply}`)
   await triggers.runFollowUps(first.result.followUps)
+
+  // Advance to the same safe stop the simulator shows before the driver says
+  // they are parked. No real wait is needed for the command-line harness.
+  advanceSimClock(2)
+  await syncTelemetry()
 
   // A rule-based driver: answers what the agent asked, once each.
   const answered = new Set<string>()
@@ -64,7 +64,7 @@ async function main() {
       if (!answered.has(key) && pattern.test(agentText)) { parts.push(answer); answered.add(key) }
     }
     ask("safe", /safe|okay|are you ok/i, "Yes, I'm safe. I slowed down and pulled off the motorway.")
-    ask("where", /where|location|service area|pin/i, "I'm at the Lindenhöhe service area on the A1 northbound, parked away from the traffic, engine off.")
+    ask("where", /where|location|service area|pin/i, `I'm at ${stopLabel}, parked away from the traffic, engine off.`)
     ask("feel", /shak|feel|power|smell|smoke|noise|sound|drive/i, "It started shaking when I accelerated and lost power. No smoke and no burning smell.")
     if (!answered.has("photo") && /photo|picture|image/i.test(agentText)) {
       photoIds.push(await triggers.storePhoto({ orderRef: ORDER, mediaType: "image/png", bytes: photo, subject: "dashboard", caption: "Dashboard after stopping. The engine light was flashing.", uploadedBy: DRIVER }))

@@ -3,6 +3,7 @@
 // and the end. The HTTP routes and the text harness both use these functions.
 
 import { randomBytes } from "node:crypto"
+import { beginRuntimeWork } from "@/lib/cr/activity"
 import type Anthropic from "@anthropic-ai/sdk"
 import { clipMime, storeClip } from "./clips"
 import { simNow } from "./clock"
@@ -45,11 +46,13 @@ const id = (prefix: string) => `${prefix}-${randomBytes(5).toString("hex")}`
 
 // One turn at a time per call (the screen is half-duplex anyway).
 const locks = ((globalThis as unknown as { __voiceLocks?: Map<string, Promise<unknown>> }).__voiceLocks ??= new Map())
+const callLeases = ((globalThis as unknown as { __voiceCallLeases?: Map<string, () => void> }).__voiceCallLeases ??= new Map())
 async function withCallLock<T>(callId: string, run: () => Promise<T>): Promise<T> {
+  const release = beginRuntimeWork("driver call work")
   const previous = locks.get(callId) ?? Promise.resolve()
   const next = previous.catch(() => undefined).then(run)
   locks.set(callId, next)
-  try { return await next } finally { if (locks.get(callId) === next) locks.delete(callId) }
+  try { return await next } finally { if (locks.get(callId) === next) locks.delete(callId); release() }
 }
 
 function contextFromCall(call: CallRow): CallContext {
@@ -76,6 +79,15 @@ async function screenFixed(lines: { text: string; safetyId?: SafetyId }[], flags
 // ------------------------------------------------------------------ start
 
 export async function startCall(request: StartCallRequest, options: CallOptions = {}): Promise<StartCallResponse> {
+  const release = beginRuntimeWork("an active driver call")
+  try {
+    const result = await startCallRecord(request, options)
+    callLeases.set(result.callId, release)
+    return result
+  } catch (error) { release(); throw error }
+}
+
+async function startCallRecord(request: StartCallRequest, options: CallOptions = {}): Promise<StartCallResponse> {
   const direction: CallDirection = request.direction === "DRIVER_INITIATED" ? "DRIVER_INITIATED" : "AGENT_INITIATED"
   if (!request.orderRef || !request.driverId) throw new CallError(400, "orderRef and driverId are required.")
   const context = await loadCallContext({ orderRef: request.orderRef, driverId: request.driverId, telemetryHint: request.telemetryHint })
@@ -420,12 +432,21 @@ async function runDriverTurn(callId: string, input: DriverInput, emit: Emit, opt
   const at = simNow()
   await insertTurn({ id: agentTurnId, callId, seq: seq + 1, speaker: "agent", startedAt: at, endedAt: at, textLive: text, textFinal: text, flags })
 
-  if (urgency && urgency !== "ROUTINE" && before !== urgency && (!before || before === "ROUTINE")) {
-    state.triggers.push(await fireTrigger({ trigger: "call_urgent", callId, orderRef: state.orderRef, urgency, origin: options.origin ?? null }))
-  }
+  // The analyst reads the canonical call, so save its urgency and slots
+  // before announcing the trigger. An upgrade from URGENT to EMERGENCY also
+  // needs an immediate operator update.
   await updateCall(callId, { ...patch, slots, situation, state })
+  if (urgency && urgency !== "ROUTINE" && before !== urgency) {
+    state.triggers.push(await fireTrigger({ trigger: "call_urgent", callId, orderRef: state.orderRef, urgency, origin: options.origin ?? null }))
+    await updateCall(callId, { state })
+  }
   emit({ event: "state", data: { urgency, urgencyQuote: state.urgencyQuote, situation, phase } })
-  if (ended) await endCall(callId, "completed", options)
+  // Do not hand the analyst a final call while its text of record is still
+  // being transcribed. Live text remains explicitly provisional mid-call.
+  if (ended) {
+    await transcript
+    await endCallRecord(callId, "completed", options)
+  }
   emit({ event: "done", data: { agentTurnId, phase, ended } })
 
   await transcript
@@ -484,22 +505,32 @@ async function handleSilence(call: CallRow, turns: TurnRow[], agentSeq: number, 
   if (final) state.phase = "ended"
   await updateCall(call.id, { state })
   emit({ event: "state", data: { urgency: call.urgency as Urgency | null, urgencyQuote: state.urgencyQuote, situation: call.situation, phase: state.phase } })
-  if (final) await endCall(call.id, "no_response", options)
+  if (final) await endCallRecord(call.id, "no_response", options)
   emit({ event: "done", data: { agentTurnId, phase: state.phase, ended: final } })
   if (ids.length) await storeAgentClip(call.id, agentTurnId, agentSeq, ids)
 }
 
 // ------------------------------------------------------------------ end
 
+/** An external hang-up waits for the in-flight turn and its final STT. */
 export async function endCall(callId: string, reason: string, options: CallOptions = {}): Promise<{ transcriptUrl: string; alreadyEnded: boolean }> {
+  return withCallLock(callId, () => endCallRecord(callId, reason, options))
+}
+
+// Called directly by an interviewer turn that already owns this call lock.
+async function endCallRecord(callId: string, reason: string, options: CallOptions = {}): Promise<{ transcriptUrl: string; alreadyEnded: boolean }> {
   const call = await getCall(callId)
   if (!call) throw new CallError(404, "No such call.")
   const transcriptUrl = `/api/voice/calls/${callId}`
-  if (call.endedAt) return { transcriptUrl, alreadyEnded: true }
+  if (call.endedAt) { callLeases.get(callId)?.(); callLeases.delete(callId); return { transcriptUrl, alreadyEnded: true } }
   const state: CallState = { ...call.state, phase: "ended" }
+  // Persist completion before the analyst receives call_ended.
+  await updateCall(callId, { endedAt: simNow(), endReason: (reason || "hang_up").slice(0, 40), state })
+  callLeases.get(callId)?.()
+  callLeases.delete(callId)
   const trigger = await fireTrigger({ trigger: "call_ended", callId, orderRef: state.orderRef, urgency: call.urgency as Urgency | null, origin: options.origin ?? null })
   state.triggers = [...state.triggers, trigger]
-  await updateCall(callId, { endedAt: simNow(), endReason: (reason || "hang_up").slice(0, 40), state })
+  await updateCall(callId, { state })
   return { transcriptUrl, alreadyEnded: false }
 }
 

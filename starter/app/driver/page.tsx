@@ -24,7 +24,8 @@ export default async function DriverPage({ searchParams }: { searchParams: Searc
   if (!driver) {
     return <Phone><div className={styles.state}><h1>Driver not found</h1><p><Link href="/driver">Pick a driver</Link></p></div></Phone>
   }
-  const job = driver.jobs.find((candidate) => candidate.reference === jobRef) ?? driver.jobs[0] ?? null
+  const job = jobRef ? driver.jobs.find((candidate) => candidate.reference === jobRef) ?? null : driver.jobs[0] ?? null
+  if (jobRef && !job) return <Phone><div className={styles.state}><h1>Job unavailable</h1><p>This job is not on {driver.name}'s current assignments.</p><p><Link href={`/driver?driver=${driver.id}`}>Back to your jobs</Link></p></div></Phone>
   const thread = job ? await loadThread(driver.id, job.orderId) : []
   return <Phone>
     <DriverApp key={`${driver.id}:${job?.reference ?? "none"}`} driver={{ id: driver.id, name: driver.name }} jobs={driver.jobs}

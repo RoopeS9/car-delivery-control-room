@@ -3,6 +3,7 @@
 // suggestion or a quote, never a booking.
 
 import { simNow } from "@/lib/cr/clock"
+import type { BookingSelection, SourceRef } from "@/lib/cr/types"
 import { allCities } from "./knowledge"
 import { distanceKm } from "./format"
 
@@ -79,6 +80,9 @@ export function searchTravelOptions(input: { from: string; to: string; after_utc
   const after = Date.parse(input.after_utc)
   const start = Number.isFinite(after) ? after : simNow().getTime()
   const base = seed(`${input.kind}${input.from}${input.to}`)
+  const quotedAt = simNow().toISOString()
+  const searchId = `${input.kind}-${base}-${seed(new Date(start).toISOString())}-${seed(quotedAt)}`
+  const source: SourceRef = { kind: "mock:travel", id: searchId, label: `${input.kind} quotes (mocked)`, at: quotedAt }
   const hours = { ferry: [7, 20, 31], train: [1, 3, 5], flight: [4, 9, 26], hotel: [0, 0, 0] }[input.kind]
   const durations = { ferry: 29, train: 4, flight: 3, hotel: 12 }[input.kind]
   const prices = { ferry: [420, 465, 390], train: [79, 64, 92], flight: [210, 185, 260], hotel: [95, 118, 132] }[input.kind]
@@ -91,22 +95,33 @@ export function searchTravelOptions(input: { from: string; to: string; after_utc
   const options = [0, 1, 2].map((index) => {
     const departs = new Date(start + (hours[index] * 60 + (base % 50)) * 60000)
     const arrives = new Date(departs.getTime() + durations * 3600000)
+    const amount = prices[index] + (base % 30)
+    const selection: BookingSelection = {
+      quote_id: `${searchId}-${index}`, quote_source: source, quoted_at: quotedAt, kind: input.kind,
+      provider: providers[index], from: input.from, to: input.to,
+      departure_at: departs.toISOString(), arrival_at: arrives.toISOString(),
+      check_in_cutoff_at: input.kind === "ferry" ? new Date(departs.getTime() - 2 * 3600000).toISOString() : null,
+      price_amount: amount, currency: "EUR", replaces_reservation_id: null,
+    }
     return {
+      quote_id: selection.quote_id,
       provider: providers[index],
       from: input.from,
       to: input.to,
       departs_utc: input.kind === "hotel" ? null : departs.toISOString(),
       arrives_utc: input.kind === "hotel" ? null : arrives.toISOString(),
-      price: `€${prices[index] + (base % 30)}${input.kind === "ferry" ? " for car and driver cabin" : input.kind === "hotel" ? " per night" : ""}`,
+      price: `€${amount}${input.kind === "ferry" ? " for car and driver cabin" : input.kind === "hotel" ? " per night" : ""}`,
+      price_amount: amount, currency: "EUR", check_in_cutoff_at: selection.check_in_cutoff_at,
+      booking_selection: selection,
       availability: index === 0 && input.kind === "ferry" ? "vehicle space: limited" : "available",
       status: "QUOTE",
     }
   })
   return {
     note: "Mocked quotes for this demo. A quote is not a booking; availability can change. Nothing has been reserved.",
-    checked_at_utc: simNow().toISOString(),
+    checked_at_utc: quotedAt,
     options,
-    source: { kind: "mock:travel", id: `${input.kind}-${base}`, label: `${input.kind} quotes (mocked)` },
+    source,
   }
 }
 

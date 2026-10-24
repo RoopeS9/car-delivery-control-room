@@ -4,6 +4,7 @@
 // same however often it runs.
 
 import { and, eq, sql } from "drizzle-orm"
+import { beginRuntimeWork, isResetting } from "@/lib/cr/activity"
 import { simNow } from "@/lib/cr/clock"
 import { crDb } from "@/lib/cr/db"
 import { appendEvent, insertTelemetry, type NewTelemetry } from "@/lib/cr/queries"
@@ -29,8 +30,10 @@ export type SyncResult = { at: string; gps: number; obd: number }
 
 /** Write every sample due up to `now`. Concurrent calls share one run. */
 export function syncTelemetry(now: Date = simNow()): Promise<SyncResult> {
+  if (isResetting()) return Promise.resolve({ at: now.toISOString(), gps: 0, obd: 0 })
   if (!holder.__simSyncing) {
-    holder.__simSyncing = runSync(now).finally(() => { holder.__simSyncing = undefined })
+    const release = beginRuntimeWork("telemetry sync")
+    holder.__simSyncing = runSync(now).finally(() => { holder.__simSyncing = undefined; release() })
   }
   return holder.__simSyncing
 }
@@ -109,9 +112,10 @@ async function setCodeWhenDue(car: FleetCar, plan: OverheatPlan, now: Date): Pro
     data: { codes: plan.codes, mil: "ON", freeze_frame: frame, simulated: true, fault_started_at: plan.startedAt },
   })
   // Not awaited: the agent's first turn can take a while, and the caller may be a page poll.
+  const release = beginRuntimeWork("pending telemetry alert")
   void notifyAgent(plan.notifyOrigin, {
     orderRef: car.reference, codes: plan.codes, mil: "ON", note: "engine temperature warning, coolant rising", eventId: event.id,
-  })
+  }).finally(release)
 }
 
 function fastWindow(plan: FaultPlan | null, at: Date): boolean {

@@ -13,9 +13,9 @@ import {
 } from "@/lib/cr/types"
 import { AGENT_ID } from "./config"
 import { contextFor, loadOrderFacts, type End } from "./context"
-import { renderSafetyTemplate, SAFETY_TEMPLATES, screenDriverMessage } from "./drivability"
+import { loadDriverSafetyContext, renderSafetyTemplate, SAFETY_TEMPLATES, screenDriverMessage } from "./drivability"
 import { firstName, localTime, relative, utcTime } from "./format"
-import { checkTool, submitProposal, validateProposal, type GateContext, type ProposalInput, type ToolName } from "./gate"
+import { checkTool, recordedTravelSelection, submitProposal, validateProposal, type GateContext, type ProposalInput, type ToolName } from "./gate"
 import { cityCoords, matchWarningLights, playbook, playbooks, troubleCode } from "./knowledge"
 import { findNearbyHelp, searchTravelOptions, type HelpKind, type TravelKind } from "./mocks"
 import { orderTimeline, renderLines } from "./timeline"
@@ -48,7 +48,7 @@ type Handled = {
   isError?: boolean
   gate?: ToolCallTrace["gate"]
   /** A plain-language line for the case timeline. Omit when the handler wrote its own event. */
-  log?: { kind: EventKind; body: string; sources?: SourceRef[] } | null
+  log?: { kind: EventKind; body: string; sources?: SourceRef[]; data?: Record<string, unknown> } | null
 }
 
 // ---------------------------------------------------------------- definitions
@@ -132,7 +132,7 @@ export const TOOL_DEFINITIONS: Record<ToolName, Anthropic.Tool> = {
   },
   search_travel_options: {
     name: "search_travel_options",
-    description: "Search ferries, trains, flights or hotels after a given time. Mocked quotes, never bookings.",
+    description: "Search ferries, trains, flights or hotels after a given time. Mocked quotes, never bookings. Each option has a stable quote_id, numeric price and exact schedule; choose that quote_id in propose_action rather than inventing or parsing dates and prices.",
     input_schema: obj({
       kind: { type: "string", enum: ["ferry", "train", "flight", "hotel"] },
       from: text("Departure city or terminal."), to: text("Arrival city or terminal."), after_utc: text("ISO time, UTC."),
@@ -207,6 +207,8 @@ export const TOOL_DEFINITIONS: Record<ToolName, Anthropic.Tool> = {
       assumptions: { type: "array", items: assumptionSchema, description: "The facts this card relies on. Before it executes they are rechecked; if one changed, nothing runs and you redraft it. Include the booking or record your action depends on, and the latest driver message you read." },
       window_start_utc: text("For UPDATE_ETA and CHANGE_PROMISE: start of the new window, ISO time in UTC. Otherwise empty."),
       window_end_utc: text("For UPDATE_ETA and CHANGE_PROMISE: end of the new window, ISO time in UTC. Otherwise empty."),
+      booking_quote_id: text("For BOOK_TRAVEL: exact quote_id returned by search_travel_options on this case. The server copies its schedule, price and provider; never invent an id. Empty for other actions."),
+      replaces_reservation_id: text("For a travel replacement: id of the original travel_reservations record or a confirmed BOOKING effect on this order. Empty for an additional booking. The original stays current until the replacement is confirmed."),
       next_step_if_approved: text("What happens right after approval, in one sentence."),
       next_step_if_rejected: text("What you will do if rejected, in one sentence."),
     }),
@@ -473,7 +475,7 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
 
   async search_travel_options(_state, input) {
     const result = searchTravelOptions({ kind: (str(input.kind) || "ferry") as TravelKind, from: str(input.from), to: str(input.to), after_utc: str(input.after_utc) })
-    return { content: json(result), log: { kind: "lookup", body: `Searched ${str(input.kind)} quotes from ${str(input.from)} to ${str(input.to)} (mocked, nothing booked)`, sources: [result.source] } }
+    return { content: json(result), log: { kind: "lookup", body: `Searched ${str(input.kind)} quotes from ${str(input.from)} to ${str(input.to)} (mocked, nothing booked)`, sources: [result.source], data: { quote_selections: result.options.map((option) => option.booking_selection) } } }
   },
 
   async read_playbook(_state, input) {
@@ -483,7 +485,7 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
 
   async message_driver(state, input) {
     if (!state.driverId) return { content: "There is no driver on this order to message.", isError: true }
-    const screen = await screenDriverMessage(str(input.text))
+    const screen = await screenDriverMessage(str(input.text), { safety: await loadDriverSafetyContext(state.facts, state.caseRow) })
     state.costUsd += screen.costUsd
     if (!screen.allowed) {
       await holdForClearance(state, str(input.text), screen.reason)
@@ -572,6 +574,11 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
 
   async propose_action(state, input) {
     const proposal = proposalFrom(input)
+    if (str(input.booking_quote_id).trim()) {
+      const selection = await recordedTravelSelection(state.caseRow.id, str(input.booking_quote_id).trim())
+      if (!selection) return { content: "Not recorded: that quote is not on this case. Search travel options and choose one returned quote_id.", isError: true, gate: "REFUSED" }
+      proposal.booking_selection = { ...selection, replaces_reservation_id: str(input.replaces_reservation_id).trim() || null }
+    }
     const verdict = validateProposal(proposal, state.facts)
     if (!verdict.ok) return { content: `Not recorded: ${verdict.reason}`, isError: true, gate: "REFUSED" }
     state.sideEffects = true
@@ -651,7 +658,7 @@ export async function runTool(state: TurnState, name: string, rawInput: unknown)
     } else if (outcome.log && !outcome.isError) {
       await appendEvent({
         caseId: state.caseRow.id, orderId: state.facts.id, actorType: "agent", actorId: AGENT_ID, kind: outcome.log.kind, channel: "internal",
-        body: outcome.log.body, sourceRefs: outcome.log.sources ?? [], data: { tool: name },
+        body: outcome.log.body, sourceRefs: outcome.log.sources ?? [], data: { ...outcome.log.data, tool: name },
       })
     }
   }

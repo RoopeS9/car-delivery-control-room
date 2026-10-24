@@ -2,6 +2,9 @@
 // streamed replies, plain JSON errors, and running follow-up turns after the
 // response has gone out.
 
+import { after } from "next/server"
+import { beginRuntimeWork, RuntimeBusyError } from "@/lib/cr/activity"
+import { EventScopeError } from "@/lib/cr/queries"
 import { ApprovalRequiredError, DecisionError } from "./gate"
 import { ChannelError, runFollowUps } from "./triggers"
 import type { FollowUp } from "./tools"
@@ -28,6 +31,7 @@ export function sseResponse(work: (send: Send) => Promise<void>): Response {
 
 /** Map our known errors to HTTP statuses with a plain message. */
 export function errorResponse(error: unknown): Response {
+  if (error instanceof RuntimeBusyError || error instanceof EventScopeError) return Response.json({ error: error.message }, { status: error.status })
   if (error instanceof ChannelError || error instanceof DecisionError) return Response.json({ error: error.message }, { status: error.status })
   if (error instanceof ApprovalRequiredError) return Response.json({ error: error.message }, { status: 403 })
   console.error("Road Desk API error", error)
@@ -37,7 +41,21 @@ export function errorResponse(error: unknown): Response {
 /** Follow-up turns run after the response; their results land in the case timeline. */
 export function continueInBackground(followUps: FollowUp[]): void {
   if (followUps.length === 0) return
-  void runFollowUps(followUps).catch((error) => console.error("Road Desk follow-up failed", error))
+  const release = beginRuntimeWork("queued agent follow-ups")
+  try {
+    after(async () => {
+      try {
+        await runFollowUps(followUps)
+      } catch (error) {
+        console.error("Road Desk follow-up failed", error)
+      } finally {
+        release()
+      }
+    })
+  } catch (error) {
+    release()
+    throw error
+  }
 }
 
 export async function readJson<T>(request: Request): Promise<T> {

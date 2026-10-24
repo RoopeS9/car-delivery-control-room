@@ -17,12 +17,12 @@ import {
   proposalsWithChangedFacts, transitionProposal, updateCase, type CaseRow, type EffectRow, type ProposalRow,
 } from "@/lib/cr/queries"
 import { simNow } from "@/lib/cr/clock"
-import { checkAssumptions } from "@/lib/cr/effective"
+import { checkAssumptions, effectiveOrder } from "@/lib/cr/effective"
 import {
   LOCKED_ACTIONS, type ActionType, type Assumption, type AssumptionCheck, type Audience, type AutonomyLevel, type CaseKind,
   type CaseStatus, type CustomerAnswerRequest, type DecisionRequest, type DecisionResponse, type DraftMessage, type EffectAuthority,
   type EffectKind, type EffectState, type HandoverPacket, type LogOutcomeRequest, type ProposalChange, type ProposalOption, type SourceRef,
-  type WaitingFor,
+  type WaitingFor, type BookingSelection,
 } from "@/lib/cr/types"
 import { AGENT_ID } from "./config"
 import { activeDriverId, loadOrderFacts, type OrderFacts } from "./context"
@@ -128,6 +128,7 @@ export type ProposalInput = {
   assumptions: Assumption[]
   /** For UPDATE_ETA and CHANGE_PROMISE: the proposed window, UTC. */
   proposed_window: { start_utc: string; end_utc: string } | null
+  booking_selection?: BookingSelection | null
   next_step_if_approved: string
   next_step_if_rejected: string
 }
@@ -158,6 +159,11 @@ export function resolveDraft(draft: ProposalInput["draft_message"], facts: Order
 
 export function validateProposal(input: ProposalInput, facts: OrderFacts): GateVerdict {
   if (!input.title.trim() || !input.rationale.trim()) return { ok: false, reason: "A proposal needs a title and a rationale." }
+  if (input.action_type === "BOOK_TRAVEL" || input.booking_selection) {
+    const problem = bookingSelectionProblem(input.booking_selection, input.action_type)
+    if (problem) return { ok: false, reason: problem }
+  }
+  if (input.action_type === "BOOK_TRAVEL" && input.draft_message) return { ok: false, reason: "A travel booking card approves its selected quote. Propose a customer message separately." }
   const draft = input.draft_message
   if (input.action_type === "CONTACT_CUSTOMER" && draft?.to !== "customer") {
     return { ok: false, reason: "CONTACT_CUSTOMER needs a draft message to the customer." }
@@ -180,6 +186,53 @@ export function validateProposal(input: ProposalInput, facts: OrderFacts): GateV
     return { ok: false, reason: "Option ids must be unique." }
   }
   return { ok: true }
+}
+
+/** Structural checks are repeated when a persisted proposal executes, including legacy proposals. */
+export function bookingSelectionProblem(selection: BookingSelection | null | undefined, action: ActionType): string | null {
+  if (!selection) return action === "BOOK_TRAVEL" ? "BOOK_TRAVEL needs a selected structured quote. Search travel options and draft a new card; no booking was made." : null
+  if (!selection.quote_id?.trim() || !selection.quote_source?.id || !selection.quote_source?.kind || !selection.provider?.trim() || !selection.from?.trim() || !selection.to?.trim()) return "The selected booking needs its quote identity, source, provider and route."
+  if (!["ferry", "train", "flight", "hotel", "recovery"].includes(selection.kind) || (action === "BOOK_TRAVEL" && selection.kind === "recovery") || (action === "BOOK_RECOVERY" && selection.kind !== "recovery")) return "The selected quote kind does not match this booking action."
+  if (!Number.isFinite(selection.price_amount) || selection.price_amount < 0 || !/^[A-Z]{3}$/.test(selection.currency)) return "The selected quote needs a numeric non-negative price and a three-letter currency."
+  const time = (value: unknown) => typeof value === "string" && /Z$/.test(value) && Number.isFinite(Date.parse(value))
+  if (!time(selection.quoted_at)) return "The selected quote needs its checked time in UTC."
+  if (action === "BOOK_TRAVEL" && (!time(selection.departure_at) || !time(selection.arrival_at) || Date.parse(selection.arrival_at!) <= Date.parse(selection.departure_at!))) return "The selected travel quote needs ordered departure and arrival times in UTC."
+  if (selection.kind === "ferry" && (!time(selection.check_in_cutoff_at) || Date.parse(selection.check_in_cutoff_at!) >= Date.parse(selection.departure_at!))) return "A ferry quote needs a check-in cutoff before departure."
+  return null
+}
+
+/** Quote snapshots are written by the search tool before the model can select one. */
+export async function recordedTravelSelection(caseId: string, quoteId: string): Promise<BookingSelection | null> {
+  const events = await listEvents({ caseId })
+  for (const event of [...events].reverse()) {
+    if (event.actorType !== "agent" || event.kind !== "lookup" || event.data?.tool !== "search_travel_options") continue
+    const selections = event.data.quote_selections
+    if (!Array.isArray(selections)) continue
+    const selection = selections.find((value) => value && typeof value === "object" && value.quote_id === quoteId)
+    if (selection) return structuredClone(selection as BookingSelection)
+  }
+  return null
+}
+
+async function verifyBookingSelection(caseId: string, facts: OrderFacts, action: ActionType, selection: BookingSelection | null | undefined, execution = false): Promise<void> {
+  const problem = bookingSelectionProblem(selection, action)
+  if (problem) throw new DecisionError(400, problem)
+  if (!selection) return
+  // Currently the structured quote catalog is travel-only. Recovery retains
+  // its existing approval flow unless a separately recorded recovery quote is supplied.
+  const recorded = await recordedTravelSelection(caseId, selection.quote_id)
+  if (!recorded) throw new DecisionError(400, "That quote is not recorded on this case. Search again before proposing the booking.")
+  const fields: (keyof BookingSelection)[] = ["quote_id", "quote_source", "quoted_at", "kind", "provider", "from", "to", "departure_at", "arrival_at", "check_in_cutoff_at", "price_amount", "currency"]
+  const fieldValue = (value: BookingSelection, key: keyof BookingSelection) => key === "quote_source"
+    ? [value.quote_source.kind, value.quote_source.id, value.quote_source.label, value.quote_source.at ?? null] : value[key]
+  if (fields.some((key) => JSON.stringify(fieldValue(recorded, key)) !== JSON.stringify(fieldValue(selection, key)))) throw new DecisionError(400, "The selected booking differs from the recorded quote. Search again and draft the exact quoted service.")
+  if (selection.replaces_reservation_id) {
+    const current = (await effectiveOrder(facts.id)).bookings.find((booking) => booking.source.id === selection.replaces_reservation_id
+      && (booking.status === "booked" || booking.status === "booked (simulated)"))
+    if (!current) throw new DecisionError(400, "The reservation being replaced is not a current confirmed booking on this order. It may have been cancelled or already replaced; refresh the card before booking.")
+    if (current.kind.toLowerCase() !== selection.kind) throw new DecisionError(400, "A replacement quote must match the original reservation's travel kind.")
+  }
+  if (execution && selection.departure_at && Date.parse(selection.check_in_cutoff_at ?? selection.departure_at) <= simNow().getTime()) throw new DecisionError(400, "The selected quote's check-in or departure time has passed. Search again and draft a new card; no booking was made.")
 }
 
 /**
@@ -216,6 +269,35 @@ function later(minutes: number): Date {
   return new Date(simNow().getTime() + minutes * MINUTE)
 }
 
+/** A new card or case must not bypass an uncertain booking attempt on this order. */
+async function requireReconciledBookings(orderId: string, actionType: ActionType): Promise<void> {
+  if (actionType !== "BOOK_TRAVEL" && actionType !== "BOOK_RECOVERY") return
+  const unresolved = (await listProposals({ orderId, statuses: ["UNKNOWN_OUTCOME"] }))
+    .some((proposal) => proposal.actionType === "BOOK_TRAVEL" || proposal.actionType === "BOOK_RECOVERY")
+  if (unresolved) throw new DecisionError(409, "A previous booking request on this order still has an unknown outcome. Check with the provider and log whether it exists before booking again.")
+}
+
+// The prototype runs one server process. Share the queue across dev reloads:
+// booking validation and the provider result must be serial even when two
+// different cases on the same order are approved together.
+const bookingHolder = globalThis as unknown as { __crBookingLocks?: Map<string, Promise<void>> }
+const bookingLocks = bookingHolder.__crBookingLocks ??= new Map<string, Promise<void>>()
+
+async function withBookingOrderLock<T>(proposal: ProposalRow, work: () => Promise<T>): Promise<T> {
+  if (proposal.actionType !== "BOOK_TRAVEL" && proposal.actionType !== "BOOK_RECOVERY") return work()
+  const previous = bookingLocks.get(proposal.orderId) ?? Promise.resolve()
+  let release!: () => void
+  const held = new Promise<void>((resolve) => { release = resolve })
+  const tail = previous.catch(() => {}).then(() => held)
+  bookingLocks.set(proposal.orderId, tail)
+  await previous.catch(() => {})
+  try { return await work() }
+  finally {
+    release()
+    if (bookingLocks.get(proposal.orderId) === tail) bookingLocks.delete(proposal.orderId)
+  }
+}
+
 /** Record a proposal. At ASK_FIRST it waits for a person; at a higher level the agent carries it out and says so. */
 /**
  * "No new driver message after 09:02": the agent sees minute-precision times,
@@ -236,6 +318,9 @@ async function anchorAssumptions(ctx: GateContext, assumptions: Assumption[]): P
 }
 
 export async function submitProposal(ctx: GateContext, input: ProposalInput): Promise<{ proposal: ProposalRow; level: AutonomyLevel; executed: boolean }> {
+  await requireReconciledBookings(ctx.facts.id, input.action_type)
+  if (input.action_type === "BOOK_TRAVEL" && input.draft_message) throw new DecisionError(400, "A travel booking card approves its selected quote. Propose a customer message separately.")
+  if (input.action_type === "BOOK_TRAVEL" || input.booking_selection) await verifyBookingSelection(ctx.caseRow.id, ctx.facts, input.action_type, input.booking_selection)
   const draft = resolveDraft(input.draft_message, ctx.facts)
   const level = await effectiveLevel(input.action_type, draft, ctx.facts)
   // A redraft of an outdated card of the same kind continues its revisions.
@@ -256,7 +341,9 @@ export async function submitProposal(ctx: GateContext, input: ProposalInput): Pr
     handover: input.handover,
     changes: changes.length ? changes : input.proposed_window ? [{ label: input.action_type === "UPDATE_ETA" ? "ETA" : "Delivery promise", before: null, after: `${input.proposed_window.start_utc} – ${input.proposed_window.end_utc} UTC`, value: input.proposed_window }] : [],
     draftMessage: draft,
-    evidenceRefs: input.evidence_refs,
+    bookingSelection: input.booking_selection ?? null,
+    evidenceRefs: input.booking_selection && !input.evidence_refs.some((ref) => ref.kind === input.booking_selection!.quote_source.kind && ref.id === input.booking_selection!.quote_source.id)
+      ? [...input.evidence_refs, input.booking_selection.quote_source] : input.evidence_refs,
     assumptions: await anchorAssumptions(ctx, input.assumptions ?? []),
     options: input.options,
     nextStepIfApproved: input.next_step_if_approved,
@@ -352,20 +439,23 @@ async function performEffects(proposal: ProposalRow, actor: Actor): Promise<{ af
     }
     case "BOOK_RECOVERY":
     case "BOOK_TRAVEL": {
-      const provider = chosen?.label ?? proposal.title
+      const selection = proposal.bookingSelection
+      const provider = selection?.provider ?? chosen?.label ?? proposal.title
       const booking = mockProviderBook({ orderId: proposal.orderId, kind: proposal.actionType === "BOOK_RECOVERY" ? "recovery" : "travel", provider })
-      const kind = proposal.actionType === "BOOK_RECOVERY" ? "recovery" : "travel"
+      const recovery = proposal.actionType === "BOOK_RECOVERY"
+      const kind = selection?.kind ?? (recovery ? "recovery" : "travel")
+      const details = selection ? { ...selection, booking_selection: selection } : {}
       if (booking.status === "timeout") {
-        const unconfirmed = await effect(proposal, "BOOKING", "UNCONFIRMED", { kind, provider, reference: booking.reference, requested_at: simNow().toISOString() }, authority)
+        const unconfirmed = await effect(proposal, "BOOKING", "UNCONFIRMED", { ...details, kind, provider, reference: booking.reference, requested_at: simNow().toISOString() }, authority)
         await note(`Booking request to ${provider} timed out without a confirmation (simulated). It may or may not exist. Reference requested: ${booking.reference}.`, { effect_id: unconfirmed.id, outcome: "unknown" })
         return {
           after: { status: "NEEDS_DECISION", waitingOn: "an operator to reconcile the booking", waitingFor: "operator", nextAction: `Check with ${provider} whether booking ${booking.reference} exists before anything is retried.`, checkInMinutes: 15 },
           result: { event_ids: ids, effect_id: unconfirmed.id, reference: booking.reference }, unknown: `Check with ${provider} whether booking ${booking.reference} exists`,
         }
       }
-      const booked = await effect(proposal, "BOOKING", "RECORDED", { kind, provider, reference: booking.reference }, authority)
+      const booked = await effect(proposal, "BOOKING", "RECORDED", { ...details, kind, provider, reference: booking.reference }, authority)
       await note(`Booked with ${provider}: reference ${booking.reference} (simulated booking; any earlier quote stays a quote).`, { effect_id: booked.id, reference: booking.reference })
-      return { after: { status: kind === "recovery" ? "WAITING_EXTERNAL" : "AGENT_WORKING", waitingOn: kind === "recovery" ? "the recovery provider" : "the agent", waitingFor: kind === "recovery" ? "provider" : "agent", nextAction: next, checkInMinutes: kind === "recovery" ? 60 : 3 }, result: { event_ids: ids, effect_id: booked.id, reference: booking.reference } }
+      return { after: { status: recovery ? "WAITING_EXTERNAL" : "AGENT_WORKING", waitingOn: recovery ? "the recovery provider" : "the agent", waitingFor: recovery ? "provider" : "agent", nextAction: next, checkInMinutes: recovery ? 60 : 3 }, result: { event_ids: ids, effect_id: booked.id, reference: booking.reference } }
     }
     case "APPROVE_EXPENSE": {
       const expense = proposal.evidenceRefs.find((ref) => ref.kind === "expenses")
@@ -431,6 +521,13 @@ async function markOutdated(proposal: ProposalRow, checks: AssumptionCheck[]): P
 export async function executeProposal(proposalId: string, options: { by: string }): Promise<ProposalRow> {
   const proposal = await getProposal(proposalId)
   if (!proposal) throw new Error("Proposal not found")
+  return withBookingOrderLock(proposal, () => executeProposalUnlocked(proposalId, options))
+}
+
+/** Caller holds the order's booking lock; non-booking actions need no lock. */
+async function executeProposalUnlocked(proposalId: string, options: { by: string }): Promise<ProposalRow> {
+  const proposal = await getProposal(proposalId)
+  if (!proposal) throw new Error("Proposal not found")
   if (proposal.status === "EXECUTED" || proposal.status === "UNKNOWN_OUTCOME" || proposal.status === "OUTDATED") return proposal
   const approved = proposal.status === "APPROVED" || proposal.status === "EDITED_AND_APPROVED"
   if (approved && proposal.decidedRevision !== proposal.revision) throw new ApprovalRequiredError("The approval was for a different revision of this card.")
@@ -446,20 +543,61 @@ export async function executeProposal(proposalId: string, options: { by: string 
     }
   }
 
+  await requireReconciledBookings(proposal.orderId, proposal.actionType)
+
   const checks = await checkAssumptions(proposal.caseId, proposal.orderId, proposal.assumptions)
   if (checks.some((check) => !check.holds)) return markOutdated(proposal, checks)
+
+  if (proposal.actionType === "BOOK_TRAVEL" || proposal.bookingSelection) {
+    const facts = await loadOrderFacts(proposal.orderId)
+    if (!facts) throw new Error("Order not found")
+    await verifyBookingSelection(proposal.caseId, facts, proposal.actionType, proposal.bookingSelection, true)
+  }
 
   if (!(await claimExecution(proposal.id, `${proposal.id}:${proposal.revision}`))) return (await getProposal(proposal.id))!
 
   const actor: Actor = approved ? { id: proposal.decidedBy ?? options.by, type: "operator" } : { id: AGENT_ID, type: "agent" }
-  const { after, result, unknown } = await performEffects(proposal, actor)
-  const done = await transitionProposal(proposal.id, ["APPROVED", "EDITED_AND_APPROVED", "PENDING"], {
-    status: unknown ? "UNKNOWN_OUTCOME" : "EXECUTED", executedAt: simNow(),
-    executionResult: { ...result, simulated: true, by: actor.id, revision: proposal.revision, ...(unknown ? { reconcile: unknown } : {}) },
-  })
-  if (!done) throw new Error("The proposal changed while it was being carried out.")
-  await finishCase(proposal.caseId, after, after.status === "AGENT_WORKING" || after.status === "RESOLVED" ? "agent" : unknown ? null : actor.type === "operator" ? actor.id : null)
-  return done
+  try {
+    const { after, result, unknown } = await performEffects(proposal, actor)
+    const done = await transitionProposal(proposal.id, ["APPROVED", "EDITED_AND_APPROVED", "PENDING"], {
+      status: unknown ? "UNKNOWN_OUTCOME" : "EXECUTED", executedAt: simNow(),
+      executionResult: { ...result, simulated: true, by: actor.id, revision: proposal.revision, ...(unknown ? { reconcile: unknown } : {}) },
+    })
+    if (!done) throw new Error("The proposal changed while it was being carried out.")
+    await finishCase(proposal.caseId, after, after.status === "AGENT_WORKING" || after.status === "RESOLVED" ? "agent" : unknown ? null : actor.type === "operator" ? actor.id : null)
+    return done
+  } catch (error) {
+    console.error("Proposal execution could not finish; its execution key is retained.", error)
+    const booking = proposal.actionType === "BOOK_TRAVEL" || proposal.actionType === "BOOK_RECOVERY"
+    const nextStep = booking
+      ? "The booking result is unknown. Check with the provider and log whether it exists before any new booking is attempted."
+      : "The action could not finish. Check the timeline and any recorded effects before deciding the next step; nothing is retried automatically."
+    try {
+      const failed = await transitionProposal(proposal.id, ["APPROVED", "EDITED_AND_APPROVED", "PENDING"], {
+        status: booking ? "UNKNOWN_OUTCOME" : "FAILED", executedAt: simNow(), nextStep,
+        executionResult: { simulated: true, by: actor.id, revision: proposal.revision, error: error instanceof Error ? error.message : String(error), may_have_partial_effects: true },
+      })
+      if (!failed) throw new Error("The failed execution status could not be recorded; inspect the current proposal before proceeding.")
+      await updateCase(proposal.caseId, { status: "NEEDS_DECISION", owner: null, waitingFor: "operator", waitingOn: booking ? "an operator to reconcile the booking" : "an operator's decision", nextAction: nextStep, nextCheckAt: later(15) })
+      if (booking) {
+        // The provider may have acted before a write failed. Keep the selected
+        // service as an uncertain attempt, with no invented booking reference.
+        try {
+          const existing = (await listEffects({ caseId: proposal.caseId, kinds: ["BOOKING"] })).some((row) => row.proposalId === proposal.id)
+          if (!existing) {
+            const selection = proposal.bookingSelection
+            await effect(proposal, "BOOKING", "UNCONFIRMED", { ...(selection ?? {}), booking_selection: selection, kind: selection?.kind ?? "recovery", provider: selection?.provider ?? proposal.title, reference: null, reference_unknown: true, requested_at: simNow().toISOString() }, await authorityFor(proposal, actor))
+          }
+        } catch (recordError) {
+          console.error("Could not preserve the uncertain booking record; operator confirmation will require a saved booking record.", recordError)
+        }
+      }
+      return failed
+    } catch (statusError) {
+      console.error("Could not record the execution failure or handover. Original failure:", error, "Status update failure:", statusError)
+      throw error
+    }
+  }
 }
 
 // ---------------------------------------------------------------- decisions
@@ -492,10 +630,19 @@ const capitalise = (text: string) => `${text.charAt(0).toUpperCase()}${text.slic
  * card that is already carried out returns the first result.
  */
 export async function decideProposal(caseId: string, proposalId: string, request: DecisionRequest): Promise<DecisionOutcome> {
+  const proposal = await getProposal(proposalId)
+  if (!proposal || proposal.caseId !== caseId) throw new DecisionError(404, "This decision is not on this case.")
+  return withBookingOrderLock(proposal, () => decideProposalUnlocked(caseId, proposalId, request))
+}
+
+async function decideProposalUnlocked(caseId: string, proposalId: string, request: DecisionRequest): Promise<DecisionOutcome> {
   let proposal = await getProposal(proposalId)
   if (!proposal || proposal.caseId !== caseId) throw new DecisionError(404, "This decision is not on this case.")
   const by = request.decided_by?.trim()
   if (!by) throw new DecisionError(400, "Say who is deciding.")
+  if (proposal.actionType === "BOOK_TRAVEL" && (request.decision === "handle" || request.decision === "approve" && proposal.draftMessage?.channel === "phone_call")) {
+    throw new DecisionError(400, "Approve the selected quote to record a simulated booking; a free-text outcome cannot confirm its schedule. Propose customer calls separately.")
+  }
   if (proposal.status !== "PENDING") {
     // A double click or a retried request: give back what already happened.
     if ((request.decision === "approve" || request.decision === "handle") && ["APPROVED", "EDITED_AND_APPROVED", "EXECUTED", "UNKNOWN_OUTCOME", "OUTDATED"].includes(proposal.status)) {
@@ -524,6 +671,12 @@ export async function decideProposal(caseId: string, proposalId: string, request
     return response(updated, nextStep, { kind: instructing ? "instructed" : "rejected", proposal: updated, caseRow: caseRow!, text: note })
   }
 
+  await requireReconciledBookings(proposal.orderId, proposal.actionType)
+  if (proposal.actionType === "BOOK_TRAVEL" || proposal.bookingSelection) {
+    const facts = await loadOrderFacts(proposal.orderId)
+    if (!facts) throw new DecisionError(404, "Order not found")
+    await verifyBookingSelection(caseId, facts, proposal.actionType, proposal.bookingSelection, true)
+  }
   const option = request.option_id
     ? proposal.options.find((entry) => entry.id === request.option_id)
     : proposal.options.find((entry) => entry.recommended) ?? null
@@ -568,11 +721,13 @@ export async function decideProposal(caseId: string, proposalId: string, request
     body: `Approved "${proposal.title}"${option ? `, choosing: ${option.label}` : ""}${edited ? ", with an edited message" : ""}.${note ? ` Note: ${note}` : ""}`,
     data: { proposal_id: proposal.id, decision: "approve", option_id: option?.id ?? null, edited: Boolean(edited), revision: proposal.revision },
   })
-  const executed = await executeProposal(proposal.id, { by })
+  // decideProposal already holds this order's lock. Do not enter it twice.
+  const executed = await executeProposalUnlocked(proposal.id, { by })
   if (executed.status === "OUTDATED") {
     return response(executed, "The agent redrafts the card with the current facts.", { kind: "outdated", proposal: executed, caseRow: (await getCase(caseId))!, text: null })
   }
   const caseRow = (await getCase(caseId))!
+  if (executed.status === "FAILED") return response(executed, caseRow.nextAction ?? executed.nextStep ?? "Inspect the recorded effects before deciding the next step.", null)
   return response(executed, executed.status === "UNKNOWN_OUTCOME" ? caseRow.nextAction ?? proposal.nextStepIfApproved : proposal.nextStepIfApproved, { kind: "approved", proposal: executed, caseRow, text: note })
 }
 
@@ -602,6 +757,10 @@ export async function logOutcome(caseId: string, input: LogOutcomeRequest): Prom
   if (proposal.status === "UNKNOWN_OUTCOME") {
     if (typeof input.confirmed !== "boolean") throw new DecisionError(400, "Say whether the booking exists (confirmed: true or false).")
     const unconfirmed = (await listEffects({ caseId, kinds: ["BOOKING"] })).filter((row) => row.proposalId === proposal.id && row.state === "UNCONFIRMED").at(-1)
+    if (input.confirmed && !unconfirmed) {
+      const recorded = (await listEffects({ caseId, kinds: ["BOOKING"] })).some((row) => row.proposalId === proposal.id && row.state === "RECORDED")
+      if (!recorded) throw new DecisionError(400, "No booking record or provider reference was saved. A free-text confirmation cannot create a reservation. Keep this outcome unknown until the booking details are recorded, or confirm that no booking exists.")
+    }
     const authority: EffectAuthority = { by, by_type: "operator", at: simNow().toISOString(), proposal_id: proposal.id, revision: proposal.revision, basis: `Reconciled by ${who}: ${text}` }
     if (input.confirmed && unconfirmed) await effect(proposal, "BOOKING", "RECORDED", { ...unconfirmed.value, reconciled: true }, authority, {}, unconfirmed.id)
     await effect(proposal, "OUTCOME_LOGGED", "RECORDED", { text, booking_exists: input.confirmed }, authority)

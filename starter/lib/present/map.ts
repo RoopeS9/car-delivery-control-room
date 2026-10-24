@@ -5,7 +5,8 @@
 import type { TelemetryRow } from "@/lib/cr/queries"
 import type { GpsData } from "@/lib/cr/types"
 import { rows, str, type Bundle } from "./bundle"
-import { caseStatusLabel, plainText, urgencyTone } from "./cases"
+import { changedTiming } from "./attention"
+import { buildQueue } from "./queue"
 import { minutesBetween, relativeTo } from "./time"
 import type { MapMarker, MapMarkerState, MapView, Tone } from "./types"
 
@@ -13,14 +14,17 @@ import type { MapMarker, MapMarkerState, MapView, Tone } from "./types"
 export const STALE_AFTER_MINUTES = 30
 
 function markerState(bundle: Bundle): { state: MapMarkerState; label: string; tone: Tone; caseId: string | null; caseTitle: string | null; ask: string | null } {
-  const open = bundle.cr.cases.filter((kase) => kase.status !== "RESOLVED" && kase.status !== "HANDLED_BY_AGENT")
-  const pending = bundle.cr.proposals.find((proposal) => proposal.status === "PENDING" && open.some((kase) => kase.id === proposal.caseId))
-  const decide = pending ? open.find((kase) => kase.id === pending.caseId) : open.find((kase) => kase.status === "NEEDS_DECISION")
-  if (decide) return { state: "decide", label: "Needs your decision", tone: urgencyTone(decide.urgency), caseId: decide.id, caseTitle: decide.title, ask: pending?.title ?? decide.nextAction }
-  const working = open.find((kase) => kase.status === "AGENT_WORKING")
-  if (working) return { state: "agent", label: "Agent working", tone: "accent", caseId: working.id, caseTitle: working.title, ask: working.nextAction }
-  const waiting = open.find((kase) => kase.status === "WAITING_EXTERNAL")
-  if (waiting) return { state: "waiting", label: plainText(bundle, caseStatusLabel(waiting)), tone: "neutral", caseId: waiting.id, caseTitle: waiting.title, ask: plainText(bundle, waiting.nextAction) }
+  // Match the attention queue, including overdue follow-ups, unknown outcomes
+  // and human work outside the road agent's case.
+  const queue = buildQueue([bundle], bundle.snapshotAt, bundle.cr.now)
+  const decide = queue.decide[0]
+  if (decide) return { state: "decide", label: "Needs your decision", tone: decide.tone, caseId: decide.caseId, caseTitle: decide.headline, ask: decide.ask }
+  const working = queue.agentWorking[0]
+  if (working) return { state: "agent", label: "Agent working", tone: "accent", caseId: working.caseId, caseTitle: working.headline, ask: working.ask }
+  const waiting = queue.waiting[0]
+  if (waiting) return { state: "waiting", label: waiting.statusLabel, tone: "neutral", caseId: waiting.caseId, caseTitle: waiting.headline, ask: waiting.ask }
+  const routine = queue.routine[0]
+  if (routine) return { state: "fine", label: "Routine recorded follow-up", tone: "neutral", caseId: null, caseTitle: routine.headline, ask: routine.ask }
   return { state: "fine", label: "No open case", tone: "ok", caseId: null, caseTitle: null, ask: null }
 }
 
@@ -51,6 +55,7 @@ export function buildMap(bundles: Bundle[], positions: TelemetryRow[], now: stri
       lat: gps.lat, lng: gps.lng, at, ageLabel: rel ? (rel.text === "now" ? "just now" : rel.text) : "time unknown",
       stale: minutes > STALE_AFTER_MINUTES,
       state: state.state, stateLabel: state.label, tone: state.tone, caseId: state.caseId, caseTitle: state.caseTitle, ask: state.ask,
+      timing: changedTiming(bundle),
       speedKmh: typeof gps.speed_kmh === "number" ? Math.round(gps.speed_kmh) : null,
       placeLabel: typeof gps.place_label === "string" ? gps.place_label : null,
       simulated: position.simulated,

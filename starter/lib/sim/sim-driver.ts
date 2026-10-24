@@ -8,6 +8,7 @@
 // says what the fact sheet supports.
 
 import { and, desc, eq, inArray, or } from "drizzle-orm"
+import { beginRuntimeWork, isResetting, withRuntimeWork } from "@/lib/cr/activity"
 import { llm, simDriverModel } from "@/lib/agent/client"
 import { simNow } from "@/lib/cr/clock"
 import { crDb } from "@/lib/cr/db"
@@ -138,6 +139,11 @@ export function resetSimDriver(): void {
 
 /** Called on every sim tick: answer the newest unanswered agent question for each persona. Never awaits the agent. */
 export async function simDriverStep(origin: string): Promise<void> {
+  if (isResetting()) return
+  return withRuntimeWork("simulated driver polling", () => runSimDriverStep(origin))
+}
+
+async function runSimDriverStep(origin: string): Promise<void> {
   const current = state()
   if (!current.enabled || !simDriverAvailable()) return
   for (const persona of PERSONAS) {
@@ -153,9 +159,11 @@ export async function simDriverStep(origin: string): Promise<void> {
     if (await agentStillWorking(car.orderId)) continue
     current.answered.add(last.id)
     current.busy.add(persona.driverId)
+    const release = beginRuntimeWork("simulated driver reply")
     void answer(origin, persona, car.reference, thread)
       .catch((error) => console.warn(`[sim driver] ${persona.reference}: ${error instanceof Error ? error.message : String(error)}`))
       .finally(() => {
+        release()
         current.busy.delete(persona.driverId)
         current.replies.set(car.orderId, (current.replies.get(car.orderId) ?? 0) + 1)
       })

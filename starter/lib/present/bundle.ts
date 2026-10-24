@@ -2,7 +2,8 @@
 // the record view can share. The routes build bundles from the database rows.
 
 import type { EffectiveOrder } from "@/lib/cr/effective"
-import type { CaseRow, EventRow as CrEventRow, ProposalRow, TelemetryRow } from "@/lib/cr/queries"
+import type { CaseRow, EffectRow, EventRow as CrEventRow, ProposalRow, TelemetryRow } from "@/lib/cr/queries"
+import type { crCalls, crCallTurns } from "@/lib/voice/schema"
 import type { Directory } from "./actors"
 import type { Row } from "./types"
 
@@ -11,6 +12,10 @@ export type CrSlice = {
   cases: CaseRow[]
   proposals: ProposalRow[]
   events: CrEventRow[]
+  effects: EffectRow[]
+  /** Voice calls and transcript turns (order page only), including calls not linked to a case yet. */
+  calls: (typeof crCalls.$inferSelect)[]
+  callTurns: (typeof crCallTurns.$inferSelect)[]
   /** Latest OBD dongle and phone GPS samples (order page only). */
   obd: TelemetryRow | null
   gps: TelemetryRow | null
@@ -20,7 +25,7 @@ export type CrSlice = {
   now: string
 }
 
-export const emptyCr = (now: string): CrSlice => ({ cases: [], proposals: [], events: [], obd: null, gps: null, effective: null, now })
+export const emptyCr = (now: string): CrSlice => ({ cases: [], proposals: [], events: [], effects: [], calls: [], callTurns: [], obd: null, gps: null, effective: null, now })
 
 export type AlertRow = {
   id: string; status: string; severity: string; signal: string; summary: string; triggeredAt: string; details: Row

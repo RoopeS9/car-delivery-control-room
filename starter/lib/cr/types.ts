@@ -123,6 +123,24 @@ export type DraftMessage = {
 /** A choice on the decision card, e.g. "Dealer's own roadside assistance". */
 export type ProposalOption = { id: string; label: string; description?: string | null; recommended?: boolean }
 
+/** The exact quoted service the operator approves. Prices and schedules are never parsed from prose. */
+export type BookingSelection = {
+  quote_id: string
+  quote_source: SourceRef
+  quoted_at: string
+  kind: "ferry" | "train" | "flight" | "hotel" | "recovery"
+  provider: string
+  from: string
+  to: string
+  departure_at: string | null
+  arrival_at: string | null
+  check_in_cutoff_at: string | null
+  price_amount: number
+  currency: string
+  /** Dataset reservation id or an earlier confirmed BOOKING effect id on this order. */
+  replaces_reservation_id: string | null
+}
+
 /** A fact on the handover packet, always with where it came from. */
 export type SourcedFact = { text: string; sources: SourceRef[] }
 

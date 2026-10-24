@@ -12,6 +12,7 @@ import { DecidedCard, DecisionCard, OutdatedNotice, Sources, UnknownOutcomeNotic
 import { OPERATOR } from "./operator"
 import { TelemetryStrip } from "./telemetry-strip"
 import { Timeline } from "./timeline"
+import { CallTranscripts } from "./call-transcript"
 
 function OutcomeBox({ kase, proposalId, title, onSaved }: { kase: CaseView; proposalId: string; title: string; onSaved: () => void }) {
   const [text, setText] = useState("")
@@ -137,7 +138,7 @@ function AskAgent({ caseId, orderRef }: { caseId: string | null; orderRef: strin
       const body: AskAgentRequest = { case_id: caseId, order_ref: orderRef, text: question, asked_by: OPERATOR.id }
       const response = await fetch(askAgentPath, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
       const data = await response.json().catch(() => null) as AskAgentResponse | null
-      if (!response.ok || !data || data.error) throw new Error(data?.error ?? "The agent could not be reached.")
+      if (!response.ok || !data || data.error) throw new Error(data?.error === "offline" ? data.reply || "The agent is offline right now. A person can handle the case." : data?.error ?? "The agent could not be reached.")
       setAnswer({ q: question, a: data.reply })
       setText("")
     } catch (cause) {
@@ -205,6 +206,7 @@ export function CasePanel({ view, onChange }: { view: RecordView; onChange: () =
       {closed.map((kase) => <CaseBlock key={kase.id} kase={kase} view={view} onChange={onChange} />)}
     </details>}
     {view.promise && (view.promise.pending.length > 0 || view.promise.changed) && <PromiseBlock promise={view.promise} onChange={onChange} />}
+    <CallTranscripts calls={view.calls} />
     <section className="sec" id="timeline" aria-label="Timeline">
       <div className="sec-head"><h2>Timeline</h2><span className="note">Recorded messages and events, with the live case log. Each line names its source.</span></div>
       <Timeline entries={view.timeline} since={firstOpened} />

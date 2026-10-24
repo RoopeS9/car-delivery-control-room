@@ -8,6 +8,7 @@ import { db } from "@/lib/db"
 import { loadOrder } from "@/lib/present/load"
 import { journeyPlan, num, str } from "@/lib/present/bundle"
 import { fmtDateTime, fmtRange } from "@/lib/present/time"
+import { bookingSchedule } from "@/lib/present/bookings"
 import { drivers, orders } from "@/lib/schema"
 import { simNow } from "./clock"
 import type { ContextFact, TelemetryHint } from "./types"
@@ -44,7 +45,7 @@ export async function loadCallContext(input: { orderRef: string; driverId: strin
   const { order, bundle, related, pickup, delivery, pickupSite, deliverySite, items, alerts, events } = loaded
 
   const assignments = (related.work_assignments ?? []).map((row) => row.details as Details)
-  const assignment = assignments.find((row) => row.driver_id === input.driverId && row.status !== "CANCELLED")
+  const assignment = assignments.find((row) => row.driver_id === input.driverId && ["IN_PROGRESS", "ASSIGNED"].includes(String(row.status)))
   if (!assignment) throw new CallContextError(403, `${input.driverId} is not the driver on ${reference}.`)
   const [driver] = await db.select().from(drivers).where(eq(drivers.id, input.driverId)).limit(1)
   const driverName = driver?.displayName ?? null
@@ -56,7 +57,9 @@ export async function loadCallContext(input: { orderRef: string; driverId: strin
   add("assignment", `Assignment status ${String(assignment.status).toLowerCase().replace(/_/g, " ")}${assignment.started_at ? `, journey started ${utc(assignment.started_at)}` : ""}.`,
     "Work assignment", str(assignment.accepted_at))
 
-  const primary = items.find((item) => item.item.role === "PRIMARY") ?? items[0]
+  const assignedSegments = Array.isArray(assignment.segment_ids) ? assignment.segment_ids : []
+  const assignedItemId = related.transport_segments?.find((row) => assignedSegments.includes(row.id))?.details.order_item_id
+  const primary = items.find((item) => item.item.id === assignedItemId) ?? items.find((item) => item.item.role === "PRIMARY") ?? items[0]
   const vehicle = primary?.vehicle
   const vehicleLabel = vehicle ? `${vehicle.make} ${vehicle.model}` : null
   if (vehicle) {
@@ -71,9 +74,13 @@ export async function loadCallContext(input: { orderRef: string; driverId: strin
   const pickedUp = events.find((event) => event.command === "vehicle.picked_up")
   if (pickedUp) add("picked_up", `Car collected ${utc(pickedUp.recordedAt.toISOString())}.`, "Collection event", pickedUp.recordedAt.toISOString())
 
+  const currentPromise = bundle.cr.effective?.promise
+  if (currentPromise) add("promise", `Customer delivery promise: ${fmtRange(currentPromise.start_utc, currentPromise.end_utc, currentPromise.zone)}.`,
+    currentPromise.source.label, currentPromise.source.at ?? null)
+
   for (const row of related.time_windows ?? []) {
     const window = row.details as Details
-    if (window.purpose === "CUSTOMER_DELIVERY_PROMISE" && window.is_selected) {
+    if (!currentPromise && window.purpose === "CUSTOMER_DELIVERY_PROMISE" && window.is_selected) {
       add("promise", `Customer delivery promise: ${fmtRange(str(window.start_at), str(window.end_at), str(window.timezone))}.`,
         `Time window, source ${String(window.source).toLowerCase()}`, str(window.stated_at))
     }
@@ -83,18 +90,20 @@ export async function loadCallContext(input: { orderRef: string; driverId: strin
     }
   }
 
-  for (const row of related.travel_reservations ?? []) {
-    const trip = row.details as Details
-    if (trip.status === "CANCELLED") continue
-    const kind = String(trip.kind ?? "travel").toLowerCase()
+  const reservations = (related.travel_reservations ?? []).map((row) => row.details as Details)
+  for (const booking of bundle.cr.effective?.bookings ?? []) {
+    const trip = bookingSchedule(booking, reservations)
+    if (booking.status === "cancelled") continue
+    const kind = trip.kind
     const parts = [
-      `${kind[0].toUpperCase()}${kind.slice(1)} booked: ${trip.origin_terminal ?? "?"} to ${trip.destination_terminal ?? "?"}`,
-      trip.booking_reference ? `booking ref ${trip.booking_reference}` : null,
-      trip.check_in_cutoff_at ? `check-in cutoff ${utc(trip.check_in_cutoff_at)}` : null,
-      trip.departure_at ? `departs ${utc(trip.departure_at)}` : null,
-      trip.check_in_confirmation ? `check-in ${String(trip.check_in_confirmation).toLowerCase()}` : null,
+      `${kind[0].toUpperCase()}${kind.slice(1)} ${trip.confirmed ? "booked" : "outcome unconfirmed"}${trip.simulated ? " (simulated)" : ""}: ${trip.origin ?? "origin unknown"} to ${trip.destination ?? "destination unknown"}`,
+      trip.reference ? `booking ref ${trip.reference}` : null,
+      trip.checkInCutoffAt ? `check-in cutoff ${utc(trip.checkInCutoffAt)}` : "check-in cutoff not recorded",
+      trip.departureAt ? `departs ${utc(trip.departureAt)}` : "departure time not recorded",
+      trip.arrivalAt ? `arrives ${utc(trip.arrivalAt)}` : null,
+      `check-in ${trip.checkInConfirmed ? "confirmed" : "unconfirmed"}`,
     ].filter(Boolean)
-    add(`travel_${kind}`, `${parts.join(", ")}.`, "Travel reservation (a booking, not a boarding scan)", str(trip.booked_at))
+    add(`travel_${kind}`, `${parts.join(", ")}.`, `${trip.sourceLabel}; ${trip.confirmed ? "a booking is not a boarding scan" : "do not treat this attempt as a confirmed booking"}`, trip.at)
   }
 
   const tracking = (related.tracking_observations ?? []).map((row) => row.details as Details)

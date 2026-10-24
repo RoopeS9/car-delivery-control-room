@@ -24,7 +24,7 @@ function CaseOrderLine({ view }: { view: RecordView }) {
 
 export function OrderPane({ detail, onChange }: { detail: Detail; onChange: () => void }) {
   const { view } = detail
-  if (view.cases.length) return <>
+  if (view.cases.length || view.calls.length) return <>
     <CaseOrderLine view={view} />
     <CasePanel view={view} onChange={onChange} />
     <div className="order-divider"><h2>The order</h2><p>Everything below is from the order record.</p></div>

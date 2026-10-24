@@ -168,6 +168,7 @@ function MarkerPanel({ marker, onClose }: { marker: MapMarker; onClose: () => vo
     <p className={`map-panel-state tone-${marker.tone}`}>{marker.stateLabel}</p>
     {marker.caseTitle && <p className="map-panel-case">{marker.caseTitle}</p>}
     {marker.ask && <p className="map-panel-ask">{marker.ask}</p>}
+    {marker.timing && <p className="map-panel-ask">{marker.timing}</p>}
     <dl className="map-panel-facts">
       <div><dt>Position</dt><dd>{marker.placeLabel ?? `${marker.lat.toFixed(3)}, ${marker.lng.toFixed(3)}`}</dd></div>
       <div><dt>Reported</dt><dd className={marker.stale ? "tone-warn" : undefined}><time dateTime={marker.at} title={fmtLong(marker.at)}>{marker.stale ? `last seen ${marker.ageLabel}` : marker.ageLabel}</time></dd></div>

@@ -1,44 +1,16 @@
-# The Car Delivery Control Room
+# Road Desk
 
-This is Bahn's challenge for the Prompt Operations Hackathon, 24 to 25 October
-2026.
+An operations control room for Bahn's Car Delivery Control Room challenge,
+Prompt Operations Hackathon, 24–25 October 2026. Road Desk puts human decisions,
+agent work and external follow-ups in one queue across the 100 fictional orders.
+Its specialist road-support agent gathers evidence, handles routine questions
+and prepares approval-gated decisions.
 
-**Submission deadline: Sun 25 Oct, 13:00 UTC (strict).**
+**Submission deadline: Sun 25 Oct, 13:00 UTC.**
 
-Bahn delivers used cars. A dealer sells a car, a driver from our network picks
-it up and drives it to the buyer. Our agents already do a lot of the routine
-work. The challenge is to build the place where people and agents work
-together to get every car delivered, and one real agent for one part of the
-job.
+## Run from a fresh clone
 
-**Read `PARTICIPANT-BRIEF.md` first.** It says what to build, what to hand in,
-and how we judge.
-
-Everything in this repo is made up. No real people, cars, companies or
-messages.
-
-## What is in here
-
-- `PARTICIPANT-BRIEF.md`: the challenge. Start here.
-- `OPERATIONS-CONTEXT.md`: how car delivery work goes at Bahn, in plain
-  words. Good reading for you and for your coding agent.
-- `dataset/`: 100 made-up orders and everything around them: dealers,
-  drivers, cars, bookings, messages, alerts, documents and events.
-  `dataset/README.md` explains the files. `dataset/SCHEMA.md` explains every
-  field.
-- `attachments/`: made-up documents, receipts and photos that belong to those
-  orders.
-- `starter/`: a small web app that loads the data and shows it: a board of
-  orders, an order page, a support inbox, and pages for customers, drivers and
-  places. Use it, change it, or throw it away.
-- `mockups/`: screenshots of the starter, so you can see it without running
-  it.
-- `check_packet.py`: a script that checks the data is complete. You do not
-  need it, but you can run it with `python3 check_packet.py`.
-
-## Run the starter
-
-You need Node.js 24 or newer and Docker.
+You need Node.js 24 or newer, npm and Docker with Compose.
 
 ```sh
 cd starter
@@ -51,23 +23,106 @@ npm run attachments:seed
 npm run dev
 ```
 
-Then open http://localhost:3000.
+Open http://localhost:3000. Add `OPENROUTER_API_KEY` to `starter/.env` to use the
+real agent and voice interviewer. The model names and effort settings are in
+`.env.example`. Without a key, the app remains usable and agent cases hand over
+to a person with an explanation; that fallback is not a real-model demonstration.
 
-If port 5438 or 9009 is already in use on your computer, change it in
-`starter/compose.yaml` and in the matching line of `starter/.env`.
-`starter/README.md` has the details.
+`db:push` includes the original, road-support and voice tables. `db:seed`
+replaces only the challenge snapshot. Use the demo reset to clear added cases,
+effects and calls. Local Postgres uses port 5438; the attachment store uses 9009
+and its console uses 9010. If needed, change the ports in `starter/compose.yaml`
+and the matching values in `starter/.env`.
 
-## Tips
+For a production build, run `npm run build`, then `npm start` from `starter/`.
 
-- Point your coding agent at `PARTICIPANT-BRIEF.md`, `OPERATIONS-CONTEXT.md`
-  and `dataset/SCHEMA.md` before you start. They explain the world better than
-  the code does.
-- The data is a snapshot. Nothing in it changes by itself. Your agent can
-  pretend to send messages, make calls and book things. Nothing real is
-  connected.
-- Some of the data is messy on purpose. A message can disagree with an
-  address. An alert is a reason to look, not a diagnosis. A quote for a ferry
-  is not a booked ferry.
-- The starter's board of lanes is how people have worked so far. It is not the
-  answer.
-- Questions: our channel on the event Discord, or our booth.
+## Try the functional core
+
+- `/`: one attention queue, split into decisions, agent work and waiting.
+- `/orders/ord-00584`: scenario A's Bentley, with sourced decisions, merged
+  timeline, telemetry, photos and driver-call transcripts.
+- `/driver?driver=drv-042`: the matching driver window, with chat, photos and
+  Call/Answer controls. Use the same laptop for the microphone on localhost.
+- `/demo`: presenter controls, scenario starts, simulated clock jumps and reset.
+- `/site`: scoped site chat; `/board`: every order; `/map`: simulated positions;
+  `/agent`: rulebook, autonomy and activity.
+
+For the headline scenario, open `/demo` and the driver window. Leave the
+simulated driver off when a person plays the driver. Run **A. Fresh warning
+light**: the car reports a simulated fault and the agent contacts the driver.
+Reply by chat or answer the call. The agent collects evidence and brings the
+operator a decision. Choose **I'll handle it**, then log the dealer's answer;
+the agent continues through the same approval gates.
+
+Scenario C demonstrates a routine keys question. Scenario D exercises site
+scoping. Scenario F leaves the driver silent: advance the clock beyond the
+reply deadlines to see one reminder and then a human handover. Operator pages
+poll the case timer endpoint; the demo panel drives simulated telemetry.
+
+Voice uses Chrome's speech recognition by default. `VOICE_PROVIDER=browser`
+uses browser speech synthesis instead of hosted speech. Hosted voice requires
+the configured OpenRouter speech models. Chat remains available independently.
+
+## What is real and what is simulated
+
+The configured language models run real tool-use loops. Driver voice has a
+separate interviewer and transcript of record; urgent and ended calls feed the
+road agent, which cites individual turns. The operator can approve, reject,
+instruct, handle a task externally and log its outcome.
+
+All orders, people, documents, messages, GPS/OBD samples, recovery providers,
+travel quotes, bookings and action effects are fictional. No real customer
+messages, bookings or payments are sent. A quote stays a quote; an operator's
+approval alone does not establish customer agreement to a new promise.
+Executed effects overlay the unchanged dataset and retain their evidence.
+
+This is a local prototype with role selection, not a production identity or
+dispatch system. Travel decisions preserve the exact recorded quote, route,
+sailing times, check-in cutoff, numeric cost and reservation being replaced.
+Only a confirmed simulated booking replaces the current reservation. An
+uncertain attempt keeps the old booking current until it is reconciled;
+original and superseded records remain in the history.
+
+## Checks
+
+From `starter/`:
+
+```sh
+npm run typecheck
+npm run build
+APP_URL=http://localhost:3000 npm run smoke
+APP_URL=http://localhost:3000 npm run attachments:smoke
+```
+
+The database tests need a disposable seeded database. They exercise approval
+gates, customer agreement, stale decisions, duplicate actions, voice handover,
+follow-up escalation, simulation and presentation. Gate tests reset autonomy
+settings, so keep them separate from a prepared demo:
+
+```sh
+docker compose exec db createdb -U controlroom controlroom_test
+DATABASE_URL=postgres://controlroom:controlroom@localhost:5438/controlroom_test npm run db:push
+DATABASE_URL=postgres://controlroom:controlroom@localhost:5438/controlroom_test npm run db:seed
+DATABASE_URL=postgres://controlroom:controlroom@localhost:5438/controlroom_test npm test
+```
+
+`npm run agent:scenario-a` and `npm run sim:seed-routine` use a real model and
+consume API credit. Run them against disposable demo data; scenario A clears
+the added road-support records. Agent traces are under `starter/traces/`.
+`npm run voice:test` is a separate real-model interview harness.
+
+## Repository guide
+
+- `PARTICIPANT-BRIEF.md`: what to build and how it is judged.
+- `OPERATIONS-CONTEXT.md`: the fictional operations and evidence boundaries.
+- `PLAN.md`: working product and integration contracts.
+- `PROCESS.md`: coding-agent suggestions, checks and decisions.
+- `dataset/`: synthetic source records; `dataset/SCHEMA.md` explains the links.
+- `attachments/`: 58 synthetic documents, receipts and photos.
+- `starter/`: the integrated Next.js, TypeScript, Drizzle and Postgres app.
+- `mockups/`: original starter screenshots, not the current product.
+
+The app keeps source records in the starter tables, road-support cases and
+effects in `lib/cr/`, the gated tool loop in `lib/agent/`, driver calls in
+`lib/voice/`, simulation in `lib/sim/` and shared display projections in
+`lib/present/`. `python3 check_packet.py` checks the original packet integrity.

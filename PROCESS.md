@@ -1140,3 +1140,53 @@ Checked / changed / rejected:
   breaks scenario C (protected core) and tells healthy drivers to stop.
 - Did not loosen the seed questions to dodge the screen; the questions are
   the right test. Did not touch `lib/agent/`.
+
+## 2026-10-24 13:40 UTC · RoopeS + Codex · integration of the functional core
+
+Asked: merge the completed agent, control-room, simulator/driver and voice
+branches into main, identify shortcomings, and delegate fixes; ask before major
+changes.
+
+Got: integrated all four streams on `integration/functional-core`, preserving
+their shared configuration and process history. Three agents repaired the voice
+handover, control-room read layer and driver/simulator boundaries. A later
+review exercised booking concurrency, uncertain outcomes and reset races.
+
+Checked / changed / rejected:
+- Voice originally posted to a missing analyst endpoint, and the driver app
+  probed a nonexistent call page. Added the canonical-call bridge, real call
+  surface, operator transcript/audio and turn-level sources. Saved urgency and
+  final transcription before announcing handovers; serialised operator changes
+  against the analyst. Kept voice independent from the chat transport.
+- Found that an unrelated urgent record could disappear behind a waiting agent
+  case. Unified attention and effective promise/ETA/booking reads across the
+  queue, order, board, map, driver card and voice interviewer.
+- Requested and received explicit permission for the substantial booking
+  contract change. Exact recorded quote, schedule, cost and replaced reservation
+  now survive review and execution. Unconfirmed requests preserve the old
+  booking. Added order-wide reconciliation checks and booking locks, including
+  simultaneous approvals from different cases.
+- Preserved at-most-once execution on partial failures: no automatic provider
+  retry, explicit uncertain outcome or failure, and a human next step. Kept
+  customer contact and customer agreement separate from operator approval.
+- Reset now refuses active calls, in-flight work and deferred tasks before
+  clearing data. Evidence attachment rejects missing or cross-order/cross-case
+  sources atomically. The local demo remains one server process; this is not a
+  distributed-job design.
+- Tested on a separate `controlroom_integration` database. Applied only additive
+  schema changes to the existing local app database; did not reseed its snapshot
+  or delete its voice history.
+- Ran two real Sonnet warning-light traces (eight agent runs, $0.4278 recorded).
+  The first trace cited GPS for a driver claim and overclaimed a missed ferry.
+  Tightened evidence instructions; the next run cited the driver's own message
+  and explicitly kept the ferry outcome uncertain and the 26 Oct promise
+  unchanged. Also replaced the standalone harness's unrelated telemetry fixture
+  with the actual simulator fault plan. Both traces are retained as process
+  evidence rather than editing an earlier model answer.
+- Reviewed the integrated queue and driver page in Chrome. Exercised call
+  start/text-turn/hang-up APIs without a microphone; wrong-driver access was
+  rejected and the ended call linked to its case. Microphone capture, live
+  speech recognition and hosted audio still need a person to rehearse.
+- Read the unresolved routine-seed note instead of assuming passed branch tests
+  proved scenario C. Assigned a context-aware drivability fix and real-model
+  recheck; completion evidence is recorded below after final verification.

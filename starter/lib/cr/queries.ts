@@ -148,9 +148,26 @@ export async function eventsForRecipient(recipientType: string, recipientId: str
 }
 
 /** Attach uploaded photos to the case and message they belong to. */
+export class EventScopeError extends Error {
+  readonly status = 403
+  constructor() {
+    super("The supplied evidence is missing, belongs to another order, or is already linked to another case.")
+    this.name = "EventScopeError"
+  }
+}
+
 export async function attachEvents(ids: string[], caseId: string): Promise<void> {
   if (ids.length === 0) return
-  await crDb().update(crEvents).set({ caseId }).where(inArray(crEvents.id, ids))
+  const unique = [...new Set(ids)]
+  await crDb().transaction(async (tx) => {
+    const [target] = await tx.select({ orderId: crCases.orderId }).from(crCases).where(eq(crCases.id, caseId))
+    const events = await tx.select({ id: crEvents.id, orderId: crEvents.orderId, caseId: crEvents.caseId })
+      .from(crEvents).where(inArray(crEvents.id, unique)).for("update")
+    if (!target || events.length !== unique.length || events.some((event) => event.orderId !== target.orderId || event.caseId && event.caseId !== caseId)) {
+      throw new EventScopeError()
+    }
+    await tx.update(crEvents).set({ caseId }).where(inArray(crEvents.id, unique))
+  })
 }
 
 export async function getEvent(id: string): Promise<EventRow | null> {

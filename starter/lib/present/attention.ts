@@ -72,8 +72,14 @@ export function chosenWindows(bundle: Bundle): Windows {
   const final = finalDeliveryPoint(bundle)
   const pickupSlot = all.find((w) => w.purpose === "SELECTED_PICKUP_SLOT" && w.selected && (!origin || w.pointId === origin.id))
     ?? all.find((w) => w.purpose === "SELECTED_PICKUP_SLOT" && w.selected) ?? null
-  const promise = all.find((w) => w.purpose === "CUSTOMER_DELIVERY_PROMISE" && w.selected && (!final || w.pointId === final.id))
+  let promise = all.find((w) => w.purpose === "CUSTOMER_DELIVERY_PROMISE" && w.selected && (!final || w.pointId === final.id))
     ?? all.find((w) => w.purpose === "CUSTOMER_DELIVERY_PROMISE" && w.selected) ?? null
+  const agreed = bundle.cr.effective?.promise
+  if (agreed?.source.kind === "cr_effects") {
+    promise = { ...promise, purpose: "CUSTOMER_DELIVERY_PROMISE", label: "Delivery promise", selected: true,
+      start: agreed.start_utc, end: agreed.end_utc, zone: agreed.zone, source: "CUSTOMER", sourceLabel: agreed.basis,
+      deadline: promise?.deadline ?? null, deadlineSource: promise?.deadlineSource ?? null, pointId: promise?.pointId ?? final?.id ?? null }
+  }
   return {
     requestedPickup: all.find((w) => w.purpose === "REQUESTED_PICKUP_SLOT") ?? null,
     pickupSlot,
@@ -97,6 +103,24 @@ export function latestTracking(bundle: Bundle): { direct: Tracking | null; infer
     direct: read(observations.find((row) => row.source === "driver_app")),
     inference: read(observations.find((row) => row.location_quality === "INFERRED")),
   }
+}
+
+/** A new internal ETA is an estimate, never a newer observation of the driver's position. */
+export function currentEta(bundle: Bundle): { at: string; basis: string; updatedAt: string | null; changed: boolean } | null {
+  const effective = bundle.cr.effective?.eta
+  if (effective?.source.kind === "cr_effects" && effective.estimate_utc) {
+    return { at: effective.estimate_utc, basis: effective.basis, updatedAt: effective.source.at ?? null, changed: true }
+  }
+  const track = latestTracking(bundle).direct
+  return track?.eta ? { at: track.eta, basis: "driver app estimate", updatedAt: track.receivedAt, changed: false } : null
+}
+
+/** Changed timings for the fleet queue and map, with their authority. */
+export function changedTiming(bundle: Bundle): string | null {
+  const promise = bundle.cr.effective?.promise
+  const eta = currentEta(bundle)
+  return [promise?.source.kind === "cr_effects" ? `Promise now ${fmtDateTime(promise.start_utc, promise.zone)}–${fmtDateTime(promise.end_utc, promise.zone)} (${promise.basis})` : null,
+    eta?.changed ? `ETA estimate ${fmtDateTime(eta.at)} (${eta.basis})` : null].filter(Boolean).join(" · ") || null
 }
 
 export type Milestones = { pickedUpAt: string | null; deliveredAt: string | null }
@@ -124,6 +148,7 @@ export function deriveKeyDates(bundle: Bundle): { keyDates: KeyDate[]; decisive:
   const windows = chosenWindows(bundle)
   const { pickedUpAt, deliveredAt } = milestones(bundle)
   const { direct } = latestTracking(bundle)
+  const eta = currentEta(bundle)
   const rel = (iso: string | null) => relativeTo(iso, snapshotAt)?.text ?? null
   const dates: Partial<Record<KeyDate["key"], KeyDate>> = {}
 
@@ -161,23 +186,24 @@ export function deriveKeyDates(bundle: Bundle): { keyDates: KeyDate[]; decisive:
     } else if (lane === "moving" && snapshotAt && w.end && isBefore(w.end, snapshotAt)) {
       tone = "danger"
       note = "promise has passed and no delivery is recorded"
-    } else if (lane === "moving" && direct?.eta && w.end && isBefore(w.end, direct.eta)) {
+    } else if (lane === "moving" && eta && w.end && isBefore(w.end, eta.at)) {
       tone = "danger"
-      note = `driver-app ETA ${fmtDateTime(direct.eta, w.zone)} is after the promise`
+      note = `${eta.changed ? "Road Desk ETA estimate" : "driver-app ETA"} ${fmtDateTime(eta.at, w.zone)} is after the promise`
     }
     const deadlineNote = w.deadline ? ` · outer limit ${fmtDateTime(w.deadline, w.zone)}` : ""
-    dates.promise = keyDate("promise", "Delivery promise", w.start, w.end, w.zone, w.source, tone, note ? `${note}${deadlineNote}` : deadlineNote || null)
+    const basis = bundle.cr.effective?.promise?.source.kind === "cr_effects" ? ` · ${w.sourceLabel}` : ""
+    dates.promise = keyDate("promise", "Delivery promise", w.start, w.end, w.zone, w.source, tone, `${note ?? ""}${deadlineNote}${basis}` || null)
   } else if (windows.requestedDelivery) {
     const w = windows.requestedDelivery
     dates.promise = keyDate("promise", "Requested delivery", w.start, w.end, w.zone, w.source, "neutral", "customer preference, no promise selected")
   }
 
-  if (direct?.eta && !deliveredAt && lane === "moving") {
+  if (eta && !deliveredAt && lane === "moving") {
     const zone = windows.promise?.zone ?? null
-    const late = windows.promise?.end ? isBefore(windows.promise.end, direct.eta) : false
-    const age = relativeTo(direct.receivedAt, snapshotAt)
-    dates.eta = keyDate("eta", "ETA from driver app", direct.eta, null, zone, direct.source, late ? "danger" : "neutral",
-      `${labelIn(direct.quality)} signal received ${age ? age.text : "at an unknown time"}; unverified`)
+    const late = windows.promise?.end ? isBefore(windows.promise.end, eta.at) : false
+    const age = relativeTo(eta.updatedAt, bundle.cr.now)
+    dates.eta = keyDate("eta", eta.changed ? "ETA estimate from Road Desk" : "ETA from driver app", eta.at, null, zone, eta.changed ? "Road Desk" : direct?.source ?? null, late ? "danger" : "neutral",
+      eta.changed ? `${eta.basis}; an estimate, not a position report` : `${labelIn(direct?.quality)} signal received ${age ? age.text : "at an unknown time"}; unverified`)
   }
 
   if (deliveredAt) {

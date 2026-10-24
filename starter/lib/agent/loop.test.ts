@@ -122,6 +122,7 @@ describe("scenario A wiring", () => {
     assert.match(safety!.body, /^Sofia, please slow down and stop at the next safe place/, "the template, with the driver's name filled in by the server")
     const reply = events.find((event) => event.id === result.replyEventId)
     assert.equal(reply?.recipientType, "driver")
+    assert.equal(reply?.data.call, true, "proactive fault outreach rings the driver call surface")
     assert.match(reply!.body, /Are you safe/)
     assert.ok(model.screened.some((entry) => entry.includes("Are you safe")), "the reply passed the classifier")
 

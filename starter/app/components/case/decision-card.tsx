@@ -6,6 +6,7 @@ import {
   type CaseActionResponse, type DecisionRequest, type DecisionResponse, type LogOutcomeRequest,
 } from "@/lib/cr/types"
 import type { DecisionCardView, SourceChip } from "@/lib/present/types"
+import { fmtMoney } from "@/lib/present/time"
 import { Icon } from "../icons"
 import { When } from "../ui"
 import { OPERATOR } from "./operator"
@@ -20,7 +21,7 @@ export function Sources({ sources }: { sources: SourceChip[] }) {
     const timed = /\d{1,2}:\d{2}/.test(source.label)
     const body = <>{source.label}{source.at && !timed && <> · <When at={source.at} withZone={false} /></>}</>
     return source.href
-      ? <a key={`${source.kind}-${source.id}`} className="source" href={source.href} title="Show in the timeline">{body}</a>
+      ? <a key={`${source.kind}-${source.id}`} className="source" href={source.href} title="Show the source">{body}</a>
       : <span key={`${source.kind}-${source.id}`} className="source">{body}</span>
   })}</span>
 }
@@ -30,7 +31,7 @@ async function send(card: DecisionCardView, body: DecisionRequest): Promise<Deci
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
   })
   const data = await response.json().catch(() => null) as DecisionResponse | null
-  if (response.status === 409) throw new Error("Someone already decided this card. The page will refresh.")
+  if (response.status === 409) throw new Error(data?.error ?? "Someone already decided this card. The page will refresh.")
   if (!response.ok || !data) throw new Error(data?.error ?? "Could not reach the agent service. Nothing was changed.")
   return data
 }
@@ -48,7 +49,7 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
   const [fullDraft, setFullDraft] = useState(false)
   const draftLines = card.draft ? card.draft.body.split("\n").length : 0
   const longDraft = !!card.draft && (draftLines > 8 || card.draft.body.length > 600)
-  const call = card.draft?.channelLabel === "Phone call"
+  const call = card.actionType !== "BOOK_TRAVEL" && card.draft?.channelLabel === "Phone call"
   const customer = card.draft?.isCustomer ?? card.actionType === "CONTACT_CUSTOMER"
   const driveOn = card.actionType === "CLEAR_TO_CONTINUE"
   const chosen = card.options.find((option) => option.id === optionId) ?? null
@@ -123,6 +124,20 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
       <ul className="dcard-unknowns">{card.unknowns.map((item, index) => <li key={index}>{item}</li>)}</ul>
     </section>}
 
+    {card.booking && <section className="dcard-sec">
+      <h3>Selected {card.booking.kind.toLowerCase()} quote · simulated</h3>
+      <p>{card.booking.provider}: {card.booking.from} → {card.booking.to}</p>
+      <dl className="dcard-changes">
+        <div><dt>Departure</dt><dd>{card.booking.departureAt ? <When at={card.booking.departureAt} zone="UTC" /> : "Not recorded"}</dd></div>
+        <div><dt>Arrival</dt><dd>{card.booking.arrivalAt ? <When at={card.booking.arrivalAt} zone="UTC" /> : "Not recorded"}</dd></div>
+        <div><dt>Check-in cutoff</dt><dd>{card.booking.checkInCutoffAt ? <When at={card.booking.checkInCutoffAt} zone="UTC" /> : "Not recorded"}</dd></div>
+        <div><dt>Quoted price</dt><dd>{fmtMoney(card.booking.priceAmount * 100, card.booking.currency)}</dd></div>
+        <div><dt>Replaces</dt><dd>{card.booking.replaces ?? "No existing reservation"}</dd></div>
+      </dl>
+      <p className="dcard-hint">Quote checked <When at={card.booking.quotedAt} zone="UTC" />. Approval requests this exact option; it becomes the current booking after confirmation.</p>
+      <Sources sources={[card.booking.source]} />
+    </section>}
+
     {card.changes.length > 0 && <section className="dcard-sec">
       <h3>What changes if you approve</h3>
       <dl className="dcard-changes">{card.changes.map((change, index) => <div key={index}>
@@ -131,7 +146,7 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
       </div>)}</dl>
     </section>}
 
-    {(card.options.length > 1 || card.choiceOnly) && <fieldset className="dcard-sec dcard-options">
+    {card.actionType !== "BOOK_TRAVEL" && (card.options.length > 1 || card.choiceOnly) && <fieldset className="dcard-sec dcard-options">
       <legend>Choose</legend>
       {card.options.map((option) => <label key={option.id} className={`dcard-option${optionId === option.id ? " on" : ""}`}>
         <input type="radio" name={`opt-${card.id}`} checked={optionId === option.id} onChange={() => setOptionId(option.id)} />
@@ -183,7 +198,7 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
           ? <button type="button" className="btn primary" disabled={busy} onClick={() => decide("handle")}>I&apos;ll make the call</button>
           : <button type="button" className="btn primary" disabled={busy} onClick={() => decide("approve")}>{card.actionType === "CHANGE_PROMISE" ? "Approve, send to the customer" : card.draft ? "Approve and send" : "Approve"}</button>}
         {card.draft && <button type="button" className="btn" disabled={busy} onClick={() => setMode("edit")}>{call ? "Edit talking points" : "Edit first"}</button>}
-        {!call && !driveOn && <button type="button" className="btn" disabled={busy} onClick={() => decide("handle")}>I&apos;ll handle it</button>}
+        {!call && !driveOn && card.actionType !== "BOOK_TRAVEL" && <button type="button" className="btn" disabled={busy} onClick={() => decide("handle")}>I&apos;ll handle it</button>}
         <span className="dcard-spacer" />
         <button type="button" className="btn quiet" disabled={busy} onClick={() => { setMode("instruct"); setError("") }}>Tell the agent instead</button>
         <button type="button" className="btn quiet" disabled={busy} onClick={() => { setMode("reject"); setError("") }}>Reject</button>

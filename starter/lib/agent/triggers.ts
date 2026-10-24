@@ -5,6 +5,7 @@
 // after one). The API routes are thin wrappers around these.
 
 import { simNow } from "@/lib/cr/clock"
+import { withRuntimeWork } from "@/lib/cr/activity"
 import {
   appendEvent, attachEvents, createCase, getCase, getProposal, listCases, resolveOrder, updateCase, type CaseRow,
 } from "@/lib/cr/queries"
@@ -60,26 +61,28 @@ export async function prepareDriverMessage(request: DriverMessageRequest): Promi
 }
 
 export async function handleDriverMessage(prepared: PreparedDriverMessage, onText?: OnText): Promise<{ caseId: string; result: TurnResult }> {
-  const { facts, driverId, name, request } = prepared
-  const voice = request.mode === "voice"
-  const channel = voice ? "driver_voice" : "driver_chat"
-  const text = request.text?.trim() || "(sent a photo)"
-  const caseRow = await openCase(facts.id, (row) => row.driverId === driverId || (!row.driverId && row.kind !== "SITE_QUESTION"), () => createCase({
-    orderId: facts.id, kind: "DRIVER_QUESTION", status: "AGENT_WORKING", urgency: "NORMAL",
-    title: `Message from ${name ?? "the driver"}`, summary: text.slice(0, 200), channelOpened: channel, owner: "agent", driverId,
-    linkedRecords: linkedRecordsOf(facts),
-  }))
-  if (request.photoIds?.length) await attachEvents(request.photoIds, caseRow.id)
-  await appendEvent({
-    caseId: caseRow.id, orderId: facts.id, actorType: "driver", actorId: driverId, kind: voice ? "voice_turn" : "message", channel,
-    recipientType: "agent", recipientId: AGENT_ID, body: text, data: { photo_ids: request.photoIds ?? [] },
+  return withRuntimeWork("driver message handling", async () => {
+    const { facts, driverId, name, request } = prepared
+    const voice = request.mode === "voice"
+    const channel = voice ? "driver_voice" : "driver_chat"
+    const text = request.text?.trim() || "(sent a photo)"
+    const caseRow = await openCase(facts.id, (row) => row.driverId === driverId || (!row.driverId && row.kind !== "SITE_QUESTION"), () => createCase({
+      orderId: facts.id, kind: "DRIVER_QUESTION", status: "AGENT_WORKING", urgency: "NORMAL",
+      title: `Message from ${name ?? "the driver"}`, summary: text.slice(0, 200), channelOpened: channel, owner: "agent", driverId,
+      linkedRecords: linkedRecordsOf(facts),
+    }))
+    if (request.photoIds?.length) await attachEvents(request.photoIds, caseRow.id)
+    await appendEvent({
+      caseId: caseRow.id, orderId: facts.id, actorType: "driver", actorId: driverId, kind: voice ? "voice_turn" : "message", channel,
+      recipientType: "agent", recipientId: AGENT_ID, body: text, data: { photo_ids: request.photoIds ?? [] },
+    })
+    const result = await withCaseLock(caseRow.id, () => runTurn({
+      caseId: caseRow.id, audience: "driver", trigger: "inbound", voice,
+      input: `${name ?? "The driver"} wrote${voice ? " (spoken, transcribed)" : ""}: "${text}"${request.photoIds?.length ? ` and sent ${request.photoIds.length} photo(s), listed above as [photo, event …].` : ""}`,
+      counterpart: { type: "driver", id: driverId, name }, replyChannel: channel, onText,
+    }))
+    return { caseId: caseRow.id, result }
   })
-  const result = await withCaseLock(caseRow.id, () => runTurn({
-    caseId: caseRow.id, audience: "driver", trigger: "inbound", voice,
-    input: `${name ?? "The driver"} wrote${voice ? " (spoken, transcribed)" : ""}: "${text}"${request.photoIds?.length ? ` and sent ${request.photoIds.length} photo(s), listed above as [photo, event …].` : ""}`,
-    counterpart: { type: "driver", id: driverId, name }, replyChannel: channel, onText,
-  }))
-  return { caseId: caseRow.id, result }
 }
 
 // ---------------------------------------------------------------- site
@@ -102,22 +105,24 @@ export async function prepareSiteMessage(request: SiteMessageRequest): Promise<P
 }
 
 export async function handleSiteMessage(prepared: PreparedSiteMessage, onText?: OnText): Promise<{ caseId: string; result: TurnResult }> {
-  const { facts, end, contactId, name, request } = prepared
-  const caseRow = await openCase(facts.id, (row) => row.kind === "SITE_QUESTION" || row.channelOpened === "site_chat", () => createCase({
-    orderId: facts.id, kind: "SITE_QUESTION", status: "AGENT_WORKING", urgency: "NORMAL", title: `Question from ${name}`,
-    summary: request.text.slice(0, 200), channelOpened: "site_chat", owner: "agent", driverId: activeDriverId(facts),
-  }))
-  if (request.photoIds?.length) await attachEvents(request.photoIds, caseRow.id)
-  await appendEvent({
-    caseId: caseRow.id, orderId: facts.id, actorType: "site", actorId: contactId, kind: "message", channel: "site_chat",
-    recipientType: "agent", recipientId: AGENT_ID, body: request.text.trim(), data: { name, end },
+  return withRuntimeWork("site message handling", async () => {
+    const { facts, end, contactId, name, request } = prepared
+    const caseRow = await openCase(facts.id, (row) => row.kind === "SITE_QUESTION" || row.channelOpened === "site_chat", () => createCase({
+      orderId: facts.id, kind: "SITE_QUESTION", status: "AGENT_WORKING", urgency: "NORMAL", title: `Question from ${name}`,
+      summary: request.text.slice(0, 200), channelOpened: "site_chat", owner: "agent", driverId: activeDriverId(facts),
+    }))
+    if (request.photoIds?.length) await attachEvents(request.photoIds, caseRow.id)
+    await appendEvent({
+      caseId: caseRow.id, orderId: facts.id, actorType: "site", actorId: contactId, kind: "message", channel: "site_chat",
+      recipientType: "agent", recipientId: AGENT_ID, body: request.text.trim(), data: { name, end },
+    })
+    const result = await withCaseLock(caseRow.id, () => runTurn({
+      caseId: caseRow.id, audience: "site", trigger: "inbound", siteEnd: end, voice: request.mode === "voice",
+      input: `${name} (${end} place) wrote: "${request.text.trim()}"`,
+      counterpart: { type: "site", id: contactId, name }, replyChannel: "site_chat", onText,
+    }))
+    return { caseId: caseRow.id, result }
   })
-  const result = await withCaseLock(caseRow.id, () => runTurn({
-    caseId: caseRow.id, audience: "site", trigger: "inbound", siteEnd: end, voice: request.mode === "voice",
-    input: `${name} (${end} place) wrote: "${request.text.trim()}"`,
-    counterpart: { type: "site", id: contactId, name }, replyChannel: "site_chat", onText,
-  }))
-  return { caseId: caseRow.id, result }
 }
 
 // ---------------------------------------------------------------- photos
@@ -126,95 +131,103 @@ const MAX_PHOTO_BYTES = 5 * 1024 * 1024
 
 /** Store an uploaded photo as a `photo` event; the message that sends it attaches it to the case. */
 export async function storePhoto(input: { orderRef: string; mediaType: string; bytes: Buffer; subject?: string | null; caption?: string | null; uploadedBy?: string | null }): Promise<string> {
-  if (!["image/png", "image/jpeg", "image/webp"].includes(input.mediaType)) throw new ChannelError(415, "Photos must be PNG, JPEG or WebP.")
-  if (input.bytes.length > MAX_PHOTO_BYTES) throw new ChannelError(413, "Photos must be 5 MB or smaller. Scale it down before uploading.")
-  const order = await resolveOrder(input.orderRef)
-  if (!order) throw new ChannelError(404, `No order ${input.orderRef}.`)
-  const data: PhotoData = { media_type: input.mediaType as PhotoData["media_type"], base64: input.bytes.toString("base64"), subject: input.subject ?? null, caption: input.caption ?? null }
-  const event = await appendEvent({
-    orderId: order.id, actorType: input.uploadedBy?.startsWith("site") || input.uploadedBy?.startsWith("ep-") ? "site" : "driver", actorId: input.uploadedBy ?? null,
-    kind: "photo", channel: "driver_chat", body: input.caption || (input.subject ? `Photo: ${input.subject}` : "Photo"), data: data as unknown as Record<string, unknown>,
+  return withRuntimeWork("photo upload", async () => {
+    if (!["image/png", "image/jpeg", "image/webp"].includes(input.mediaType)) throw new ChannelError(415, "Photos must be PNG, JPEG or WebP.")
+    if (input.bytes.length > MAX_PHOTO_BYTES) throw new ChannelError(413, "Photos must be 5 MB or smaller. Scale it down before uploading.")
+    const order = await resolveOrder(input.orderRef)
+    if (!order) throw new ChannelError(404, `No order ${input.orderRef}.`)
+    const data: PhotoData = { media_type: input.mediaType as PhotoData["media_type"], base64: input.bytes.toString("base64"), subject: input.subject ?? null, caption: input.caption ?? null }
+    const event = await appendEvent({
+      orderId: order.id, actorType: input.uploadedBy?.startsWith("site") || input.uploadedBy?.startsWith("ep-") ? "site" : "driver", actorId: input.uploadedBy ?? null,
+      kind: "photo", channel: "driver_chat", body: input.caption || (input.subject ? `Photo: ${input.subject}` : "Photo"), data: data as unknown as Record<string, unknown>,
+    })
+    return event.id
   })
-  return event.id
 }
 
 // ---------------------------------------------------------------- telemetry
 
 /** The car reports a fault: open a case and contact the driver first, before any person sees it. */
 export async function handleTelemetryFault(request: TelemetryTriggerRequest): Promise<{ caseId: string; result: TurnResult }> {
-  const order = await resolveOrder(request.orderRef)
-  const facts = order ? await loadOrderFacts(order.id) : null
-  if (!facts) throw new ChannelError(404, `No order ${request.orderRef}.`)
-  const driverId = activeDriverId(facts)
-  if (!driverId) throw new ChannelError(409, `${facts.reference} has no driver on the road.`)
-  const codes = (request.codes ?? []).map((code) => code.trim().toUpperCase()).filter(Boolean)
-  const light = request.mil === "FLASHING" ? "flashing" : request.mil === "ON" ? "on" : "off"
-  const summary = `Check-engine light ${light}${codes.length ? `, trouble codes ${codes.join(", ")}` : ""}${request.note ? `, ${request.note}` : ""}`
-  const caseRow = await openCase(facts.id, (row) => row.driverId === driverId && ["VEHICLE_WARNING", "BREAKDOWN"].includes(row.kind), () => createCase({
-    orderId: facts.id, kind: "VEHICLE_WARNING", status: "AGENT_WORKING", urgency: request.mil === "FLASHING" ? "CRITICAL" : "HIGH",
-    title: `Car reports a fault${codes.length ? `: ${codes.join(", ")}` : ""}`, summary, channelOpened: "telemetry", owner: "agent", driverId,
-    linkedRecords: linkedRecordsOf(facts),
-  }))
-  if (request.eventId) await attachEvents([request.eventId], caseRow.id)
-  else {
-    await appendEvent({
-      caseId: caseRow.id, orderId: facts.id, actorType: "obd", actorId: "obd", kind: "dtc", channel: "telemetry", body: summary,
-      data: { codes, mil: request.mil, note: request.note ?? null },
-    })
-  }
-  const name = facts.driverNames.get(driverId) ?? null
-  const result = await withCaseLock(caseRow.id, () => runTurn({
-    caseId: caseRow.id, audience: "driver", trigger: "telemetry",
-    input: `The car's OBD dongle just reported: ${summary}. ${name ?? "The driver"} has not written to us. Contact them first: make sure they are safe, give the safety instruction the severity calls for, and ask what they see.`,
-    counterpart: { type: "driver", id: driverId, name }, replyChannel: "driver_chat",
-  }))
-  return { caseId: caseRow.id, result }
+  return withRuntimeWork("telemetry fault handling", async () => {
+    const order = await resolveOrder(request.orderRef)
+    const facts = order ? await loadOrderFacts(order.id) : null
+    if (!facts) throw new ChannelError(404, `No order ${request.orderRef}.`)
+    const driverId = activeDriverId(facts)
+    if (!driverId) throw new ChannelError(409, `${facts.reference} has no driver on the road.`)
+    const codes = (request.codes ?? []).map((code) => code.trim().toUpperCase()).filter(Boolean)
+    const light = request.mil === "FLASHING" ? "flashing" : request.mil === "ON" ? "on" : "off"
+    const summary = `Check-engine light ${light}${codes.length ? `, trouble codes ${codes.join(", ")}` : ""}${request.note ? `, ${request.note}` : ""}`
+    const caseRow = await openCase(facts.id, (row) => row.driverId === driverId && ["VEHICLE_WARNING", "BREAKDOWN"].includes(row.kind), () => createCase({
+      orderId: facts.id, kind: "VEHICLE_WARNING", status: "AGENT_WORKING", urgency: request.mil === "FLASHING" ? "CRITICAL" : "HIGH",
+      title: `Car reports a fault${codes.length ? `: ${codes.join(", ")}` : ""}`, summary, channelOpened: "telemetry", owner: "agent", driverId,
+      linkedRecords: linkedRecordsOf(facts),
+    }))
+    if (request.eventId) await attachEvents([request.eventId], caseRow.id)
+    else {
+      await appendEvent({
+        caseId: caseRow.id, orderId: facts.id, actorType: "obd", actorId: "obd", kind: "dtc", channel: "telemetry", body: summary,
+        data: { codes, mil: request.mil, note: request.note ?? null },
+      })
+    }
+    const name = facts.driverNames.get(driverId) ?? null
+    const result = await withCaseLock(caseRow.id, () => runTurn({
+      caseId: caseRow.id, audience: "driver", trigger: "telemetry",
+      input: `The car's OBD dongle just reported: ${summary}. ${name ?? "The driver"} has not written to us. Contact them first: make sure they are safe, give the safety instruction the severity calls for, and ask what they see.`,
+      counterpart: { type: "driver", id: driverId, name }, replyChannel: "driver_chat",
+    }))
+    return { caseId: caseRow.id, result }
+  })
 }
 
 // ---------------------------------------------------------------- operators
 
 /** The "Ask the agent" box: read-only answers with sources. */
 export async function askAgent(request: AskAgentRequest): Promise<{ caseId: string; result: TurnResult }> {
-  if (!request?.text?.trim() || !request.asked_by?.trim()) throw new ChannelError(400, "text and asked_by are required.")
-  let caseRow = request.case_id ? await getCase(request.case_id) : null
-  let created = false
-  if (!caseRow) {
-    const order = request.order_ref ? await resolveOrder(request.order_ref) : null
-    if (!order) throw new ChannelError(404, "Give a case or an order reference.")
-    const open = await listCases({ orderId: order.id, statuses: [...OPEN_CASE_STATUSES] })
-    caseRow = open[0] ?? null
+  return withRuntimeWork("operator question", async () => {
+    if (!request?.text?.trim() || !request.asked_by?.trim()) throw new ChannelError(400, "text and asked_by are required.")
+    let caseRow = request.case_id ? await getCase(request.case_id) : null
+    let created = false
     if (!caseRow) {
-      created = true
-      caseRow = await createCase({
-        orderId: order.id, kind: "OPERATOR_QUESTION", status: "AGENT_WORKING", urgency: "LOW", title: `Question about ${order.reference}`,
-        summary: request.text.slice(0, 200), channelOpened: "operator_chat", owner: "agent",
-      })
+      const order = request.order_ref ? await resolveOrder(request.order_ref) : null
+      if (!order) throw new ChannelError(404, "Give a case or an order reference.")
+      const open = await listCases({ orderId: order.id, statuses: [...OPEN_CASE_STATUSES] })
+      caseRow = open[0] ?? null
+      if (!caseRow) {
+        created = true
+        caseRow = await createCase({
+          orderId: order.id, kind: "OPERATOR_QUESTION", status: "AGENT_WORKING", urgency: "LOW", title: `Question about ${order.reference}`,
+          summary: request.text.slice(0, 200), channelOpened: "operator_chat", owner: "agent",
+        })
+      }
     }
-  }
-  await appendEvent({
-    caseId: caseRow.id, orderId: caseRow.orderId, actorType: "operator", actorId: request.asked_by, kind: "message", channel: "operator_chat",
-    recipientType: "agent", recipientId: AGENT_ID, body: request.text.trim(),
+    await appendEvent({
+      caseId: caseRow.id, orderId: caseRow.orderId, actorType: "operator", actorId: request.asked_by, kind: "message", channel: "operator_chat",
+      recipientType: "agent", recipientId: AGENT_ID, body: request.text.trim(),
+    })
+    const target = caseRow
+    const asker = await operatorPhrase(request.asked_by)
+    const result = await withCaseLock(target.id, () => runTurn({
+      caseId: target.id, audience: "operator", trigger: "ask", input: `${asker.charAt(0).toUpperCase()}${asker.slice(1)} asks: "${request.text.trim()}"`,
+      counterpart: { type: "operator", id: request.asked_by, name: asker }, replyChannel: "operator_chat",
+    }))
+    if (created) await updateCase(target.id, result.error ? { status: "RESOLVED" } : { status: "HANDLED_BY_AGENT", summary: `Answered: ${request.text.slice(0, 160)}` })
+    return { caseId: target.id, result }
   })
-  const target = caseRow
-  const asker = await operatorPhrase(request.asked_by)
-  const result = await withCaseLock(target.id, () => runTurn({
-    caseId: target.id, audience: "operator", trigger: "ask", input: `${asker.charAt(0).toUpperCase()}${asker.slice(1)} asks: "${request.text.trim()}"`,
-    counterpart: { type: "operator", id: request.asked_by, name: asker }, replyChannel: "operator_chat",
-  }))
-  if (created) await updateCase(target.id, result.error ? { status: "RESOLVED" } : { status: "HANDLED_BY_AGENT", summary: `Answered: ${request.text.slice(0, 160)}` })
-  return { caseId: target.id, result }
 }
 
 /** A free-text instruction to the agent on a case ("Tell the agent instead"). */
 export async function instructAgent(caseId: string, text: string, by: string): Promise<CaseRow> {
-  const caseRow = await getCase(caseId)
-  if (!caseRow) throw new ChannelError(404, "Case not found.")
-  if (!text?.trim() || !by?.trim()) throw new ChannelError(400, "text and by are required.")
-  await appendEvent({
-    caseId, orderId: caseRow.orderId, actorType: "operator", actorId: by, kind: "message", channel: "internal",
-    recipientType: "agent", recipientId: AGENT_ID, body: `Instruction to the agent: ${text.trim()}`,
+  return withRuntimeWork("operator instruction", async () => {
+    const caseRow = await getCase(caseId)
+    if (!caseRow) throw new ChannelError(404, "Case not found.")
+    if (!text?.trim() || !by?.trim()) throw new ChannelError(400, "text and by are required.")
+    await appendEvent({
+      caseId, orderId: caseRow.orderId, actorType: "operator", actorId: by, kind: "message", channel: "internal",
+      recipientType: "agent", recipientId: AGENT_ID, body: `Instruction to the agent: ${text.trim()}`,
+    })
+    return (await updateCase(caseId, { status: "AGENT_WORKING", owner: "agent", waitingOn: "the agent", waitingFor: "agent", nextAction: `The agent follows the instruction: ${text.trim()}` }))!
   })
-  return (await updateCase(caseId, { status: "AGENT_WORKING", owner: "agent", waitingOn: "the agent", waitingFor: "agent", nextAction: `The agent follows the instruction: ${text.trim()}` }))!
 }
 
 function outdatedReason(title: string, revision: number, checks: AssumptionCheck[] | undefined): string {
@@ -233,34 +246,42 @@ function followUpsFor(caseId: string, proposalId: string, outcome: DecisionOutco
 }
 
 export async function decide(caseId: string, proposalId: string, request: DecisionRequest): Promise<{ outcome: DecisionOutcome; followUps: FollowUp[] }> {
-  const outcome = await decideProposal(caseId, proposalId, request)
-  const proposal = outcome.followUp?.proposal
-  if (proposal?.actionType === "OPERATOR_DECISION" && proposal.chosenOptionId === "take_over") {
-    // "I'll take it from here": the case stays with the operator; the agent waits for an instruction.
-    const who = await operatorPhrase(request.decided_by)
-    await updateCase(caseId, {
-      status: "WAITING_EXTERNAL", owner: request.decided_by, waitingFor: "operator", waitingOn: `${who} (took the case over)`,
-      nextAction: "The operator handles this case; the agent stays out until instructed.", nextCheckAt: new Date(simNow().getTime() + 60 * 60000),
-    })
-  }
-  return { outcome, followUps: followUpsFor(caseId, proposalId, outcome) }
+  return withRuntimeWork("operator decision", () => withCaseLock(caseId, async () => {
+    const outcome = await decideProposal(caseId, proposalId, request)
+    const proposal = outcome.followUp?.proposal
+    if (proposal?.actionType === "OPERATOR_DECISION" && proposal.chosenOptionId === "take_over") {
+      // "I'll take it from here": the case stays with the operator; the agent waits for an instruction.
+      const who = await operatorPhrase(request.decided_by)
+      await updateCase(caseId, {
+        status: "WAITING_EXTERNAL", owner: request.decided_by, waitingFor: "operator", waitingOn: `${who} (took the case over)`,
+        nextAction: "The operator handles this case; the agent stays out until instructed.", nextCheckAt: new Date(simNow().getTime() + 60 * 60000),
+      })
+    }
+    return { outcome, followUps: followUpsFor(caseId, proposalId, outcome) }
+  }))
 }
 
 export async function outcome(caseId: string, input: LogOutcomeRequest): Promise<{ outcome: DecisionOutcome; followUps: FollowUp[] }> {
-  const result = await logOutcome(caseId, input)
-  return { outcome: result, followUps: result.followUp ? followUpsFor(caseId, result.proposal_id, result) : [{ kind: "decision", caseId, proposalId: "", outcome: "approved", note: null }] }
+  return withRuntimeWork("operator outcome", () => withCaseLock(caseId, async () => {
+    const result = await logOutcome(caseId, input)
+    return { outcome: result, followUps: result.followUp ? followUpsFor(caseId, result.proposal_id, result) : [{ kind: "decision", caseId, proposalId: "", outcome: "approved", note: null }] }
+  }))
 }
 
 /** The customer's answer to a proposed date change. Only "agreed" moves the promise; the agent continues from there. */
 export async function customerAnswer(caseId: string, input: CustomerAnswerRequest): Promise<{ outcome: DecisionOutcome; followUps: FollowUp[] }> {
-  const result = await recordCustomerAnswer(caseId, input)
-  return { outcome: result, followUps: result.followUp ? followUpsFor(caseId, result.proposal_id, result) : [] }
+  return withRuntimeWork("customer answer handling", () => withCaseLock(caseId, async () => {
+    const result = await recordCustomerAnswer(caseId, input)
+    return { outcome: result, followUps: result.followUp ? followUpsFor(caseId, result.proposal_id, result) : [] }
+  }))
 }
 
 /** "Facts changed since this was drafted": set the card aside; the agent drafts a fresh one. */
 export async function refresh(caseId: string, proposalId: string, by: string): Promise<{ response: Awaited<ReturnType<typeof refreshProposal>>; followUps: FollowUp[] }> {
-  const response = await refreshProposal(caseId, proposalId, by)
-  return { response, followUps: [{ kind: "analysis", caseId, reason: "New facts came in after the last card was drafted, and the operator asked for a fresh one. Re-read the case notes and the records, then redraft it (it becomes the next revision)." }] }
+  return withRuntimeWork("decision refresh", () => withCaseLock(caseId, async () => {
+    const response = await refreshProposal(caseId, proposalId, by)
+    return { response, followUps: [{ kind: "analysis", caseId, reason: "New facts came in after the last card was drafted, and the operator asked for a fresh one. Re-read the case notes and the records, then redraft it (it becomes the next revision)." }] }
+  }))
 }
 
 // ---------------------------------------------------------------- follow-ups
@@ -280,6 +301,9 @@ async function decisionInput(caseRow: CaseRow, proposalId: string, note: string 
   if (note && proposal.actionType === "CHANGE_PROMISE") {
     return { trigger: "decision", input: `The customer's answer to the proposed date change was recorded: ${note}. Only an agreement changes the promise. ${CONTINUE}` }
   }
+  if (proposal.status === "UNKNOWN_OUTCOME") {
+    return { trigger: "decision", input: `The booking requested by ${what} has an unknown outcome. It has NOT been confirmed. Stop dependent actions and reconcile with the provider before any new booking or success update. The operator's next step is: ${proposal.nextStep ?? "Check whether the booking exists."}` }
+  }
   if (proposal.status === "FAILED") {
     return { trigger: "decision", input: `An operator checked the booking from ${what}: it does not exist; nothing was booked. Do not retry blindly: look for fresh options and propose again only with a current quote. ${CONTINUE}` }
   }
@@ -297,26 +321,35 @@ async function decisionInput(caseRow: CaseRow, proposalId: string, note: string 
 
 /** Run follow-up turns one after another. Errors are recorded on the case, never thrown. */
 export async function runFollowUps(followUps: FollowUp[]): Promise<void> {
-  const queue = [...followUps]
-  while (queue.length) {
-    const followUp = queue.shift()!
-    try {
-      const caseRow = await getCase(followUp.caseId)
-      if (!caseRow) continue
-      const request = followUp.kind === "analysis"
-        ? { trigger: "analysis" as const, input: `Prepare the decision for operations now. Why: ${followUp.reason}` }
-        : await decisionInput(caseRow, followUp.proposalId, followUp.note)
-      const result = await withCaseLock(caseRow.id, () => runTurn({
-        caseId: caseRow.id, audience: "operator", trigger: request.trigger, input: request.input, counterpart: OPERATIONS, replyChannel: "internal",
-      }))
-      queue.push(...result.followUps)
-    } catch (error) {
-      console.error("Road Desk follow-up failed", error)
+  return withRuntimeWork("agent follow-ups", async () => {
+    const queue = [...followUps]
+    while (queue.length) {
+      const followUp = queue.shift()!
+      try {
+        // A queued decision may be delivered after its result became uncertain.
+        // Reconciliation is a human task; do not resume the model from approval
+        // wording or accidentally announce an unconfirmed booking as successful.
+        if (followUp.kind === "decision" && followUp.proposalId
+          && (await getProposal(followUp.proposalId))?.status === "UNKNOWN_OUTCOME") continue
+        const caseRow = await getCase(followUp.caseId)
+        if (!caseRow) continue
+        const request = followUp.kind === "analysis"
+          ? { trigger: "analysis" as const, input: `Prepare the decision for operations now. Why: ${followUp.reason}` }
+          : await decisionInput(caseRow, followUp.proposalId, followUp.note)
+        const result = await withCaseLock(caseRow.id, () => runTurn({
+          caseId: caseRow.id, audience: "operator", trigger: request.trigger, input: request.input, counterpart: OPERATIONS, replyChannel: "internal",
+        }))
+        queue.push(...result.followUps)
+      } catch (error) {
+        console.error("Road Desk follow-up failed", error)
+      }
     }
-  }
+  })
 }
 
 /** Instruct, then let the agent act on it. */
 export async function runInstruction(caseId: string): Promise<void> {
-  await runFollowUps([{ kind: "decision", caseId, proposalId: "", outcome: "approved", note: null }])
+  return withRuntimeWork("agent instruction", async () => {
+    await runFollowUps([{ kind: "decision", caseId, proposalId: "", outcome: "approved", note: null }])
+  })
 }
