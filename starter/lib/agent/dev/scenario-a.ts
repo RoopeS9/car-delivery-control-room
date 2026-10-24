@@ -117,7 +117,7 @@ async function main() {
     const logged = await triggers.outcome(caseId, { text: "Dealer sends their own roadside help, ETA 11:00 local time.", logged_by: "ops-shift" })
     await triggers.runFollowUps(logged.followUps)
     const after = await q.getCase(caseId)
-    say(`Case now: ${after?.status} · next: ${after?.nextStep ?? "-"}`)
+    say(`Case now: ${after?.status} · waiting on: ${after?.waitingOn ?? "-"} · next: ${after?.nextAction ?? "-"} · next check: ${after?.nextCheckAt?.toISOString().slice(11, 16) ?? "-"} UTC`)
     for (const card of await q.listProposals({ caseId, statuses: ["PENDING"] })) say(`New card: ${card.title} (${card.actionType})`)
   } else {
     say("No decision card was produced.")

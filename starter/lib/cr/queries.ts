@@ -7,7 +7,7 @@ import { and, asc, desc, eq, gt, gte, inArray, or, sql } from "drizzle-orm"
 import { orders } from "@/lib/schema"
 import { simNow } from "./clock"
 import { crDb } from "./db"
-import { crAgentRuns, crAutonomy, crCases, crEvents, crProposals, crTelemetry } from "./schema"
+import { crAgentRuns, crAutonomy, crCases, crEffects, crEvents, crProposals, crTelemetry } from "./schema"
 import {
   ACTION_TYPES, LOCKED_ACTIONS, OPEN_CASE_STATUSES,
   type ActionType, type AutonomyLevel, type CaseStatus, type ProposalStatus, type TelemetrySource,
@@ -22,11 +22,13 @@ export type NewProposal = typeof crProposals.$inferInsert
 export type TelemetryRow = typeof crTelemetry.$inferSelect
 export type NewTelemetry = typeof crTelemetry.$inferInsert
 export type AutonomyRow = typeof crAutonomy.$inferSelect
+export type EffectRow = typeof crEffects.$inferSelect
+export type NewEffect = typeof crEffects.$inferInsert
 export type AgentRunRow = typeof crAgentRuns.$inferSelect
 export type NewAgentRun = typeof crAgentRuns.$inferInsert
 
 /** A short, readable id such as `case-3f9a1c2b7d10`. */
-export function newId(prefix: "case" | "evt" | "prop" | "tel" | "run"): string {
+export function newId(prefix: "case" | "evt" | "prop" | "tel" | "run" | "eff"): string {
   return `${prefix}-${randomUUID().replace(/-/g, "").slice(0, 12)}`
 }
 
@@ -48,12 +50,26 @@ export async function createCase(input: Omit<NewCase, "id" | "openedAt" | "updat
   return row
 }
 
+/**
+ * Update a case. A new `waitingOn` starts a new wait: `waitingSince` becomes
+ * now and the follow-up count resets, unless the patch sets them. Closing a
+ * case clears what it was waiting on.
+ */
 export async function updateCase(id: string, patch: Partial<Omit<NewCase, "id" | "openedAt">>): Promise<CaseRow | null> {
   const now = simNow()
-  const resolved = patch.status === "RESOLVED" || patch.status === "HANDLED_BY_AGENT"
-  const [row] = await crDb().update(crCases)
-    .set({ ...patch, updatedAt: now, ...(resolved && patch.resolvedAt === undefined ? { resolvedAt: now } : {}) })
-    .where(eq(crCases.id, id)).returning()
+  const closed = patch.status === "RESOLVED" || patch.status === "HANDLED_BY_AGENT"
+  const extra: Partial<NewCase> = {}
+  if (closed) {
+    if (patch.resolvedAt === undefined) extra.resolvedAt = now
+    Object.assign(extra, { waitingOn: null, nextCheckAt: null, waitingSince: null })
+  } else if (patch.waitingOn !== undefined) {
+    const [current] = await crDb().select({ waitingOn: crCases.waitingOn }).from(crCases).where(eq(crCases.id, id)).limit(1)
+    if (current?.waitingOn !== patch.waitingOn) {
+      if (patch.waitingSince === undefined) extra.waitingSince = patch.waitingOn ? now : null
+      if (patch.followUps === undefined) extra.followUps = 0
+    }
+  }
+  const [row] = await crDb().update(crCases).set({ ...patch, ...extra, updatedAt: now }).where(eq(crCases.id, id)).returning()
   return row ?? null
 }
 
@@ -165,6 +181,21 @@ export async function listProposals(filter: { caseId?: string; orderId?: string;
 }
 
 /**
+ * Claim the right to execute a proposal revision. Returns false when the key
+ * is already taken: someone else executed it (a double click, a retried
+ * request), so the caller returns the first result instead of running again.
+ */
+export async function claimExecution(id: string, key: string): Promise<boolean> {
+  try {
+    const rows = await crDb().update(crProposals).set({ executionKey: key })
+      .where(and(eq(crProposals.id, id), sql`${crProposals.executionKey} is null`)).returning({ id: crProposals.id })
+    return rows.length > 0
+  } catch {
+    return false
+  }
+}
+
+/**
  * Update a proposal only if it is still in `fromStatuses`. Returns null when
  * someone else decided it first, so two clicks cannot both execute it.
  */
@@ -193,6 +224,27 @@ export async function proposalsWithChangedFacts(caseId: string): Promise<{ propo
     .orderBy(desc(crEvents.at)).limit(1)
   if (!latest) return []
   return pending.filter((proposal) => latest.at > proposal.createdAt).map((proposal) => ({ proposalId: proposal.id, changedAt: latest.at }))
+}
+
+// ---------------------------------------------------------------- effects
+
+export async function insertEffect(input: Omit<NewEffect, "id" | "at"> & { at?: Date }): Promise<EffectRow> {
+  const [row] = await crDb().insert(crEffects).values({ ...input, id: newId("eff"), at: input.at ?? simNow() }).returning()
+  return row
+}
+
+export async function listEffects(filter: { orderId?: string; caseId?: string; kinds?: EffectRow["kind"][] }): Promise<EffectRow[]> {
+  const where = and(
+    filter.orderId ? eq(crEffects.orderId, filter.orderId) : undefined,
+    filter.caseId ? eq(crEffects.caseId, filter.caseId) : undefined,
+    filter.kinds?.length ? inArray(crEffects.kind, filter.kinds) : undefined,
+  )
+  return crDb().select().from(crEffects).where(where).orderBy(asc(crEffects.at))
+}
+
+export async function getEffect(id: string): Promise<EffectRow | null> {
+  const [row] = await crDb().select().from(crEffects).where(eq(crEffects.id, id)).limit(1)
+  return row ?? null
 }
 
 // ---------------------------------------------------------------- telemetry
@@ -286,6 +338,7 @@ export async function resetCrData(options: { autonomy?: boolean } = {}): Promise
   const db = crDb()
   await db.transaction(async (tx) => {
     await tx.delete(crProposals)
+    await tx.delete(crEffects)
     await tx.delete(crEvents)
     await tx.delete(crAgentRuns)
     await tx.delete(crTelemetry)

@@ -9,11 +9,13 @@ import { appendEvent, getEvent, latestTelemetry, listProposals, resolveOrder, te
 import { simNow } from "@/lib/cr/clock"
 import {
   CASE_KINDS, URGENCIES, ACTION_TYPES,
-  type ActorType, type CaseKind, type EventKind, type GpsData, type ObdData, type PhotoData, type SourceRef, type ToolCallTrace, type Urgency,
+  type ActorType, type CaseKind, type EventKind, type WaitingFor, type GpsData, type ObdData, type PhotoData, type SourceRef, type ToolCallTrace, type Urgency,
 } from "@/lib/cr/types"
 import { AGENT_ID } from "./config"
 import { contextFor, loadOrderFacts, type End } from "./context"
-import { checkTool, submitProposal, findClearance, validateProposal, type GateContext, type ProposalInput, type ToolName } from "./gate"
+import { renderSafetyTemplate, SAFETY_TEMPLATES, screenDriverMessage } from "./drivability"
+import { firstName } from "./format"
+import { checkTool, submitProposal, validateProposal, type GateContext, type ProposalInput, type ToolName } from "./gate"
 import { cityCoords, matchWarningLights, playbook, playbooks, troubleCode } from "./knowledge"
 import { findNearbyHelp, searchTravelOptions, type HelpKind, type TravelKind } from "./mocks"
 import { orderTimeline, renderLines } from "./timeline"
@@ -21,7 +23,7 @@ import { relative, utcTime } from "./format"
 
 export type FollowUp =
   | { kind: "analysis"; caseId: string; reason: string }
-  | { kind: "decision"; caseId: string; proposalId: string; outcome: "approved" | "rejected" }
+  | { kind: "decision"; caseId: string; proposalId: string; outcome: "approved" | "rejected"; note?: string | null }
 
 export type TurnState = GateContext & {
   runId: string
@@ -32,6 +34,12 @@ export type TurnState = GateContext & {
   traces: ToolCallTrace[]
   /** Set when the agent closed the case in this turn. */
   closed: boolean
+  /** Spend outside the main model calls (the drivability classifier). */
+  costUsd: number
+  /** Set when something reached a person or changed in this turn; a failed run is then not retried. */
+  sideEffects: boolean
+  /** Set when the agent chose what the case waits on (wait_for). */
+  waitSet: boolean
 }
 
 type ToolContent = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
@@ -67,6 +75,14 @@ const optionsSchema = {
   type: "array",
   description: "Choices for the operator, if the decision has more than one sensible answer. Empty if it is a plain yes or no.",
   items: obj({ id: text("Short id, e.g. 'own_assistance'."), label: text("Short label."), description: text("One line."), recommended: { type: "boolean" } }),
+}
+
+const assumptionSchema = {
+  anyOf: [
+    obj({ kind: { type: "string", enum: ["record"] }, table: text("Dataset collection, e.g. travel_reservations."), id: text("Record id from a source."), field: text("Field name, e.g. status."), expected: text("The value you relied on, as text."), label: text("In words, e.g. 'Ferry WBV-FERRY-00584 is still booked'.") }),
+    obj({ kind: { type: "string", enum: ["no_new_message"] }, from: { type: "string", enum: ["driver", "site", "customer"] }, after: text("ISO time of the latest message you read."), label: text("In words, e.g. 'No new driver message after 09:12'.") }),
+    obj({ kind: { type: "string", enum: ["car_codes"] }, codes: { type: "array", items: { type: "string" } }, label: text("In words, e.g. 'Car still reports P0300 and P0302'.") }),
+  ],
 }
 
 const ORDER_REF = text("Order reference like CD-420584. Empty string means this case's order.")
@@ -137,8 +153,8 @@ export const TOOL_DEFINITIONS: Record<ToolName, Anthropic.Tool> = {
   },
   safety_instruction: {
     name: "safety_instruction",
-    description: "Give the driver an immediate safety instruction (stop at the next safe place, switch off, stand behind the barrier, call 112). Sent at once and shown to operators. Never use it to say they may drive on.",
-    input_schema: obj({ text: text("The instruction, one or two short sentences.") }),
+    description: `Send the driver one approved safety instruction at once; operators see exactly what was said. Only these templates exist: ${SAFETY_TEMPLATES.map((template) => `${template.id} ("${template.text.replace("{name}, p", "P")}")`).join("; ")}. Call it again for a second instruction.`,
+    input_schema: obj({ template_id: { type: "string", enum: SAFETY_TEMPLATES.map((template) => template.id) } }),
   },
   ask_site: {
     name: "ask_site",
@@ -155,6 +171,16 @@ export const TOOL_DEFINITIONS: Record<ToolName, Anthropic.Tool> = {
       urgency: { type: "string", enum: [...URGENCIES] },
     }),
   },
+  wait_for: {
+    name: "wait_for",
+    description: "Put the case into a deliberate wait when nothing more can be done until someone else acts: who we wait on, what happens next, and when to check again. The control room shows this, and a follow-up runs when the time passes.",
+    input_schema: obj({
+      waiting_for: { type: "string", enum: ["driver", "site", "customer", "provider", "dispatch", "operator"] },
+      waiting_on: text("In words, e.g. 'the dealer's roadside help (ETA 11:00 local)'."),
+      next_action: text("What happens next and who does it, e.g. 'Check at 11:15 that roadside help arrived; then check the ferry cutoff.'"),
+      check_in_minutes: { type: "integer", description: "Minutes from now (simulated clock) to check again." },
+    }),
+  },
   hand_over: {
     name: "hand_over",
     description: "Ask the Road Desk to prepare a decision for operations once you have the facts a person needs. The decision card is built right after this conversation turn. Use it instead of trying to decide yourself.",
@@ -162,7 +188,7 @@ export const TOOL_DEFINITIONS: Record<ToolName, Anthropic.Tool> = {
   },
   propose_action: {
     name: "propose_action",
-    description: "Bring operations one clear decision: what you recommend, what would change, the evidence, and what happens after yes or no. Anything that changes a booking, date, cost, driver, recovery, clearance to drive, or contacts the customer goes through here.",
+    description: "Bring operations one clear decision: what you recommend, what would change, the evidence, the assumptions it relies on, and what happens after yes or no. Anything that changes a booking, date, cost, driver, recovery, clearance to drive, or contacts the customer goes through here. Approving CHANGE_PROMISE only sends the question to the customer; the promise changes when they agree. Asking the dealer about recovery is not booking a tow.",
     input_schema: obj({
       action_type: { type: "string", enum: ACTION_TYPES.filter((type) => type !== "OPERATOR_DECISION") },
       title: text("The recommendation as a short imperative, e.g. 'Call the dealer about recovery'."),
@@ -184,6 +210,11 @@ export const TOOL_DEFINITIONS: Record<ToolName, Anthropic.Tool> = {
       },
       options: optionsSchema,
       evidence_refs: { type: "array", items: sourceRefSchema, description: "The sources behind this proposal." },
+      assumptions: { type: "array", items: assumptionSchema, description: "The facts this card relies on. Before it executes they are rechecked; if one changed, nothing runs and you redraft it. Include the booking or record your action depends on, and the latest driver message you read." },
+      proposed_window: {
+        anyOf: [{ type: "null" }, obj({ start_utc: text("ISO time, UTC."), end_utc: text("ISO time, UTC.") })],
+        description: "For UPDATE_ETA and CHANGE_PROMISE: the new window. Otherwise null.",
+      },
       next_step_if_approved: text("What happens right after approval, in one sentence."),
       next_step_if_rejected: text("What you will do if rejected, in one sentence."),
     }),
@@ -217,9 +248,9 @@ export function toolsFor(audience: GateContext["audience"], readOnly = false): A
   const names = (Object.keys(TOOL_DEFINITIONS) as ToolName[]).filter((name) => {
     const allowed = { driver: 0, site: 1, operator: 2 }[audience]
     return [
-      ["get_order_context", "get_telemetry", "get_active_codes", "lookup_trouble_code", "lookup_warning_light", "analyse_photo", "find_nearby_help", "read_playbook", "request_photo", "safety_instruction", "update_case", "hand_over", "close_case"],
+      ["get_order_context", "get_telemetry", "get_active_codes", "lookup_trouble_code", "lookup_warning_light", "analyse_photo", "find_nearby_help", "read_playbook", "request_photo", "safety_instruction", "update_case", "wait_for", "hand_over", "close_case"],
       ["get_order_context", "read_playbook", "hand_over"],
-      ["get_order_context", "get_timeline", "get_telemetry", "get_active_codes", "lookup_trouble_code", "lookup_warning_light", "analyse_photo", "find_nearby_help", "search_travel_options", "read_playbook", "message_driver", "request_photo", "safety_instruction", "ask_site", "update_case", "propose_action", "escalate", "close_case"],
+      ["get_order_context", "get_timeline", "get_telemetry", "get_active_codes", "lookup_trouble_code", "lookup_warning_light", "analyse_photo", "find_nearby_help", "search_travel_options", "read_playbook", "message_driver", "request_photo", "safety_instruction", "ask_site", "update_case", "wait_for", "propose_action", "escalate", "close_case"],
     ][allowed].includes(name) && (!readOnly || READ_ONLY_TOOLS.includes(name))
   })
   const books = playbooks().map((book) => book.name)
@@ -237,9 +268,37 @@ const str = (value: unknown) => (typeof value === "string" ? value : "")
 
 async function sendToDriver(state: TurnState, input: { body: string; channel: "driver_chat" | "safety"; data?: Record<string, unknown> }) {
   if (!state.driverId) return null
+  state.sideEffects = true
   return appendEvent({
     caseId: state.caseRow.id, orderId: state.facts.id, actorType: "agent", actorId: AGENT_ID, kind: "message", channel: input.channel,
     recipientType: "driver", recipientId: state.driverId, body: input.body, data: input.data ?? {},
+  })
+}
+
+/**
+ * A driver message that reads as permission to drive on is not sent. It
+ * becomes a CLEAR_TO_CONTINUE card with that text as the draft, so an
+ * operator can approve it on purpose (PLAN.md 4.2, drivability screen).
+ */
+export async function holdForClearance(state: GateContext, text: string, reason: string | null) {
+  await appendEvent({
+    caseId: state.caseRow.id, orderId: state.facts.id, actorType: "system", actorId: "gate", kind: "tool_call", channel: "internal",
+    body: `Drivability screen held back a message that reads as permission to drive on${reason ? ` (${reason})` : ""}. It is now a card for an operator.`,
+    data: { refused: true, rule: "drivability_screen", text },
+  })
+  await submitProposal({ audience: "operator", caseRow: state.caseRow, facts: state.facts }, {
+    action_type: "CLEAR_TO_CONTINUE",
+    title: "Clear the driver to drive on?",
+    rationale: "The agent's message to the driver read as permission to drive on. Only an operator can give that.",
+    handover: { what_happened: "The agent drafted a message that would let the driver continue.", facts: [], agent_did: ["Held the message back."], unknowns: ["Whether the car is safe to drive."], recommendation: "Approve only if you are sure the car may be driven.", alternatives: ["Reject and keep the driver stopped."] },
+    changes: [],
+    draft_message: { to: "driver", channel: "app_chat", subject: "", body: text, language: "" },
+    options: [],
+    evidence_refs: [],
+    assumptions: [],
+    proposed_window: null,
+    next_step_if_approved: "The driver gets this message from the operator and may drive on.",
+    next_step_if_rejected: "The driver stays stopped; the agent tells them an operator will confirm.",
   })
 }
 
@@ -395,9 +454,13 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
 
   async message_driver(state, input) {
     if (!state.driverId) return { content: "There is no driver on this order to message.", isError: true }
-    const clearance = findClearance(str(input.text))
-    if (clearance) return { content: `Not sent: the message clears the driver to drive ("${clearance}"). That needs a CLEAR_TO_CONTINUE proposal.`, isError: true, gate: "REFUSED" }
-    await sendToDriver(state, { body: str(input.text), channel: "driver_chat" })
+    const screen = await screenDriverMessage(str(input.text))
+    state.costUsd += screen.costUsd
+    if (!screen.allowed) {
+      await holdForClearance(state, str(input.text), screen.reason)
+      return { content: `Not sent: it reads as permission to drive on (${screen.reason}). It is now a CLEAR_TO_CONTINUE card for an operator.`, isError: true, gate: "REFUSED" }
+    }
+    await sendToDriver(state, { body: str(input.text), channel: "driver_chat", data: { screened: screen.layer } })
     return { content: `Sent to ${state.driverName ?? "the driver"}.`, log: null }
   },
 
@@ -409,14 +472,17 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
 
   async safety_instruction(state, input) {
     if (!state.driverId) return { content: "There is no driver on this order.", isError: true }
-    await sendToDriver(state, { body: str(input.text), channel: "safety", data: { safety: true } })
-    return { content: "Safety instruction sent and shown to operators.", log: null }
+    const body = renderSafetyTemplate(str(input.template_id), firstName(state.driverName))
+    if (!body) return { content: "No such safety template.", isError: true, gate: "REFUSED" }
+    await sendToDriver(state, { body, channel: "safety", data: { safety: true, template_id: str(input.template_id) } })
+    return { content: `Sent: "${body}"`, log: null }
   },
 
   async ask_site(state, input) {
     const end: End = input.end === "delivery" ? "delivery" : "pickup"
     const endpoint = end === "pickup" ? state.facts.pickup : state.facts.delivery
     const name = String(endpoint.site?.name ?? endpoint.address.name ?? "the site")
+    state.sideEffects = true
     await appendEvent({
       caseId: state.caseRow.id, orderId: state.facts.id, actorType: "agent", actorId: AGENT_ID, kind: "message", channel: "site_chat",
       recipientType: "site", recipientId: endpoint.site ? String(endpoint.site.id) : `${end}:${String(endpoint.address.id)}`,
@@ -438,12 +504,32 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
     return { content: "Case updated.", log: null }
   },
 
+  async wait_for(state, input) {
+    const minutes = typeof input.check_in_minutes === "number" ? Math.min(Math.max(Math.round(input.check_in_minutes), 1), 24 * 60) : 30
+    const pending = await listProposals({ caseId: state.caseRow.id, statuses: ["PENDING"] })
+    const updated = await updateCase(state.caseRow.id, {
+      ...(pending.length ? {} : { status: "WAITING_EXTERNAL" as const }),
+      owner: "agent", waitingFor: str(input.waiting_for) as WaitingFor, waitingOn: str(input.waiting_on) || "an answer",
+      nextAction: str(input.next_action) || null, nextCheckAt: new Date(simNow().getTime() + minutes * 60000),
+    })
+    if (updated) state.caseRow = updated
+    state.waitSet = true
+    await appendEvent({
+      caseId: state.caseRow.id, orderId: state.facts.id, actorType: "agent", actorId: AGENT_ID, kind: "note", channel: "internal",
+      body: `Waiting on ${str(input.waiting_on)}. Next check in ${minutes} min: ${str(input.next_action)}`,
+    })
+    return { content: `The case waits on ${str(input.waiting_on)}; a follow-up runs in ${minutes} minutes (simulated clock).`, log: null }
+  },
+
   async hand_over(state, input) {
     const reason = str(input.reason)
     if (!state.followUps.some((followUp) => followUp.kind === "analysis")) {
       state.followUps.push({ kind: "analysis", caseId: state.caseRow.id, reason })
     }
-    const updated = await updateCase(state.caseRow.id, { status: "AGENT_WORKING", owner: "agent", nextStep: "The agent is preparing a decision for operations." })
+    const updated = await updateCase(state.caseRow.id, {
+      status: "AGENT_WORKING", owner: "agent", waitingOn: "the agent", waitingFor: "agent",
+      nextAction: "The agent is preparing a decision for operations.", nextCheckAt: new Date(simNow().getTime() + 3 * 60000),
+    })
     if (updated) state.caseRow = updated
     await appendEvent({
       caseId: state.caseRow.id, orderId: state.facts.id, actorType: "agent", actorId: AGENT_ID, kind: "note", channel: "internal",
@@ -456,6 +542,7 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
     const proposal = input as unknown as ProposalInput
     const verdict = validateProposal(proposal, state.facts)
     if (!verdict.ok) return { content: `Not recorded: ${verdict.reason}`, isError: true, gate: "REFUSED" }
+    state.sideEffects = true
     const { proposal: row, level, executed } = await submitProposal(state, proposal)
     return {
       content: executed
@@ -476,11 +563,14 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
       draft_message: null,
       options: (input.options as ProposalInput["options"]) ?? [],
       evidence_refs: (input.evidence_refs as SourceRef[]) ?? [],
+      assumptions: [],
+      proposed_window: null,
       next_step_if_approved: str(input.next_step_if_decided),
       next_step_if_rejected: "The agent asks what to do instead.",
     }
     const verdict = validateProposal(proposal, state.facts)
     if (!verdict.ok) return { content: `Not recorded: ${verdict.reason}`, isError: true, gate: "REFUSED" }
+    state.sideEffects = true
     const { proposal: row } = await submitProposal(state, proposal)
     return { content: `Question recorded for operations: ${row.title}`, gate: "PROPOSED", log: null }
   },
@@ -488,7 +578,7 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
   async close_case(state, input) {
     const pending = await listProposals({ caseId: state.caseRow.id, statuses: ["PENDING"] })
     if (pending.length) return { content: "This case has a decision waiting for an operator; it cannot be closed.", isError: true, gate: "REFUSED" }
-    const updated = await updateCase(state.caseRow.id, { status: "HANDLED_BY_AGENT", summary: str(input.summary), owner: "agent", nextStep: null, waitingOn: null })
+    const updated = await updateCase(state.caseRow.id, { status: "HANDLED_BY_AGENT", summary: str(input.summary), owner: "agent", nextAction: null })
     if (updated) state.caseRow = updated
     state.closed = true
     await appendEvent({

@@ -4,6 +4,7 @@
 
 import { and, asc, eq, inArray, sql } from "drizzle-orm"
 import { crDb } from "@/lib/cr/db"
+import { effectiveOrder, type EffectiveOrder } from "@/lib/cr/effective"
 import { latestTelemetry } from "@/lib/cr/queries"
 import type { Audience, GpsData, ObdData, SourceRef } from "@/lib/cr/types"
 import { addresses, alerts, conversations, customers, drivers, orderItems, orders, relatedRecords, sites, vehicles } from "@/lib/schema"
@@ -319,40 +320,62 @@ export async function telemetryView(orderId: string) {
   }
 }
 
+function journeyStart(assignment: Raw | null) {
+  const started = str(assignment?.started_at)
+  return started
+    ? { recorded: true, at: utcTime(started), text: `Journey start recorded ${relative(started)}` }
+    : { recorded: false, at: null, text: "No journey start is recorded yet. That does not prove the driver has not set off." }
+}
+
+function promiseView(effective: EffectiveOrder, audience: Audience) {
+  const promise = effective.promise
+  if (!promise) return null
+  return {
+    start_utc: promise.start_utc, end_utc: promise.end_utc, zone: promise.zone,
+    start: localTime(promise.start_utc, promise.zone), end: localTime(promise.end_utc, promise.zone),
+    basis: promise.basis, source: promise.source,
+    ...(audience === "operator" ? {
+      pending_changes: promise.pending.map((entry) => ({ ...entry, note: "Proposed to the customer, not agreed. The promise above still stands." })),
+      history: promise.history,
+    } : {}),
+  }
+}
+
 /**
- * The order read out for one audience. Operators see everything; a driver
- * sees their own job; a site sees only its own end of this order: timing,
- * driver's first name, vehicle and plate. Never prices or customer details.
+ * What a pickup or delivery place may know about this order: its own end's
+ * timing, the driver's first name, the vehicle and plate, and where the
+ * driver is if we know. Never customer details, prices, conversations or
+ * other orders (PLAN.md 4.2).
  */
-export async function contextFor(audience: Audience, facts: OrderFacts, options: { siteEnd?: End | null; driverId?: string | null } = {}) {
-  const telemetry = await telemetryView(facts.id)
-  const vehicle = facts.vehicle
-  const driverId = options.driverId ?? activeDriverId(facts)
+export async function getSiteContext(facts: OrderFacts, end: End) {
+  const endpoint = end === "pickup" ? facts.pickup : facts.delivery
+  const driverId = activeDriverId(facts)
   const driver = driverId ? facts.driverNames.get(driverId) ?? null : null
   const assignment = facts.assignments.find((row) => row.driver_id === driverId) ?? null
-  const windows = facts.windows.filter((row) => row.is_selected === true || String(row.purpose).startsWith("REQUESTED"))
-  const lastTracking = trackingView(facts.tracking.at(-1))
-
-  if (audience === "site") {
-    const end = options.siteEnd ?? "pickup"
-    const endpoint = end === "pickup" ? facts.pickup : facts.delivery
-    const purpose = end === "pickup" ? "SELECTED_PICKUP_SLOT" : "CUSTOMER_DELIVERY_PROMISE"
-    const slot = facts.windows.find((row) => row.purpose === purpose && row.is_selected === true)
-    return {
-      order: facts.reference,
-      your_end: end,
-      place: endpointView(endpoint, "site").place,
-      vehicle: vehicle ? { make: vehicle.make, model: vehicle.model, plate: vehicle.registration ?? "not recorded" } : null,
-      driver_first_name: firstName(driver),
-      planned_window: slot ? windowView(slot) : null,
-      order_stage: STATUS_WORDS[facts.status] ?? facts.status,
-      latest_driver_position: telemetry.phone_position,
-      may_not_share: "Prices, other orders, the customer's details, internal notes.",
-      this_site_is_the_customer: endpoint.customerSide,
-    }
+  const telemetry = await telemetryView(facts.id)
+  const effective = await effectiveOrder(facts.id)
+  const slot = end === "pickup" ? facts.windows.find((row) => row.purpose === "SELECTED_PICKUP_SLOT" && row.is_selected === true) : null
+  const vehicle = facts.vehicle
+  return {
+    order: facts.reference,
+    your_end: end,
+    place: endpointView(endpoint, "site").place,
+    vehicle: vehicle ? { make: vehicle.make, model: vehicle.model, plate: vehicle.registration ?? "not recorded" } : null,
+    driver_first_name: firstName(driver),
+    driver_booking: assignment ? { status: str(assignment.status) === "IN_PROGRESS" ? "on the job" : str(assignment.status) === "ASSIGNED" ? "booked" : str(assignment.status)?.toLowerCase(), source: ref("work_assignments", assignment.id, "Driver booking", assignment.accepted_at) } : null,
+    journey_start: journeyStart(assignment),
+    planned_window: end === "pickup" ? (slot ? windowView(slot) : null) : promiseView(effective, "site"),
+    latest_driver_position: telemetry.phone_position,
+    may_not_share: "Prices, other orders, the customer's details, conversations, internal notes.",
+    this_site_is_the_customer: endpoint.customerSide,
   }
+}
 
-  const base = {
+function commonView(facts: OrderFacts, audience: "driver" | "operator", driverId: string | null) {
+  const vehicle = facts.vehicle
+  const driver = driverId ? facts.driverNames.get(driverId) ?? null : null
+  const assignment = facts.assignments.find((row) => row.driver_id === driverId) ?? null
+  return {
     order: {
       reference: facts.reference,
       stage: STATUS_WORDS[facts.status] ?? facts.status,
@@ -367,41 +390,63 @@ export async function contextFor(audience: Audience, facts: OrderFacts, options:
     } : null,
     pickup: endpointView(facts.pickup, audience),
     delivery: endpointView(facts.delivery, audience),
-    windows: windows.map(windowView),
     driver: driver ? {
-      name: driver,
-      job_status: str(assignment?.status),
-      started: utcTime(str(assignment?.started_at)),
+      name: driver, job_status: str(assignment?.status), journey_start: journeyStart(assignment),
       source: ref("work_assignments", assignment?.id, `Driver booking, ${driver}`, assignment?.accepted_at),
     } : null,
-    travel_bookings: facts.reservations.filter((row) => !driverId || audience === "operator" || !row.assignment_id || facts.assignments.some((a) => a.id === row.assignment_id && a.driver_id === driverId)).map((row) => reservationView(row, facts.terminalZones)),
-    last_driver_app_progress: lastTracking,
+    last_driver_app_progress: trackingView(facts.tracking.at(-1)),
+  }
+}
+
+/**
+ * What the driver on this order may know: their own job, route, access
+ * notes, keys, their travel bookings, the car's status. No customer account
+ * details, prices, conversations or other orders.
+ */
+export async function getDriverContext(facts: OrderFacts, driverId: string | null) {
+  const id = driverId ?? activeDriverId(facts)
+  const [telemetry, effective] = await Promise.all([telemetryView(facts.id), effectiveOrder(facts.id)])
+  const pickupSlot = facts.windows.find((row) => row.purpose === "SELECTED_PICKUP_SLOT" && row.is_selected === true)
+  return {
+    ...commonView(facts, "driver", id),
+    your_pickup_slot: pickupSlot ? windowView(pickupSlot) : null,
+    delivery_window: promiseView(effective, "driver"),
+    your_travel_bookings: facts.reservations
+      .filter((row) => !row.assignment_id || facts.assignments.some((a) => a.id === row.assignment_id && a.driver_id === id))
+      .map((row) => reservationView(row, facts.terminalZones)),
     phone_position: telemetry.phone_position,
     car_status: telemetry.car_status,
+    your_expense_claims: facts.expenses.filter((row) => row.driver_id === id).map((row) => ({
+      kind: str(row.kind), status: str(row.status), submitted: utcTime(str(row.submitted_at)), receipt: str(row.receipt_state),
+      note: row.status === "APPROVED" ? "Approved is not paid." : null,
+      source: ref("expenses", row.id, `Expense claim, ${str(row.kind)?.toLowerCase()}`, row.submitted_at),
+    })),
   }
+}
 
-  if (audience === "driver") {
-    return {
-      ...base,
-      your_expense_claims: facts.expenses.filter((row) => row.driver_id === driverId).map((row) => ({
-        kind: str(row.kind), amount: money(row.amount_cents, row.currency), status: str(row.status),
-        note: row.status === "APPROVED" ? "Approved is not paid." : null,
-        submitted: utcTime(str(row.submitted_at)), receipt: str(row.receipt_state),
-        source: ref("expenses", row.id, `Expense claim, ${str(row.kind)?.toLowerCase()}`, row.submitted_at),
-      })),
-    }
-  }
-
+/** Everything on the order for operations, with sources, read through the effective state. */
+export async function getOperatorContext(facts: OrderFacts) {
+  const driverId = activeDriverId(facts)
+  const assignment = facts.assignments.find((row) => row.driver_id === driverId) ?? null
+  const [telemetry, effective] = await Promise.all([telemetryView(facts.id), effectiveOrder(facts.id)])
+  const windows = facts.windows.filter((row) => row.is_selected === true || String(row.purpose).startsWith("REQUESTED"))
   return {
-    ...base,
+    ...commonView(facts, "operator", driverId),
     customer: {
       name: facts.customer.name,
       country: facts.customer.country,
       rule: "The customer pays Bahn. The agent never contacts them directly; use a CONTACT_CUSTOMER proposal.",
       source: ref("customers", facts.customer.id, `Customer account, ${facts.customer.name}`),
     },
-    driver_fee: money(assignment?.fee_cents, assignment?.currency),
+    delivery_promise: promiseView(effective, "operator"),
+    windows: windows.map(windowView),
+    eta_estimate: effective.eta,
+    travel_bookings: facts.reservations.map((row) => reservationView(row, facts.terminalZones)),
+    road_desk_bookings: effective.bookings.filter((booking) => booking.source.kind === "cr_effects"),
     travel_quotes: facts.options.map(optionView),
+    driver_fee: money(assignment?.fee_cents, assignment?.currency),
+    phone_position: telemetry.phone_position,
+    car_status: telemetry.car_status,
     open_records: {
       alerts: facts.alerts.filter((row) => row.status !== "RESOLVED" && row.status !== "DISMISSED").map((row) => ({
         summary: str(row.summary), status: str(row.status), severity: str(row.severity), raised: relative(str(row.triggered_at)),
@@ -427,4 +472,23 @@ export async function contextFor(audience: Audience, facts: OrderFacts, options:
       source: ref("expenses", row.id, `Expense claim, ${str(row.kind)?.toLowerCase()}`, row.submitted_at),
     })),
   }
+}
+
+/** The order read out for one audience. */
+export async function contextFor(audience: Audience, facts: OrderFacts, options: { siteEnd?: End | null; driverId?: string | null } = {}) {
+  if (audience === "site") return getSiteContext(facts, options.siteEnd ?? "pickup")
+  if (audience === "driver") return getDriverContext(facts, options.driverId ?? null)
+  return getOperatorContext(facts)
+}
+
+/**
+ * Open dataset records on an order that a new case takes over (PLAN.md 4.1,
+ * "Linking imported work"), so the queue shows one row for the order.
+ */
+export function linkedRecordsOf(facts: OrderFacts): SourceRef[] {
+  return [
+    ...facts.workItems.filter((row) => row.status !== "DONE").map((row) => ref("work_items", row.id, `Work item: ${str(row.summary) ?? "open"}`, row.created_at)),
+    ...facts.incidents.filter((row) => row.status !== "RESOLVED").map((row) => ref("incidents", row.id, `Incident: ${str(row.kind)?.toLowerCase().replace(/_/g, " ")}`, row.opened_at)),
+    ...facts.alerts.filter((row) => row.status !== "RESOLVED" && row.status !== "DISMISSED").map((row) => ref("alerts", row.id, `Alert: ${str(row.summary) ?? ""}`, row.triggered_at)),
+  ]
 }

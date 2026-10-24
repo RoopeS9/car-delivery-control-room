@@ -12,7 +12,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const body = await readJson<InstructRequest>(request)
     const row = await instructAgent(id, body.text, body.by)
     void runInstruction(id).catch((error) => console.error("Road Desk instruction failed", error))
-    return Response.json({ case_id: id, case_status: row.status, next_step: row.nextStep } satisfies CaseActionResponse)
+    return Response.json({ case_id: id, case_status: row.status, next_step: row.nextAction, next_check_at: row.nextCheckAt?.toISOString() ?? null } satisfies CaseActionResponse)
   } catch (error) {
     return errorResponse(error)
   }
