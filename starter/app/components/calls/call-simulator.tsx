@@ -5,16 +5,21 @@ import { useEffect, useRef, useState } from "react"
 import { readToolArgument, slotLabel, slotValue, type CallRecord, type CallScenario } from "@/lib/present/call-types"
 import { labelIn } from "@/lib/present/labels"
 import { fmtDateTime } from "@/lib/present/time"
+import { DriverApp } from "../../driver/driver-app"
+import type { DriverJob, ThreadMessage } from "../../driver/data"
+import phoneStyles from "../../driver/driver.module.css"
 import { Icon } from "../icons"
 import "./calls.css"
+
+export type DriverPhone = { driver: { id: string; name: string }; jobs: DriverJob[]; job: DriverJob | null; thread: ThreadMessage[] }
 
 const ROLE_WORDS: Record<string, string> = { PICKUP_SITE_DESK: "Pickup desk", DRIVER: "Driver", DELIVERY_RECEIVER: "Receiver" }
 const PURPOSE_WORDS: Record<string, string> = { PICKUP_READINESS: "Pickup readiness", DRIVER_START_CHECK: "Driver start check", DRIVER_INBOUND: "Driver calls in" }
 const words = (map: Record<string, string>, code: string) => map[code] ?? labelIn(code)
 
 /** Pick a robo-call scenario, run it, and read what the call established and from which turn. */
-export function CallSimulator({ scenarios, stored, orderIds, callees }: { scenarios: CallScenario[] | null; stored: Record<string, CallRecord[]>; orderIds: Record<string, string>; callees: Record<string, string | null> }) {
-  const [selected, setSelected] = useState<string | null>(scenarios?.[0]?.id ?? null)
+export function CallSimulator({ scenarios, stored, orderIds, callees, phones, serverNow }: { scenarios: CallScenario[] | null; stored: Record<string, CallRecord[]>; orderIds: Record<string, string>; callees: Record<string, string | null>; phones: Record<string, DriverPhone>; serverNow: string }) {
+  const [selected, setSelected] = useState<string | null>((scenarios?.find((item) => item.inbound) ?? scenarios?.[0])?.id ?? null)
   const [running, setRunning] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [calls, setCalls] = useState(stored)
@@ -50,30 +55,31 @@ export function CallSimulator({ scenarios, stored, orderIds, callees }: { scenar
     return () => clearTimeout(timer)
   }, [fresh])
 
-  return <main className="page calls-page">
-    <header className="q-head">
-      <div>
-        <h1>Call simulator</h1>
-        <p className="q-sub">Try the robo-calls the agent makes and takes. Both sides are simulated; nothing is dialled. Each answer it takes cites the turn it came from.</p>
-      </div>
+  return <section id="calls" className="calls-page" aria-labelledby="calls-title">
+    <header className="calls-head">
+      <h2 id="calls-title">Calls</h2>
+      <p>Simulate the robo-calls the agent makes and takes. Both sides are simulated; nothing is dialled. Each answer cites the turn it came from, and the call shows up on the map in that order&apos;s panel.</p>
     </header>
 
     {!scenarios && <div className="calls-empty"><b>The call service is not running.</b><p>It answers on this machine at port 8799. Start it, then reload this page.</p></div>}
 
     {scenarios && <div className="calls-layout">
-      <ul className="calls-list" aria-label="Scenarios">
-        {scenarios.map((item) => {
-          const count = calls[item.orderRef]?.length ?? 0
-          return <li key={item.id}>
-            <button type="button" className={`call-card${item.id === selected ? " active" : ""}`} onClick={() => setSelected(item.id)} aria-pressed={item.id === selected}>
-              <span className="call-card-top"><b>{words(PURPOSE_WORDS, item.purpose)}</b><span className="q-ref">{item.orderRef}</span></span>
-              <span className="call-card-who">{item.inbound ? "Calls in" : "Calls"}: {words(ROLE_WORDS, item.role)} · {labelIn(item.mood).toLowerCase()}</span>
-              <q className="call-card-line">{item.title}</q>
-              <span className="call-card-foot">{count ? `${count} stored call${count === 1 ? "" : "s"}` : "Not run yet"}</span>
-            </button>
-          </li>
-        })}
-      </ul>
+      <div className="calls-list" aria-label="Scenarios">
+        {[{ title: "Inbound: the driver calls in", items: scenarios.filter((item) => item.inbound) }, { title: "Outbound checks", items: scenarios.filter((item) => !item.inbound) }].map((group) => group.items.length > 0 && <section key={group.title}>
+          <h2 className="calls-group">{group.title}</h2>
+          <ul>{group.items.map((item) => {
+            const count = calls[item.orderRef]?.length ?? 0
+            return <li key={item.id}>
+              <button type="button" className={`call-card${item.id === selected ? " active" : ""}`} onClick={() => setSelected(item.id)} aria-pressed={item.id === selected}>
+                <span className="call-card-top"><b>{words(PURPOSE_WORDS, item.purpose)}</b><span className="q-ref">{item.orderRef}</span></span>
+                <span className="call-card-who">{callees[item.id] ?? words(ROLE_WORDS, item.role)} · {labelIn(item.mood).toLowerCase()}</span>
+                <q className="call-card-line">{item.title}</q>
+                <span className="call-card-foot">{count ? `${count} stored call${count === 1 ? "" : "s"}` : "Not simulated yet"}</span>
+              </button>
+            </li>
+          })}</ul>
+        </section>)}
+      </div>
 
       {scenario && <section className="call-view" aria-label="Call">
         <div className="call-view-head">
@@ -90,14 +96,22 @@ export function CallSimulator({ scenarios, stored, orderIds, callees }: { scenar
           </div>
         </div>
         {history.length > 1 && <div className="call-history" aria-label="Stored calls">
-          {history.map((item) => <button type="button" key={item.id} className={item.id === call?.id ? "active" : undefined} onClick={() => setShown((current) => ({ ...current, [scenario.id]: item.id }))}>
+          {history.slice(0, 6).map((item) => <button type="button" key={item.id} className={item.id === call?.id ? "active" : undefined} onClick={() => setShown((current) => ({ ...current, [scenario.id]: item.id }))}>
             {fmtDateTime(item.startedAt)} · {labelIn(item.outcome).toLowerCase()}
           </button>)}
         </div>}
-        {call ? <div ref={record} className={`call-record-wrap${fresh === call.id ? " fresh-call" : ""}`}><CallRecordView call={call} /></div> : running !== scenario.id && <p className="calls-quiet">No call stored for this order yet. Simulate one to see the transcript.</p>}
+        <div className="call-stage">
+          <div className={phoneStyles.phone}>
+            {phones[scenario.id]
+              ? <DriverApp key={scenario.id} driver={phones[scenario.id].driver} jobs={phones[scenario.id].jobs} job={phones[scenario.id].job} initialThread={phones[scenario.id].thread} serverNow={serverNow} />
+              : <DeskPhone name={callees[scenario.id] ?? words(ROLE_WORDS, scenario.role)} call={call} />}
+          </div>
+          {call ? <div ref={record} className={`call-record-wrap${fresh === call.id ? " fresh-call" : ""}`}><CallRecordView call={call} /></div>
+            : running !== scenario.id && <p className="calls-quiet">No call stored for this order yet. Simulate one to see the transcript.</p>}
+        </div>
       </section>}
     </div>}
-  </main>
+  </section>
 }
 
 function CallRecordView({ call }: { call: CallRecord }) {
@@ -160,5 +174,14 @@ function CallRecordView({ call }: { call: CallRecord }) {
         <p className="calls-quiet">A spoken answer is a claim. It is not a scan or a signed record.</p>
       </aside>
     </div>
+  </div>
+}
+
+/** The other party's phone during a desk call: the conversation as it was heard. */
+function DeskPhone({ name, call }: { name: string; call: CallRecord | null }) {
+  return <div className="desk-phone">
+    <header><span className="desk-avatar" aria-hidden="true">{name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span><div><b>{name}</b><small>{call ? `Call with Road Desk · ${labelIn(call.outcome).toLowerCase()}` : "No call yet"}</small></div></header>
+    <ol>{(call?.turns ?? []).map((turn) => <li key={turn.seq} className={turn.speaker === "CALLER" ? "them" : "me"}>{turn.text}</li>)}</ol>
+    {!call && <p>Simulate the call to hear it from this side.</p>}
   </div>
 }

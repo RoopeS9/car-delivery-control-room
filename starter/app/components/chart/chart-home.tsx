@@ -463,7 +463,7 @@ export function ChartHome({ initial }: { initial: ChartView }) {
 
   const simNow = new Date(Date.parse(view.simNow) + (Date.now() - fetchedAt)).toISOString()
 
-  return <AppFrame section="map" rail snapshotAt={view.snapshotAt} counts={{ queue: view.needs.length }}
+  return <AppFrame section="map" rail snapshotAt={view.snapshotAt} counts={{ map: view.needs.length }}
     extra={<NeedsList view={view} onPick={focus} onHover={setHoverId} selectedId={selectedId} />}>
     <div className={`chart-home z-${zoom < 6 ? "low" : zoom < 8 ? "mid" : "high"}${selected ? " has-dossier" : ""}`} data-chart={theme}>
       <div ref={holder} className="chart-map" role="region" aria-label="Map of deliveries. Car positions are simulated phone GPS." />

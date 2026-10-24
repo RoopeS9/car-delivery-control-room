@@ -6,37 +6,30 @@ import { fmtDateTime } from "@/lib/present/time"
 import { Icon } from "./icons"
 import { ThemeToggle } from "./theme-toggle"
 
-export type Section = "queue" | "board" | "map" | "calls" | "agent" | "inbox" | "customers" | "drivers" | "sites"
+export type Section = "queue" | "board" | "map" | "demo" | "calls" | "agent" | "inbox" | "customers" | "drivers" | "sites"
 
 type NavLink = { section: Section; href: string; label: string; icon: string; sub?: boolean }
 
+// Two first-class places: the map, where the work is watched, and Demo, where
+// things are made to happen. Everything else is under More… at the foot.
 const GROUPS: { label: string; links: NavLink[] }[] = [
-  { label: "Work", links: [
-    { section: "queue", href: "/queue", label: "Needs you", icon: "queue" },
-    { section: "board", href: "/board", label: "All orders", icon: "board" },
+  { label: "Road Desk", links: [
     { section: "map", href: "/", label: "Map", icon: "map" },
-    { section: "calls", href: "/calls", label: "Call simulator", icon: "message", sub: true },
-    { section: "inbox", href: "/inbox", label: "Inbox", icon: "inbox" },
-  ] },
-  { label: "Agent", links: [
-    { section: "agent", href: "/agent", label: "How the agent works", icon: "bot" },
-  ] },
-  { label: "People and places", links: [
-    { section: "customers", href: "/customers", label: "Customers", icon: "people" },
-    { section: "drivers", href: "/drivers", label: "Drivers", icon: "driver" },
-    { section: "sites", href: "/sites", label: "Places", icon: "building" },
+    { section: "demo", href: "/demo", label: "Demo", icon: "proposal" },
   ] },
 ]
 
-/** Pages for the team: the simulated apps and test screens, out of the way of the operator's navigation. */
+/** The stock screens and the simulated apps, kept reachable but out of the way. */
 const MORE: { href: string; label: string }[] = [
+  { href: "/queue", label: "Needs you" },
+  { href: "/board", label: "All orders" },
+  { href: "/inbox", label: "Inbox" },
+  { href: "/agent", label: "How the agent works" },
+  { href: "/customers", label: "Customers" },
+  { href: "/drivers", label: "Drivers" },
+  { href: "/sites", label: "Places" },
   { href: "/driver", label: "Driver app" },
   { href: "/site", label: "Pickup site app" },
-  { href: "/demo", label: "Demo panel" },
-  { href: "/board", label: "All orders board" },
-  { href: "/queue", label: "Needs you queue" },
-  { href: "/agent", label: "How the agent works" },
-  { href: "/driver/voice/test", label: "Voice test page" },
 ]
 
 /**
@@ -78,7 +71,7 @@ export function AppFrame({ children, section, snapshotAt, board = false, rail = 
             return <Link key={link.section} href={link.href} title={folded ? link.label : undefined}
               className={`nav-link${link.sub ? " nav-sub" : ""}${section === link.section ? " active" : ""}`} aria-current={section === link.section ? "page" : undefined}>
               <Icon name={link.icon} size={15} /><span className="nav-text">{link.label}</span>
-              {count != null && <span className={`nav-count${link.section === "queue" && count > 0 ? " hot" : ""}`}>{count}</span>}
+              {count != null && <span className={`nav-count${count > 0 ? " hot" : ""}`} title={`${count} need a person`}>{count}</span>}
             </Link>
           })}
         </div>)}

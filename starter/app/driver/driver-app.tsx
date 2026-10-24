@@ -20,6 +20,16 @@ type Readings = {
   canConnect: boolean
 }
 
+/**
+ * Calls go to the owner's duplex phone, which hosts the VoiceChat line, with a
+ * per-call card from the call service. The in-app voice pipeline is no longer
+ * linked (it had no recording and fell back to the browser's own voice).
+ */
+export function roadDeskCallUrl(reference: string): string {
+  const card = `http://127.0.0.1:8799/card/${reference}/DRIVER_INBOUND`
+  return `https://duplex.hopeajahti.lol/?dial=voicechat&card=${encodeURIComponent(card)}`
+}
+
 /** The drawn dashboard picture for scenario A. Fictional; no real car or person. */
 const DEMO_PHOTO = { url: "/sim/dashboard-misfire.jpg", subject: "dashboard" }
 
@@ -146,9 +156,9 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow }: {
         <b>{driver.name}</b>
         <Link href="/driver">Switch driver</Link>
       </div>
-      {job && <Link className={styles.callButton} href={`/driver/voice?driver=${driver.id}&order=${job.reference}`}>
-        <PhoneIcon /> Call
-      </Link>}
+      {job && <a className={styles.callButton} href={roadDeskCallUrl(job.reference)} target="_blank" rel="noopener" title="Opens the Road Desk line in a new tab">
+        <PhoneIcon /> Call Road Desk
+      </a>}
     </header>
 
     {jobs.length > 1 && <nav className={styles.jobTabs} aria-label="Your jobs">
@@ -177,7 +187,7 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow }: {
           return <div key={message.id}>
             {index === 0 && message.origin === "dataset" && <p className={styles.divider}>Earlier on this job</p>}
             {firstNew && <p className={styles.divider}>Today</p>}
-            <Bubble message={message} callHref={`/driver/voice?driver=${driver.id}&order=${job.reference}&direction=AGENT_INITIATED`} />
+            <Bubble message={message} callHref={roadDeskCallUrl(job.reference)} />
           </div>
         })}
         {streaming !== null && <div className={`${styles.bubble} ${styles.theirs}`}>
@@ -236,7 +246,7 @@ function Bubble({ message, callHref }: { message: ThreadMessage; callHref: strin
       <span className={styles.who}>Road Desk is calling · {time} UTC</span>
       <p>{message.text}</p>
       {callHref
-        ? <Link className={styles.callButton} href={`${callHref}${message.callId ? `&call=${message.callId}` : ""}`}><PhoneIcon /> Answer</Link>
+        ? <a className={styles.callButton} href={callHref} target="_blank" rel="noopener"><PhoneIcon /> Answer on the Road Desk line</a>
         : <small>Calls open in the voice screen, which is not installed in this build. Reply here instead.</small>}
     </div>
   }
