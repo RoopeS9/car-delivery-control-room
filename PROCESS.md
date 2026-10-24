@@ -1194,3 +1194,10 @@ Found, not B's, for stream A (all reproduced with the real model):
 
 Still open in B: the call-transcript block (PLAN 4.6) waits for voice's
 `cr_calls` tables, which have not landed.
+
+# How we worked with AI
+
+A running log of how team Random used coding agents (Claude Code and others)
+to build this. Newest entries at the bottom. Format:
+
+```
