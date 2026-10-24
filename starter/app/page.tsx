@@ -1,18 +1,11 @@
 import { connection } from "next/server"
-import { loadBoardBundles, loadPositions } from "@/lib/present/load"
-import { buildMap } from "@/lib/present/map"
-import { AppFrame } from "./components/app-frame"
-import { LiveRefresh } from "./components/live-refresh"
-import { MapScreen } from "./components/map-screen"
+import { loadChart } from "@/lib/present/chart-load"
+import { ChartHome } from "./components/chart/chart-home"
 
-export const metadata = { title: "Map · Road Desk" }
+export const metadata = { title: "Road Desk" }
 
+/** Home: the chart of every delivery. The queue of cards lives at /queue. */
 export default async function Home() {
   await connection()
-  const [{ snapshotAt, simNow, bundles }, positions] = await Promise.all([loadBoardBundles(), loadPositions()])
-  const view = buildMap(bundles, positions, simNow)
-  return <AppFrame section="map" board snapshotAt={snapshotAt}>
-    <MapScreen view={view} />
-    <LiveRefresh />
-  </AppFrame>
+  return <ChartHome initial={await loadChart()} />
 }
