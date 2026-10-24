@@ -23,7 +23,7 @@ export default async function DealerPage({ searchParams }: { searchParams: Searc
     [item.reference, (await callBrief(item.reference, "PICKUP_READINESS"))?.ask ?? null] as const)))
   return <AppFrame section="dealer">
     <main className="dealer-panel">
-      <nav className="dealer-sites" aria-label="Pickup sites">
+      <nav className="dealer-sites" aria-label="Pickup sites" data-keep-scroll="sites">
         <header><h1>Dealer</h1><p>You are the desk at a pickup site. Pick the site you are playing.</p></header>
         <ul>{view.sites.map((site) => <li key={site.id}>
           <Link href={`/dealer?site=${site.id}`} className={`dealer-site${site.id === view.site?.id ? " picked" : ""}`} aria-current={site.id === view.site?.id ? "page" : undefined}>

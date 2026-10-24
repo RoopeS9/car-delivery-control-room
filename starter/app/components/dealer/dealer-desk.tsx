@@ -18,7 +18,7 @@ export function DealerDesk({ site, collections, asks }: { site: NonNullable<Deal
   })
   const asked = call ? asks[call.reference] ?? null : null
   return <>
-    <section className="dealer-desk" aria-label={`${site.name} desk`}>
+    <section className="dealer-desk" aria-label={`${site.name} desk`} data-keep-scroll="desk">
       <header className="dealer-head">
         <h2>{site.name}</h2>
         <p>{[site.address, site.hours].filter(Boolean).join(" · ")}</p>

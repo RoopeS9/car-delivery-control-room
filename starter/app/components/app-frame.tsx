@@ -1,14 +1,15 @@
 "use client"
 
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { useEffect, useState, type ReactNode } from "react"
+import { recall, remember, restoreScroll, roleUrlKey, saveScroll, type Role } from "./role-memory"
 import { fmtDateTime } from "@/lib/present/time"
 import { Icon } from "./icons"
 import { ThemeToggle } from "./theme-toggle"
 
 export type Section = "queue" | "board" | "map" | "driver" | "dealer" | "demo" | "calls" | "agent" | "inbox" | "customers" | "drivers" | "sites" | "site"
 
-type Role = "operator" | "driver" | "dealer" | "bahn"
 type NavLink = { section: Section; href: string; label: string; icon: string }
 
 /**
@@ -45,9 +46,9 @@ const ROLE_OF: Record<Section, Role> = {
 }
 
 /**
- * The one frame: the brand, the four roles as a segmented control, the
- * current role's menu, and the page beside it. On the map the navigation
- * folds to a rail of role icons and opens over the map on demand.
+ * The one frame: the four roles as a segmented control floating at the top
+ * right of every page, the current role's menu in the sidebar, and the page
+ * beside it. On the map the sidebar folds to a rail and opens over the map.
  */
 export function AppFrame({ children, section, snapshotAt, board = false, rail = false, counts, extra }: {
   children: ReactNode; section: Section; snapshotAt?: string | null; board?: boolean
@@ -67,6 +68,24 @@ export function AppFrame({ children, section, snapshotAt, board = false, rail = 
   const role = ROLE_OF[section]
   const current = ROLES.find((item) => item.id === role) ?? ROLES[0]
   const needCount = counts?.map
+  const pathname = usePathname()
+
+  // Each role remembers where it was: its last page and query, and the scroll there.
+  const [returns, setReturns] = useState<Partial<Record<Role, string>>>({})
+  useEffect(() => {
+    remember(roleUrlKey(role), `${window.location.pathname}${window.location.search}`)
+    const next = Object.fromEntries(ROLES.map((item) => [item.id, recall<string>(roleUrlKey(item.id)) ?? item.href])) as Partial<Record<Role, string>>
+    // Runs after every render (the query can change without the path); only a real change updates state.
+    setReturns((current) => ROLES.every((item) => current[item.id] === next[item.id]) ? current : next)
+  })
+  useEffect(() => {
+    const undo = restoreScroll()
+    let timer = 0
+    const onScroll = () => { window.clearTimeout(timer); timer = window.setTimeout(saveScroll, 250) }
+    window.addEventListener("scroll", onScroll, true)
+    window.addEventListener("pagehide", saveScroll)
+    return () => { undo(); window.clearTimeout(timer); saveScroll(); window.removeEventListener("scroll", onScroll, true); window.removeEventListener("pagehide", saveScroll) }
+  }, [pathname])
   return <div className={`app${board ? " app-board" : ""}${rail ? " app-rail" : ""}${rail && open ? " rail-open" : ""}`}>
     <aside className="sidebar" aria-label="Navigation">
       <div className="sidebar-top">
@@ -76,12 +95,6 @@ export function AppFrame({ children, section, snapshotAt, board = false, rail = 
           <Icon name="chevron" size={14} style={open ? { transform: "rotate(180deg)" } : undefined} />
         </button>}
       </div>
-      <nav className="roles" aria-label="Role">
-        {ROLES.map((item) => <Link key={item.id} href={item.href} className={`role${item.id === role ? " active" : ""}`} aria-current={item.id === role ? "true" : undefined} title={item.label}>
-          <Icon name={item.icon} size={14} /><span className="role-text">{item.label}</span>
-          {item.id === "operator" && needCount != null && needCount > 0 && <span className="role-count" title={`${needCount} need a person`}>{needCount}</span>}
-        </Link>)}
-      </nav>
       <nav className="sidebar-nav" aria-label={`${current.label} pages`}>
         <div className="nav-group">
           {current.links.map((link) => {
@@ -100,6 +113,12 @@ export function AppFrame({ children, section, snapshotAt, board = false, rail = 
         <p>{snapshotAt ? `Snapshot ${fmtDateTime(snapshotAt)}` : "Fictional snapshot"}<br />Fictional data · nothing real is booked or sent</p>
       </div>
     </aside>
+    <nav className="roles" aria-label="Role">
+      {ROLES.map((item) => <Link key={item.id} href={returns[item.id] ?? item.href} onClick={saveScroll} className={`role${item.id === role ? " active" : ""}`} aria-current={item.id === role ? "true" : undefined}>
+        <Icon name={item.icon} size={14} /><span className="role-text">{item.label}</span>
+        {item.id === "operator" && needCount != null && needCount > 0 && <span className="role-count" title={`${needCount} need a person`}>{needCount}</span>}
+      </Link>)}
+    </nav>
     {rail && open && <button type="button" className="rail-scrim" aria-label="Fold the navigation" onClick={() => setOpen(false)} />}
     <div className="main">{children}</div>
   </div>

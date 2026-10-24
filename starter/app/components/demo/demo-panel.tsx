@@ -7,6 +7,7 @@
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import styles from "../../demo/demo.module.css"
+import { recall, remember } from "../role-memory"
 
 type Scenario = { name: string; title: string; orderRef: string | null; description: string; started: boolean; links: { label: string; href: string }[] }
 type FleetRow = {
@@ -37,6 +38,9 @@ export function DemoPanel({ onFocus }: { onFocus?: (driverId: string, orderRef: 
   const [fleet, setFleet] = useState<FleetState | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [log, setLog] = useState<{ at: string; text: string; ok: boolean }[]>([])
+  // What happened from this panel survives switching roles and back.
+  useEffect(() => { const saved = recall<{ at: string; text: string; ok: boolean }[]>("demo:log"); if (saved?.length) setLog(saved) }, [])
+  useEffect(() => { if (log.length) remember("demo:log", log) }, [log])
   const [error, setError] = useState("")
   const [keepRoutine, setKeepRoutine] = useState(true)
   const [simDriver, setSimDriver] = useState<{ available: boolean; enabled: boolean; humans: string[]; usesModel: boolean } | null>(null)

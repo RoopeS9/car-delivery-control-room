@@ -13,7 +13,7 @@ import "./studio.css"
  */
 export function DemoStudio({ calls }: { calls: CallData }) {
   return <main className="studio">
-    <section className="studio-col studio-left" aria-label="Make things happen"><DemoPanel /></section>
-    <section className="studio-col studio-right" aria-label="Calls"><CallSimulator {...calls} /></section>
+    <section className="studio-col studio-left" aria-label="Make things happen" data-keep-scroll="controls"><DemoPanel /></section>
+    <section className="studio-col studio-right" aria-label="Calls" data-keep-scroll="calls"><CallSimulator {...calls} /></section>
   </main>
 }

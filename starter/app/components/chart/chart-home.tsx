@@ -7,6 +7,7 @@ import "leaflet/dist/leaflet.css"
 import "./chart.css"
 import type { ChartCard, ChartNode, ChartView } from "@/lib/present/chart"
 import { AppFrame } from "../app-frame"
+import { recall, remember } from "../role-memory"
 import { tickCases } from "../live-refresh"
 import { Icon } from "../icons"
 import { Dossier } from "./dossier"
@@ -147,7 +148,12 @@ export function ChartHome({ initial }: { initial: ChartView }) {
       if (cancelled || !holder.current || map.current) return
       L.current = leaflet
       const m = leaflet.map(holder.current, { zoomControl: false, attributionControl: true, worldCopyJump: true, minZoom: 4, maxZoom: 16, zoomSnap: 1, trackResize: false })
-      m.fitBounds([[47.5, 4.5], [64.5, 27.5]], { paddingTopLeft: [80, 60], paddingBottomRight: [40, 30] })
+      // Coming back to the operator role restores the map as it was left: view and selection.
+      const saved = recall<{ center: [number, number]; zoom: number; selectedId: string | null }>("map:view")
+      if (saved?.center) m.setView(saved.center, saved.zoom, { animate: false })
+      else m.fitBounds([[47.5, 4.5], [64.5, 27.5]], { paddingTopLeft: [80, 60], paddingBottomRight: [40, 30] })
+      if (saved?.selectedId) { framed.current = saved.selectedId; setSelectedId(saved.selectedId) }
+      m.on("moveend", () => { const c = m.getCenter(); const prev = recall<{ selectedId: string | null }>("map:view"); remember("map:view", { center: [c.lat, c.lng], zoom: m.getZoom(), selectedId: prev?.selectedId ?? null }) })
       leaflet.control.zoom({ position: "bottomright" }).addTo(m)
       m.createPane("trails").style.zIndex = "420"
       m.createPane("route").style.zIndex = "430"
@@ -456,6 +462,11 @@ export function ChartHome({ initial }: { initial: ChartView }) {
     map.current.flyToBounds(leaflet.latLngBounds(points), { paddingTopLeft: [80, 80], paddingBottomRight: [500, 90], maxZoom: 9, duration: 0.7 })
   }, [ready, selectedId, view.routes])
   useEffect(() => { if (!selectedId) framed.current = null }, [selectedId])
+  useEffect(() => {
+    if (!map.current) return
+    const c = map.current.getCenter()
+    remember("map:view", { center: [c.lat, c.lng], zoom: map.current.getZoom(), selectedId })
+  }, [selectedId])
 
   // ---- keyboard: Escape closes, [ and ] step through what needs a person
   const needIds = useMemo(() => view.needs.map((needed) => needed.orderId).filter((id) => byId.has(id)), [view.needs, byId])

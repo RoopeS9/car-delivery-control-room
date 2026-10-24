@@ -188,6 +188,7 @@ ul, ol { padding: 0; list-style: none; }
 .theme-toggle:hover { background: var(--canvas); color: var(--ink); }
 .main { min-width: 0; display: flex; flex-direction: column; }
 .app-board .main { height: 100dvh; min-height: 0; }
+.app-board .main, .mailbox { box-sizing: border-box; }
 
 /* The frame on the map: the navigation folds to a rail of icons and counts and opens over the map. */
 .sidebar-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
@@ -567,7 +568,7 @@ details.more > :not(summary) { margin-top: 8px; }
 }
 
 /* ── Inbox as a mailbox ─────────────────────────────────────────────────── */
-.mailbox { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); flex: 1; min-height: 0; height: 100dvh; }
+.mailbox { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); flex: 1; min-height: 0; height: calc(100dvh - var(--role-bar)); }
 .mail-list { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--hair); background: var(--birch); }
 .mail-list-head { padding: 22px 20px 12px; }
 .mail-list-head h1 { font-family: var(--font-display); font-weight: 600; font-size: 22px; letter-spacing: -0.02em; line-height: 1.1; }
@@ -1053,15 +1054,16 @@ a.source:hover { border-color: var(--sand); color: var(--ink); }
 /* Where a deep link from the map landed: a brief ring. */
 .landed { box-shadow: 0 0 0 3px var(--teal) !important; border-radius: 12px; transition: box-shadow 0.6s ease; scroll-margin-top: 20px; }
 
-/* The four roles: one squircle segmented control under the brand. */
-.roles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; padding: 3px; border-radius: 14px; background: var(--hair-soft); margin-top: -10px; }
-.role { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px 5px; border-radius: 11px; font-size: 11.5px; font-weight: 600; color: var(--muted); text-decoration: none; }
+/* The four roles: one squircle segmented control floating at the top right of every page. */
+:root { --role-bar: 56px; }
+.roles { position: fixed; z-index: 2500; top: 10px; right: 12px; display: flex; gap: 2px; padding: 3px; border-radius: 14px; background: var(--hair-soft);
+  box-shadow: 0 0 0 1px var(--hair), 0 6px 18px var(--shadow-lift); }
+.role { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border-radius: 11px; font-size: 12.5px; font-weight: 600; color: var(--muted); text-decoration: none; white-space: nowrap; }
 .role .icon { color: var(--subtle); }
 .role:hover { color: var(--ink); }
 .role.active { background: var(--birch); color: var(--ink); box-shadow: 0 1px 2px var(--shadow-lift); }
 .role.active .icon { color: var(--ink); }
-.role-count { position: absolute; top: 2px; right: 4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--tone-need); color: #fff; font-size: 10px; line-height: 16px; text-align: center; }
-.app-rail:not(.rail-open) .roles { grid-template-columns: 1fr; margin-top: 0; padding: 3px; }
-.app-rail:not(.rail-open) .role { padding: 8px 0; }
-.app-rail:not(.rail-open) .role-text { display: none; }
-.app-rail:not(.rail-open) .sidebar-nav { display: none; }
+.role-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--tone-need); color: #fff; font-size: 10.5px; line-height: 18px; text-align: center; }
+/* Pages leave room under the bar; the map keeps its full height and moves its panel below it. */
+.app:not(.app-rail) .main { padding-top: var(--role-bar); }
+@media (max-width: 720px) { .role-text { display: none; } .role { padding: 0 10px; } }

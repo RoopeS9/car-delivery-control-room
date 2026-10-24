@@ -56,7 +56,7 @@ function Picker({ drivers, current }: { drivers: Awaited<ReturnType<typeof listD
     .sort((a, b) => DEMO_ORDERS.findIndex((ref) => a.jobs.some((job) => job.reference === ref)) - DEMO_ORDERS.findIndex((ref) => b.jobs.some((job) => job.reference === ref)))
   const moving = drivers.filter((driver) => !inDemo(driver) && driver.jobs.some((job) => job.status === "IN_PROGRESS"))
   const upcoming = drivers.filter((driver) => !inDemo(driver) && !moving.includes(driver))
-  return <nav className="driver-picker" aria-label="Drivers">
+  return <nav className="driver-picker" aria-label="Drivers" data-keep-scroll="drivers">
     <header>
       <h1>Driver</h1>
       <p>The driver&apos;s side of the story. No login in this prototype: pick who you are playing.</p>

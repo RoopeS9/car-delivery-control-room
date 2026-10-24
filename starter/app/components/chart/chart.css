@@ -174,7 +174,7 @@
 .tip-waiting { color: var(--c-waiting); }
 
 /* ---- dossier */
-.dossier { position: absolute; z-index: 1003; top: 16px; right: 16px; bottom: 16px; width: 448px; display: flex; flex-direction: column;
+.dossier { position: absolute; z-index: 1003; top: 60px; right: 16px; bottom: 16px; width: 448px; display: flex; flex-direction: column;
   background: var(--birch); border-radius: 12px; box-shadow: var(--c-shadow); overflow: hidden;
   animation: ds-in 0.18s ease; }
 @keyframes ds-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }

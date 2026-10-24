@@ -54,7 +54,7 @@ export function Dossier({ node, onClose }: { node: ChartNode; onClose: () => voi
     {!view && !error && <div className="ds-loading" aria-live="polite"><span /><span /><span /></div>}
     {error && !view && <p className="ds-error">This delivery could not be loaded. It will try again in a few seconds.</p>}
 
-    {view && <div className="ds-body">
+    {view && <div className="ds-body" data-keep-scroll="dossier">
       <ActionStrip orderId={node.orderId} compact />
       <p className={`ds-headline tone-edge-${view.tone}`}>{view.headline}</p>
 
