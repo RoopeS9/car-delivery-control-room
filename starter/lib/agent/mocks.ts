@@ -107,3 +107,15 @@ export function searchTravelOptions(input: { from: string; to: string; after_utc
     source: { kind: "mock:travel", id: `${input.kind}-${base}`, label: `${input.kind} quotes (mocked)` },
   }
 }
+
+/**
+ * A mocked booking provider. It confirms with a fictional reference, except
+ * when MOCK_PROVIDER_TIMEOUT=1 or for CD-420299 (ord-00299), whose dataset
+ * history is exactly this: a provider request that timed out without a
+ * confirmation. Then the outcome is unknown and must be reconciled.
+ */
+export function mockProviderBook(input: { orderId: string; kind: "recovery" | "travel"; provider: string }): { status: "confirmed" | "timeout"; reference: string } {
+  const reference = `${input.kind === "recovery" ? "RCV" : "TRV"}-SIM-${(seed(`${input.orderId}${input.provider}${Date.now()}`) % 900000 + 100000).toString(36).toUpperCase()}`
+  const timeout = process.env.MOCK_PROVIDER_TIMEOUT === "1" || input.orderId === "ord-00299"
+  return { status: timeout ? "timeout" : "confirmed", reference }
+}

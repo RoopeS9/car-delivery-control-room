@@ -4,16 +4,17 @@
 // case lock, then any follow-up turns (preparing a decision, continuing
 // after one). The API routes are thin wrappers around these.
 
+import { simNow } from "@/lib/cr/clock"
 import {
   appendEvent, attachEvents, createCase, getCase, getProposal, listCases, resolveOrder, updateCase, type CaseRow,
 } from "@/lib/cr/queries"
 import {
-  OPEN_CASE_STATUSES, type AskAgentRequest, type DecisionRequest, type DriverMessageRequest, type PhotoData,
-  type SiteMessageRequest, type TelemetryTriggerRequest,
+  OPEN_CASE_STATUSES, type AskAgentRequest, type AssumptionCheck, type CustomerAnswerRequest, type DecisionRequest,
+  type DriverMessageRequest, type LogOutcomeRequest, type PhotoData, type SiteMessageRequest, type TelemetryTriggerRequest,
 } from "@/lib/cr/types"
 import { AGENT_ID } from "./config"
-import { activeDriverId, activeOrderForDriver, driverName, loadOrderFacts, type End, type OrderFacts } from "./context"
-import { decideProposal, logOutcome, refreshProposal, type DecisionOutcome } from "./gate"
+import { activeDriverId, activeOrderForDriver, driverName, linkedRecordsOf, loadOrderFacts, type End, type OrderFacts } from "./context"
+import { decideProposal, logOutcome, recordCustomerAnswer, refreshProposal, type DecisionOutcome } from "./gate"
 import { operatorPhrase } from "./timeline"
 import { runTurn, withCaseLock, type TurnResult } from "./loop"
 import type { FollowUp } from "./tools"
@@ -31,7 +32,9 @@ async function openCase(orderId: string, match: (row: CaseRow) => boolean, creat
   const open = await listCases({ orderId, statuses: [...OPEN_CASE_STATUSES] })
   const existing = open.find(match)
   if (existing) {
-    if (existing.status === "WAITING_EXTERNAL") return (await updateCase(existing.id, { status: "AGENT_WORKING", waitingOn: null })) ?? existing
+    if (existing.status === "WAITING_EXTERNAL") {
+      return (await updateCase(existing.id, { status: "AGENT_WORKING", waitingOn: "the agent", waitingFor: "agent", nextAction: "The agent reads the new message." })) ?? existing
+    }
     return existing
   }
   return create()
@@ -49,8 +52,9 @@ export async function prepareDriverMessage(request: DriverMessageRequest): Promi
   if (!orderId) throw new ChannelError(404, request.orderRef ? `No order ${request.orderRef}.` : "This driver has no current job.")
   const facts = await loadOrderFacts(orderId)
   if (!facts) throw new ChannelError(404, "Order not found.")
-  if (!facts.assignments.some((row) => row.driver_id === request.driverId)) {
-    throw new ChannelError(403, `${request.driverId} is not a driver on ${facts.reference}.`)
+  // Rule 8: a client-supplied orderRef grants nothing by itself; the driver must be on an active assignment.
+  if (!facts.assignments.some((row) => row.driver_id === request.driverId && (row.status === "IN_PROGRESS" || row.status === "ASSIGNED"))) {
+    throw new ChannelError(403, `${request.driverId} is not on an active assignment for ${facts.reference}.`)
   }
   return { facts, driverId: request.driverId, name: facts.driverNames.get(request.driverId) ?? (await driverName(request.driverId)), request }
 }
@@ -63,6 +67,7 @@ export async function handleDriverMessage(prepared: PreparedDriverMessage, onTex
   const caseRow = await openCase(facts.id, (row) => row.driverId === driverId || (!row.driverId && row.kind !== "SITE_QUESTION"), () => createCase({
     orderId: facts.id, kind: "DRIVER_QUESTION", status: "AGENT_WORKING", urgency: "NORMAL",
     title: `Message from ${name ?? "the driver"}`, summary: text.slice(0, 200), channelOpened: channel, owner: "agent", driverId,
+    linkedRecords: linkedRecordsOf(facts),
   }))
   if (request.photoIds?.length) await attachEvents(request.photoIds, caseRow.id)
   await appendEvent({
@@ -148,6 +153,7 @@ export async function handleTelemetryFault(request: TelemetryTriggerRequest): Pr
   const caseRow = await openCase(facts.id, (row) => row.driverId === driverId && ["VEHICLE_WARNING", "BREAKDOWN"].includes(row.kind), () => createCase({
     orderId: facts.id, kind: "VEHICLE_WARNING", status: "AGENT_WORKING", urgency: request.mil === "FLASHING" ? "CRITICAL" : "HIGH",
     title: `Car reports a fault${codes.length ? `: ${codes.join(", ")}` : ""}`, summary, channelOpened: "telemetry", owner: "agent", driverId,
+    linkedRecords: linkedRecordsOf(facts),
   }))
   if (request.eventId) await attachEvents([request.eventId], caseRow.id)
   else {
@@ -208,39 +214,77 @@ export async function instructAgent(caseId: string, text: string, by: string): P
     caseId, orderId: caseRow.orderId, actorType: "operator", actorId: by, kind: "message", channel: "internal",
     recipientType: "agent", recipientId: AGENT_ID, body: `Instruction to the agent: ${text.trim()}`,
   })
-  return (await updateCase(caseId, { status: "AGENT_WORKING", owner: "agent", waitingOn: null, nextStep: `The agent follows the instruction: ${text.trim()}` }))!
+  return (await updateCase(caseId, { status: "AGENT_WORKING", owner: "agent", waitingOn: "the agent", waitingFor: "agent", nextAction: `The agent follows the instruction: ${text.trim()}` }))!
+}
+
+function outdatedReason(title: string, revision: number, checks: AssumptionCheck[] | undefined): string {
+  const changed = (checks ?? []).map((check) => `${check.assumption.label} (now: ${check.now})`).join("; ")
+  return `The card "${title}" (revision ${revision}) became outdated before it ran${changed ? `: ${changed}` : ""}. Nothing was carried out. Redraft it with the current facts (it becomes the next revision), or explain why no card is needed now.`
+}
+
+/** Follow-up turns after a decision. Nothing runs while a booking's outcome is unknown or after an operator takes a case over. */
+function followUpsFor(caseId: string, proposalId: string, outcome: DecisionOutcome): FollowUp[] {
+  const followUp = outcome.followUp
+  if (!followUp) return []
+  if (followUp.kind === "outdated") return [{ kind: "analysis", caseId, reason: outdatedReason(followUp.proposal.title, followUp.proposal.revision, outcome.outdated) }]
+  if (followUp.proposal.status === "UNKNOWN_OUTCOME") return []
+  if (followUp.proposal.actionType === "OPERATOR_DECISION" && followUp.proposal.chosenOptionId === "take_over") return []
+  return [{ kind: "decision", caseId, proposalId, outcome: followUp.kind === "approved" || followUp.kind === "outcome" || followUp.kind === "customer_answer" ? "approved" : "rejected", note: followUp.kind === "customer_answer" ? followUp.text : null }]
 }
 
 export async function decide(caseId: string, proposalId: string, request: DecisionRequest): Promise<{ outcome: DecisionOutcome; followUps: FollowUp[] }> {
   const outcome = await decideProposal(caseId, proposalId, request)
-  return { outcome, followUps: outcome.followUp ? [{ kind: "decision", caseId, proposalId, outcome: outcome.followUp.kind === "approved" ? "approved" : "rejected" }] : [] }
+  const proposal = outcome.followUp?.proposal
+  if (proposal?.actionType === "OPERATOR_DECISION" && proposal.chosenOptionId === "take_over") {
+    // "I'll take it from here": the case stays with the operator; the agent waits for an instruction.
+    const who = await operatorPhrase(request.decided_by)
+    await updateCase(caseId, {
+      status: "WAITING_EXTERNAL", owner: request.decided_by, waitingFor: "operator", waitingOn: `${who} (took the case over)`,
+      nextAction: "The operator handles this case; the agent stays out until instructed.", nextCheckAt: new Date(simNow().getTime() + 60 * 60000),
+    })
+  }
+  return { outcome, followUps: followUpsFor(caseId, proposalId, outcome) }
 }
 
-export async function outcome(caseId: string, input: { text: string; logged_by: string; proposal_id?: string | null }): Promise<{ outcome: DecisionOutcome; followUps: FollowUp[] }> {
+export async function outcome(caseId: string, input: LogOutcomeRequest): Promise<{ outcome: DecisionOutcome; followUps: FollowUp[] }> {
   const result = await logOutcome(caseId, input)
-  return { outcome: result, followUps: [{ kind: "decision", caseId, proposalId: result.proposal_id, outcome: "approved" }] }
+  return { outcome: result, followUps: result.followUp ? followUpsFor(caseId, result.proposal_id, result) : [{ kind: "decision", caseId, proposalId: "", outcome: "approved", note: null }] }
+}
+
+/** The customer's answer to a proposed date change. Only "agreed" moves the promise; the agent continues from there. */
+export async function customerAnswer(caseId: string, input: CustomerAnswerRequest): Promise<{ outcome: DecisionOutcome; followUps: FollowUp[] }> {
+  const result = await recordCustomerAnswer(caseId, input)
+  return { outcome: result, followUps: result.followUp ? followUpsFor(caseId, result.proposal_id, result) : [] }
 }
 
 /** "Facts changed since this was drafted": set the card aside; the agent drafts a fresh one. */
 export async function refresh(caseId: string, proposalId: string, by: string): Promise<{ response: Awaited<ReturnType<typeof refreshProposal>>; followUps: FollowUp[] }> {
   const response = await refreshProposal(caseId, proposalId, by)
-  return { response, followUps: [{ kind: "analysis", caseId, reason: "New facts came in after the last card was drafted, and the operator asked for a fresh one. Re-read the case notes and the records." }] }
+  return { response, followUps: [{ kind: "analysis", caseId, reason: "New facts came in after the last card was drafted, and the operator asked for a fresh one. Re-read the case notes and the records, then redraft it (it becomes the next revision)." }] }
 }
 
 // ---------------------------------------------------------------- follow-ups
 
 const OPERATIONS = { type: "operator" as const, id: null, name: "Operations" }
 
-async function decisionInput(caseRow: CaseRow, proposalId: string): Promise<{ trigger: "decision" | "instruct"; input: string }> {
+const CONTINUE = "Continue the case: tell the driver what happens next if they need to know (message_driver), propose the next decision if one is needed, or put the case into a deliberate wait with wait_for (who we wait on and when to check again). End with one line for the operators."
+
+async function decisionInput(caseRow: CaseRow, proposalId: string, note: string | null | undefined): Promise<{ trigger: "decision" | "instruct"; input: string }> {
   const proposal = proposalId ? await getProposal(proposalId) : null
   if (!proposal) {
-    return { trigger: "instruct", input: "An operator logged an outcome or gave an instruction; it is the latest entry in the case notes. Continue the case from there." }
+    return { trigger: "instruct", input: `An operator logged an outcome or gave an instruction; it is the latest entry in the case notes. ${CONTINUE}` }
   }
   const chosen = proposal.options.find((option) => option.id === proposal.chosenOptionId)
-  const outcomeText = typeof proposal.execution?.outcome === "string" ? proposal.execution.outcome : null
+  const outcomeText = typeof proposal.executionResult?.outcome === "string" ? proposal.executionResult.outcome : null
   const what = `"${proposal.title}" (${proposal.actionType})`
+  if (note && proposal.actionType === "CHANGE_PROMISE") {
+    return { trigger: "decision", input: `The customer's answer to the proposed date change was recorded: ${note}. Only an agreement changes the promise. ${CONTINUE}` }
+  }
+  if (proposal.status === "FAILED") {
+    return { trigger: "decision", input: `An operator checked the booking from ${what}: it does not exist; nothing was booked. Do not retry blindly: look for fresh options and propose again only with a current quote. ${CONTINUE}` }
+  }
   if (outcomeText) {
-    return { trigger: "decision", input: `Operator logged an outcome for ${what}: "${outcomeText}". Continue the case: tell the driver what happens next if they need to know, and propose the next decision if one is needed (for example a travel change or a customer update). If nothing is needed now, end with one line for the operators.` }
+    return { trigger: "decision", input: `Operator logged an outcome for ${what}: "${outcomeText}". ${CONTINUE} Typical next steps: check new timings against later deadlines (ferry check-in, the delivery promise) and propose a travel change or a customer update where one is at risk.` }
   }
   if (proposal.status === "REJECTED" && proposal.nextStep?.startsWith("The agent follows the instruction")) {
     return { trigger: "instruct", input: `Instruction from an operator, given instead of ${what}: "${proposal.decisionNote}". Follow it. Anything that changes something still goes through propose_action.` }
@@ -248,7 +292,7 @@ async function decisionInput(caseRow: CaseRow, proposalId: string): Promise<{ tr
   if (proposal.status === "REJECTED") {
     return { trigger: "decision", input: `Operator decided: rejected ${what}. Reason: "${proposal.decisionNote}". Do not propose the same thing again. Work out the next step from the reason, then propose it or escalate.` }
   }
-  return { trigger: "decision", input: `Operator decided: approved ${what}${chosen ? `, option "${chosen.label}"` : ""}. It has been carried out (simulated). Next step on the card: ${proposal.nextStepIfApproved}. Continue the case: tell the driver what happens next if they need to know, and propose the next decision if one is needed. If nothing is needed now, end with one line for the operators.` }
+  return { trigger: "decision", input: `Operator decided: approved ${what}${chosen ? `, option "${chosen.label}"` : ""}. It has been carried out (simulated). Next step on the card: ${proposal.nextStepIfApproved}. ${CONTINUE}` }
 }
 
 /** Run follow-up turns one after another. Errors are recorded on the case, never thrown. */
@@ -261,7 +305,7 @@ export async function runFollowUps(followUps: FollowUp[]): Promise<void> {
       if (!caseRow) continue
       const request = followUp.kind === "analysis"
         ? { trigger: "analysis" as const, input: `Prepare the decision for operations now. Why: ${followUp.reason}` }
-        : await decisionInput(caseRow, followUp.proposalId)
+        : await decisionInput(caseRow, followUp.proposalId, followUp.note)
       const result = await withCaseLock(caseRow.id, () => runTurn({
         caseId: caseRow.id, audience: "operator", trigger: request.trigger, input: request.input, counterpart: OPERATIONS, replyChannel: "internal",
       }))
@@ -274,5 +318,5 @@ export async function runFollowUps(followUps: FollowUp[]): Promise<void> {
 
 /** Instruct, then let the agent act on it. */
 export async function runInstruction(caseId: string): Promise<void> {
-  await runFollowUps([{ kind: "decision", caseId, proposalId: "", outcome: "approved" }])
+  await runFollowUps([{ kind: "decision", caseId, proposalId: "", outcome: "approved", note: null }])
 }

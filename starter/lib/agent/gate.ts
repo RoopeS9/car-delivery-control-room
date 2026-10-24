@@ -7,21 +7,28 @@
 // 2. Nothing changes without approval unless an operator raised that action
 //    type's autonomy level, and customer contact can never be raised.
 // 3. Drivers and sites only reach their own order.
-// 4. The agent may tell a driver to stop, never that it is fine to drive on.
+// 4. The agent may tell a driver to stop, never that it is fine to drive on
+//    (safety instructions come from fixed templates; see drivability.ts).
+// 5. An approval is bound to the revision the operator saw, rechecked against
+//    the current facts, and executed at most once.
 
-import { randomUUID } from "node:crypto"
 import {
-  appendEvent, createProposal, getAutonomy, getCase, getProposal, listProposals, proposalsWithChangedFacts, transitionProposal, updateCase,
-  type CaseRow, type ProposalRow,
+  appendEvent, claimExecution, createProposal, getAutonomy, getCase, getEffect, getProposal, insertEffect, listEffects, listProposals,
+  proposalsWithChangedFacts, transitionProposal, updateCase, type CaseRow, type EffectRow, type ProposalRow,
 } from "@/lib/cr/queries"
 import { simNow } from "@/lib/cr/clock"
+import { checkAssumptions } from "@/lib/cr/effective"
 import {
-  LOCKED_ACTIONS, type ActionType, type Audience, type AutonomyLevel, type CaseKind, type CaseStatus, type DecisionRequest,
-  type DecisionResponse, type DraftMessage, type HandoverPacket, type ProposalChange, type ProposalOption, type SourceRef,
+  LOCKED_ACTIONS, type ActionType, type Assumption, type AssumptionCheck, type Audience, type AutonomyLevel, type CaseKind,
+  type CaseStatus, type CustomerAnswerRequest, type DecisionRequest, type DecisionResponse, type DraftMessage, type EffectAuthority,
+  type EffectKind, type EffectState, type HandoverPacket, type LogOutcomeRequest, type ProposalChange, type ProposalOption, type SourceRef,
+  type WaitingFor,
 } from "@/lib/cr/types"
 import { AGENT_ID } from "./config"
-import { operatorPhrase } from "./timeline"
 import { activeDriverId, loadOrderFacts, type OrderFacts } from "./context"
+import { SAFETY_TEMPLATES } from "./drivability"
+import { mockProviderBook } from "./mocks"
+import { operatorPhrase } from "./timeline"
 
 // ---------------------------------------------------------------- tool policy
 
@@ -29,7 +36,7 @@ export type ToolName =
   | "get_order_context" | "get_timeline" | "get_telemetry" | "get_active_codes" | "lookup_trouble_code" | "lookup_warning_light"
   | "analyse_photo" | "find_nearby_help" | "search_travel_options" | "read_playbook"
   | "message_driver" | "request_photo" | "safety_instruction" | "ask_site"
-  | "update_case" | "hand_over" | "propose_action" | "escalate" | "close_case"
+  | "update_case" | "wait_for" | "hand_over" | "propose_action" | "escalate" | "close_case"
 
 /** Which audiences may use each tool. Anything not listed is refused. */
 export const TOOL_AUDIENCES: Record<ToolName, readonly Audience[]> = {
@@ -48,6 +55,7 @@ export const TOOL_AUDIENCES: Record<ToolName, readonly Audience[]> = {
   safety_instruction: ["driver", "operator"],
   ask_site: ["operator"],
   update_case: ["driver", "operator"],
+  wait_for: ["driver", "operator"],
   hand_over: ["driver", "site"],
   propose_action: ["operator"],
   escalate: ["operator"],
@@ -90,9 +98,8 @@ export function checkTool(ctx: GateContext, name: string, input: Record<string, 
     }
   }
 
-  if (name === "safety_instruction" && typeof input.text === "string") {
-    const clearance = findClearance(input.text)
-    if (clearance) return { ok: false, reason: `A safety instruction cannot clear the driver to drive ("${clearance}"). Clearing needs a CLEAR_TO_CONTINUE proposal.` }
+  if (name === "safety_instruction" && !SAFETY_TEMPLATES.some((template) => template.id === input.template_id)) {
+    return { ok: false, reason: "Safety instructions come only from the approved templates." }
   }
 
   if (name === "close_case") {
@@ -102,26 +109,6 @@ export function checkTool(ctx: GateContext, name: string, input: Record<string, 
   }
 
   return { ok: true }
-}
-
-// ---------------------------------------------------------------- drive-on clearance
-
-const CLEARANCE = /\b(you can|you may|you could|you(?:'re| are) (?:fine|ok|okay|good|clear|cleared) to|it(?:'s| is) (?:safe|fine|ok|okay) to|(?:ok|okay|safe|fine) to|feel free to|go ahead and|cleared to)\b[^.!?\n]{0,40}?\b(drive|driving|continue|carry on|keep going|move the car|restart|go on)\b/gi
-const NEGATED = /\b(not|n't|never|no one|nobody|cannot|can't)\s+(?:\w+\s+){0,2}$/i
-const CONDITIONAL = /\b(until|unless|whether|if|once|before|after|when|decides?|confirms?)\b[^.!?\n]{0,40}$/i
-
-/**
- * Finds text that tells a driver they may drive on. Negations ("it is not
- * safe to drive") and conditions ("until an operator confirms you can
- * drive") do not count. Returns the offending phrase, or null.
- */
-export function findClearance(text: string): string | null {
-  for (const match of text.matchAll(CLEARANCE)) {
-    const before = text.slice(Math.max(0, (match.index ?? 0) - 50), match.index)
-    if (NEGATED.test(before) || CONDITIONAL.test(before)) continue
-    return match[0]
-  }
-  return null
 }
 
 // ---------------------------------------------------------------- proposals
@@ -135,6 +122,10 @@ export type ProposalInput = {
   draft_message: { to: "customer" | "pickup_site" | "delivery_site" | "driver"; channel: DraftMessage["channel"]; subject: string; body: string; language: string } | null
   options: ProposalOption[]
   evidence_refs: SourceRef[]
+  /** What the card relies on; rechecked before it executes. */
+  assumptions: Assumption[]
+  /** For UPDATE_ETA and CHANGE_PROMISE: the proposed window, UTC. */
+  proposed_window: { start_utc: string; end_utc: string } | null
   next_step_if_approved: string
   next_step_if_rejected: string
 }
@@ -169,6 +160,11 @@ export function validateProposal(input: ProposalInput, facts: OrderFacts): GateV
   if (input.action_type === "CONTACT_CUSTOMER" && draft?.to !== "customer") {
     return { ok: false, reason: "CONTACT_CUSTOMER needs a draft message to the customer." }
   }
+  if (input.action_type === "CHANGE_PROMISE") {
+    if (!input.proposed_window) return { ok: false, reason: "CHANGE_PROMISE needs the proposed window." }
+    if (draft?.to !== "customer") return { ok: false, reason: "CHANGE_PROMISE needs the message that asks the customer; the promise only changes when they agree." }
+  }
+  if (input.action_type === "UPDATE_ETA" && !input.proposed_window) return { ok: false, reason: "UPDATE_ETA needs the estimated window." }
   if (input.action_type === "CONTACT_SITE_AS_CUSTOMER") {
     if (!draft || draft.to === "customer" || draft.to === "driver") return { ok: false, reason: "CONTACT_SITE_AS_CUSTOMER needs a draft message to a site." }
     const endpoint = draft.to === "pickup_site" ? facts.pickup : facts.delivery
@@ -189,7 +185,7 @@ export function validateProposal(input: ProposalInput, facts: OrderFacts): GateV
  * proposal whose draft would reach the customer, is always ASK_FIRST.
  */
 export async function effectiveLevel(actionType: ActionType, draft: DraftMessage | null, facts: OrderFacts): Promise<AutonomyLevel> {
-  if (LOCKED_ACTIONS.includes(actionType) || actionType === "OPERATOR_DECISION") return "ASK_FIRST"
+  if (LOCKED_ACTIONS.includes(actionType) || actionType === "OPERATOR_DECISION" || actionType === "CHANGE_PROMISE") return "ASK_FIRST"
   if (draftReachesCustomer(draft, facts)) return "ASK_FIRST"
   return getAutonomy(actionType)
 }
@@ -208,20 +204,40 @@ export class DecisionError extends Error {
   }
 }
 
+const MINUTE = 60000
+
+function urgentCase(caseRow: CaseRow | null): boolean {
+  return caseRow?.urgency === "CRITICAL" || caseRow?.urgency === "HIGH"
+}
+
+function later(minutes: number): Date {
+  return new Date(simNow().getTime() + minutes * MINUTE)
+}
+
 /** Record a proposal. At ASK_FIRST it waits for a person; at a higher level the agent carries it out and says so. */
 export async function submitProposal(ctx: GateContext, input: ProposalInput): Promise<{ proposal: ProposalRow; level: AutonomyLevel; executed: boolean }> {
   const draft = resolveDraft(input.draft_message, ctx.facts)
   const level = await effectiveLevel(input.action_type, draft, ctx.facts)
+  // A redraft of an outdated card of the same kind continues its revisions.
+  const outdated = (await listProposals({ caseId: ctx.caseRow.id, statuses: ["OUTDATED"] })).filter((row) => row.actionType === input.action_type)
+  const redrafted = new Set((await listProposals({ caseId: ctx.caseRow.id })).map((row) => row.revisesProposalId).filter(Boolean))
+  const previous = outdated.filter((row) => !redrafted.has(row.id)).at(-1)
+  const changes = input.proposed_window
+    ? input.changes.map((change, index) => (index === 0 ? { ...change, value: input.proposed_window } : change))
+    : input.changes
   const proposal = await createProposal({
     caseId: ctx.caseRow.id,
     orderId: ctx.facts.id,
+    revision: previous ? previous.revision + 1 : 1,
+    revisesProposalId: previous?.id ?? null,
     actionType: input.action_type,
     title: input.title.trim(),
     rationale: input.rationale.trim(),
     handover: input.handover,
-    changes: input.changes,
+    changes: changes.length ? changes : input.proposed_window ? [{ label: input.action_type === "UPDATE_ETA" ? "ETA" : "Delivery promise", before: null, after: `${input.proposed_window.start_utc} – ${input.proposed_window.end_utc} UTC`, value: input.proposed_window }] : [],
     draftMessage: draft,
     evidenceRefs: input.evidence_refs,
+    assumptions: input.assumptions ?? [],
     options: input.options,
     nextStepIfApproved: input.next_step_if_approved,
     nextStepIfRejected: input.next_step_if_rejected,
@@ -229,79 +245,175 @@ export async function submitProposal(ctx: GateContext, input: ProposalInput): Pr
   })
   await appendEvent({
     caseId: ctx.caseRow.id, orderId: ctx.facts.id, actorType: "agent", actorId: AGENT_ID, kind: "proposal", channel: "internal",
-    body: level === "ASK_FIRST" ? `Asked operations to decide: ${proposal.title}` : `Acting under ${level === "AUTO" ? "automatic" : "act-and-tell"} permission: ${proposal.title}`,
-    data: { proposal_id: proposal.id, action_type: proposal.actionType, autonomy_level: level },
+    body: level === "ASK_FIRST"
+      ? `Asked operations to decide: ${proposal.title}${proposal.revision > 1 ? ` (revision ${proposal.revision})` : ""}`
+      : `Acting under ${level === "AUTO" ? "automatic" : "act-and-tell"} permission: ${proposal.title}`,
+    data: { proposal_id: proposal.id, action_type: proposal.actionType, autonomy_level: level, revision: proposal.revision },
     sourceRefs: input.evidence_refs,
   })
   if (level === "ASK_FIRST") {
-    await updateCase(ctx.caseRow.id, { status: "NEEDS_DECISION", owner: null, nextStep: `Waiting for an operator to decide: ${proposal.title}` })
+    await updateCase(ctx.caseRow.id, {
+      status: "NEEDS_DECISION", owner: null, waitingOn: "an operator's decision", waitingFor: "operator",
+      nextAction: `An operator decides: ${proposal.title}`, nextCheckAt: later(urgentCase(ctx.caseRow) ? 5 : 15),
+    })
     return { proposal, level, executed: false }
   }
   const executed = await executeProposal(proposal.id, { by: AGENT_ID })
-  return { proposal: executed, level, executed: true }
+  return { proposal: executed, level, executed: executed.status === "EXECUTED" }
 }
 
-const HOUR = 3600000
+// ---------------------------------------------------------------- execution
 
-/** Where a case stands once a proposal of this type has been carried out, and when we look again. */
-function caseAfter(proposal: ProposalRow, draft: DraftMessage | null): { status: CaseStatus; waitingOn: string | null; checkInMs: number | null } {
+type Actor = { id: string; type: "operator" | "agent" }
+
+async function authorityFor(proposal: ProposalRow, actor: Actor, basis?: string): Promise<EffectAuthority> {
+  const who = actor.type === "agent" ? "the agent under its autonomy setting" : await operatorPhrase(actor.id)
+  return {
+    by: actor.id, by_type: actor.type, at: simNow().toISOString(), proposal_id: proposal.id, revision: proposal.revision,
+    basis: basis ?? (actor.type === "agent" ? `Carried out by ${who}` : `Approved by ${who} on the decision card (revision ${proposal.revision})`),
+  }
+}
+
+async function effect(proposal: ProposalRow, kind: EffectKind, state: EffectState, value: Record<string, unknown>, authority: EffectAuthority, target: Record<string, unknown> = {}, supersedesId: string | null = null): Promise<EffectRow> {
+  return insertEffect({
+    orderId: proposal.orderId, caseId: proposal.caseId, proposalId: proposal.id, kind, state, value, target, authority,
+    evidenceRefs: proposal.evidenceRefs, supersedesId,
+  })
+}
+
+function windowOf(proposal: ProposalRow): { start_utc: string | null; end_utc: string | null; text: string } {
+  const change = proposal.changes.find((entry) => entry.value) ?? proposal.changes[0]
+  const value = (change?.value ?? {}) as { start_utc?: string; end_utc?: string }
+  return { start_utc: value.start_utc ?? null, end_utc: value.end_utc ?? null, text: change ? `${change.label}: ${change.after}` : proposal.title }
+}
+
+type CaseAfter = { status: CaseStatus; waitingOn: string | null; waitingFor: WaitingFor | null; nextAction: string; checkInMinutes: number | null }
+
+/** Carry out the action's effects (all simulated). Returns where the case stands, or an unknown outcome. */
+async function performEffects(proposal: ProposalRow, actor: Actor): Promise<{ after: CaseAfter; result: Record<string, unknown>; unknown?: string }> {
+  const authority = await authorityFor(proposal, actor)
+  const draft = proposal.editedDraftMessage ?? proposal.draftMessage
+  const chosen = proposal.options.find((option) => option.id === proposal.chosenOptionId) ?? null
+  const ids: string[] = []
+  const note = async (body: string, data: Record<string, unknown> = {}, extra: Partial<Parameters<typeof appendEvent>[0]> = {}) => {
+    const event = await appendEvent({
+      caseId: proposal.caseId, orderId: proposal.orderId, actorType: actor.type, actorId: actor.id, kind: "effect", channel: "internal",
+      body, data: { proposal_id: proposal.id, simulated: true, ...data }, ...extra,
+    })
+    ids.push(event.id)
+  }
+  const sendDraft = async () => {
+    if (!draft) return
+    const sent = await effect(proposal, "MESSAGE_SENT", "RECORDED", { to_type: draft.to_type, to_id: draft.to_id, to_name: draft.to_name, channel: draft.channel, subject: draft.subject ?? null, body: draft.body, edited: Boolean(proposal.editedDraftMessage) }, authority, { to_type: draft.to_type, to_id: draft.to_id })
+    const toDriver = draft.to_type === "driver"
+    await note(toDriver ? draft.body : `Sent to ${draft.to_name} (simulated): ${draft.body}`, { effect_id: sent.id, channel: draft.channel }, {
+      kind: toDriver ? "message" : "effect", channel: toDriver ? "driver_chat" : draft.to_type === "customer" ? "customer_email" : "site_chat",
+      recipientType: toDriver ? "driver" : draft.to_type === "customer" ? "customer" : "site", recipientId: draft.to_id,
+    })
+  }
+  const next = proposal.nextStepIfApproved
   switch (proposal.actionType) {
     case "CONTACT_CUSTOMER":
     case "CONTACT_SITE_AS_CUSTOMER":
-      return { status: "WAITING_EXTERNAL", waitingOn: `${draft?.to_name ?? "the customer"}'s answer`, checkInMs: HOUR / 2 }
+      await sendDraft()
+      return { after: { status: "WAITING_EXTERNAL", waitingOn: `${draft?.to_name ?? "the customer"}'s answer`, waitingFor: "customer", nextAction: next, checkInMinutes: 30 }, result: { event_ids: ids } }
+    case "UPDATE_ETA": {
+      const window = windowOf(proposal)
+      const eta = await effect(proposal, "ETA_ESTIMATE", "RECORDED", { text: window.text, estimate_utc: window.end_utc ?? window.start_utc, start_utc: window.start_utc, end_utc: window.end_utc, basis: proposal.rationale }, authority)
+      await note(`Internal ETA estimate recorded (not a customer commitment): ${window.text}`, { effect_id: eta.id })
+      return { after: { status: "AGENT_WORKING", waitingOn: "the agent", waitingFor: "agent", nextAction: next, checkInMinutes: 3 }, result: { event_ids: ids, effect_id: eta.id } }
+    }
+    case "CHANGE_PROMISE": {
+      const window = windowOf(proposal)
+      const proposed = await effect(proposal, "PROMISE_CHANGE", "PROPOSED_TO_CUSTOMER", { text: window.text, start_utc: window.start_utc, end_utc: window.end_utc }, authority, { field: "delivery_promise" })
+      await sendDraft()
+      await note(`New delivery date proposed to the customer: ${window.text}. The promise only changes when the customer agrees.`, { effect_id: proposed.id })
+      return { after: { status: "WAITING_EXTERNAL", waitingOn: `${draft?.to_name ?? "the customer"}'s answer on the new date`, nextAction: "Record the customer's answer when it comes; until then the original promise stands.", waitingFor: "customer", checkInMinutes: 60 }, result: { event_ids: ids, effect_id: proposed.id } }
+    }
     case "BOOK_RECOVERY":
-      return { status: "WAITING_EXTERNAL", waitingOn: "the recovery provider", checkInMs: HOUR }
-    case "REASSIGN_DRIVER":
-      return { status: "WAITING_EXTERNAL", waitingOn: "dispatch", checkInMs: HOUR }
-    case "APPROVE_EXPENSE":
-    case "CLEAR_TO_CONTINUE":
-      return { status: "RESOLVED", waitingOn: null, checkInMs: null }
-    default:
-      return { status: "AGENT_WORKING", waitingOn: null, checkInMs: null }
+    case "BOOK_TRAVEL": {
+      const provider = chosen?.label ?? proposal.title
+      const booking = mockProviderBook({ orderId: proposal.orderId, kind: proposal.actionType === "BOOK_RECOVERY" ? "recovery" : "travel", provider })
+      const kind = proposal.actionType === "BOOK_RECOVERY" ? "recovery" : "travel"
+      if (booking.status === "timeout") {
+        const unconfirmed = await effect(proposal, "BOOKING", "UNCONFIRMED", { kind, provider, reference: booking.reference, requested_at: simNow().toISOString() }, authority)
+        await note(`Booking request to ${provider} timed out without a confirmation (simulated). It may or may not exist. Reference requested: ${booking.reference}.`, { effect_id: unconfirmed.id, outcome: "unknown" })
+        return {
+          after: { status: "NEEDS_DECISION", waitingOn: "an operator to reconcile the booking", waitingFor: "operator", nextAction: `Check with ${provider} whether booking ${booking.reference} exists before anything is retried.`, checkInMinutes: 15 },
+          result: { event_ids: ids, effect_id: unconfirmed.id, reference: booking.reference }, unknown: `Check with ${provider} whether booking ${booking.reference} exists`,
+        }
+      }
+      const booked = await effect(proposal, "BOOKING", "RECORDED", { kind, provider, reference: booking.reference }, authority)
+      await note(`Booked with ${provider}: reference ${booking.reference} (simulated booking; any earlier quote stays a quote).`, { effect_id: booked.id, reference: booking.reference })
+      return { after: { status: kind === "recovery" ? "WAITING_EXTERNAL" : "AGENT_WORKING", waitingOn: kind === "recovery" ? "the recovery provider" : "the agent", waitingFor: kind === "recovery" ? "provider" : "agent", nextAction: next, checkInMinutes: kind === "recovery" ? 60 : 3 }, result: { event_ids: ids, effect_id: booked.id, reference: booking.reference } }
+    }
+    case "APPROVE_EXPENSE": {
+      const expense = proposal.evidenceRefs.find((ref) => ref.kind === "expenses")
+      const decision = await effect(proposal, "EXPENSE_DECISION", "RECORDED", { decision: "APPROVED", paid: false }, authority, expense ? { table: "expenses", id: expense.id } : {})
+      await note("Expense approved. Approved is not paid.", { effect_id: decision.id })
+      return { after: { status: "RESOLVED", waitingOn: null, waitingFor: null, nextAction: next, checkInMinutes: null }, result: { event_ids: ids, effect_id: decision.id } }
+    }
+    case "CLEAR_TO_CONTINUE": {
+      const instruction = await effect(proposal, "DRIVER_INSTRUCTION", "RECORDED", { text: draft?.body ?? proposal.title, cleared_to_continue: true }, authority, { driver_id: draft?.to_id ?? null })
+      if (draft) {
+        // Attributed to the operator who approved it, never to the agent.
+        const event = await appendEvent({
+          caseId: proposal.caseId, orderId: proposal.orderId, actorType: "operator", actorId: proposal.decidedBy, kind: "message", channel: "driver_chat",
+          recipientType: "driver", recipientId: draft.to_id, body: draft.body, data: { proposal_id: proposal.id, effect_id: instruction.id, cleared_to_continue: true },
+        })
+        ids.push(event.id)
+      }
+      return { after: { status: "RESOLVED", waitingOn: null, waitingFor: null, nextAction: next, checkInMinutes: null }, result: { event_ids: ids, effect_id: instruction.id } }
+    }
+    case "REASSIGN_DRIVER": {
+      const handed = await effect(proposal, "OUTCOME_LOGGED", "RECORDED", { text: "Handed to dispatch to find another driver." }, authority)
+      await note("Handed to dispatch to find another driver.", { effect_id: handed.id })
+      return { after: { status: "WAITING_EXTERNAL", waitingOn: "dispatch", waitingFor: "dispatch", nextAction: next, checkInMinutes: 60 }, result: { event_ids: ids, effect_id: handed.id } }
+    }
+    default: {
+      const choice = chosen ? `Operator chose: ${chosen.label}.` : "Operator said go ahead."
+      const logged = await effect(proposal, "OUTCOME_LOGGED", "RECORDED", { text: choice, option_id: proposal.chosenOptionId }, authority)
+      await note(`${choice} The agent continues from here.`, { effect_id: logged.id })
+      return { after: { status: "AGENT_WORKING", waitingOn: "the agent", waitingFor: "agent", nextAction: next, checkInMinutes: 3 }, result: { event_ids: ids, effect_id: logged.id } }
+    }
   }
 }
 
-function changeLines(changes: ProposalChange[]): string {
-  return changes.map((change) => `${change.label}: ${change.before ? `${change.before} → ` : ""}${change.after}`).join("; ")
+async function finishCase(caseId: string, after: CaseAfter, owner: string | null) {
+  const stillPending = (await listProposals({ caseId, statuses: ["PENDING"] })).length > 0
+  await updateCase(caseId, stillPending
+    ? { status: "NEEDS_DECISION", waitingOn: "an operator's decision", waitingFor: "operator", nextAction: "An operator decides on the next card.", nextCheckAt: later(15), owner: null }
+    : { status: after.status, waitingOn: after.waitingOn, waitingFor: after.waitingFor, nextAction: after.nextAction, nextCheckAt: after.checkInMinutes ? later(after.checkInMinutes) : null, owner })
 }
 
-function mockReference(actionType: ActionType): string {
-  const prefix = actionType === "BOOK_RECOVERY" ? "RCV" : "TRV"
-  return `${prefix}-SIM-${randomUUID().slice(0, 6).toUpperCase()}`
-}
-
-/** What a carried-out action did, in words, per action type (PLAN.md 4.2b). All simulated. */
-function effectText(proposal: ProposalRow, chosenLabel: string | null, reference: string | null): string {
-  const changes = changeLines(proposal.changes)
-  const choice = chosenLabel ? ` (${chosenLabel})` : ""
-  switch (proposal.actionType) {
-    case "BOOK_RECOVERY":
-    case "BOOK_TRAVEL":
-      return `Booked${choice}: ${proposal.title}. Reference ${reference} (simulated booking; the earlier quote stays a quote).${changes ? ` ${changes}.` : ""}`
-    case "UPDATE_ETA":
-    case "CHANGE_PROMISE":
-      return `Recorded as the Road Desk's own ${proposal.actionType === "UPDATE_ETA" ? "ETA" : "promise"}, beside the original record (the dataset is unchanged). ${changes}`
-    case "APPROVE_EXPENSE":
-      return `Expense approved${choice}. Approved is not paid. ${changes}`.trim()
-    case "REASSIGN_DRIVER":
-      return `Handed to dispatch to find another driver${choice}. ${changes}`.trim()
-    case "OPERATOR_DECISION":
-      return `Operator chose${choice || ": go ahead"}. The agent continues from here.`
-    default:
-      return `${proposal.title}${choice}.${changes ? ` ${changes}.` : ""} Simulated, nothing real changed.`
-  }
+/** Mark a card OUTDATED: nothing runs; the case shows what changed and the agent redrafts. */
+async function markOutdated(proposal: ProposalRow, checks: AssumptionCheck[]): Promise<ProposalRow> {
+  const changed = checks.filter((check) => !check.holds)
+  const updated = await transitionProposal(proposal.id, ["PENDING", "APPROVED", "EDITED_AND_APPROVED"], {
+    status: "OUTDATED", executionResult: { outdated: changed }, nextStep: "The agent redrafts the card with the current facts.",
+  })
+  await appendEvent({
+    caseId: proposal.caseId, orderId: proposal.orderId, actorType: "system", actorId: "gate", kind: "tool_call", channel: "internal",
+    body: `Nothing was carried out: facts changed since "${proposal.title}" was drafted. ${changed.map((check) => `${check.assumption.label}: now ${check.now}`).join("; ")}.`,
+    data: { proposal_id: proposal.id, outdated: true, checks: changed },
+  })
+  await updateCase(proposal.caseId, { status: "AGENT_WORKING", owner: "agent", waitingOn: "the agent", waitingFor: "agent", nextAction: "The agent redrafts the card with the current facts.", nextCheckAt: later(3) })
+  return updated ?? proposal
 }
 
 /**
- * Carry out a proposal. This is the only place a proposal's effect is
- * recorded. It refuses unless a person approved it, or the agent itself acts
- * at an autonomy level above ASK_FIRST for a type that is not locked.
- * Effects are simulated: nothing real is sent or booked.
+ * Carry out a proposal. The only place a proposal's effects are recorded. It
+ * refuses unless a person approved this revision, or the agent acts at an
+ * autonomy level above ASK_FIRST on a type that is not locked. It rechecks the
+ * card's assumptions first (OUTDATED if one changed) and claims the execution
+ * key, so a double click or a retry returns the first result.
  */
-export async function executeProposal(proposalId: string, options: { by: string; outcome?: string | null }): Promise<ProposalRow> {
+export async function executeProposal(proposalId: string, options: { by: string }): Promise<ProposalRow> {
   const proposal = await getProposal(proposalId)
   if (!proposal) throw new Error("Proposal not found")
+  if (proposal.status === "EXECUTED" || proposal.status === "UNKNOWN_OUTCOME" || proposal.status === "OUTDATED") return proposal
   const approved = proposal.status === "APPROVED" || proposal.status === "EDITED_AND_APPROVED"
+  if (approved && proposal.decidedRevision !== proposal.revision) throw new ApprovalRequiredError("The approval was for a different revision of this card.")
   if (!approved) {
     if (proposal.status !== "PENDING" || options.by !== AGENT_ID) {
       throw new ApprovalRequiredError(`Proposal is ${proposal.status.toLowerCase().replace(/_/g, " ")}; it cannot be carried out.`)
@@ -314,61 +426,25 @@ export async function executeProposal(proposalId: string, options: { by: string;
     }
   }
 
-  const draft = proposal.editedDraftMessage ?? proposal.draftMessage
-  const actor = approved ? { type: "operator" as const, id: proposal.decidedBy } : { type: "agent" as const, id: AGENT_ID }
-  const chosen = proposal.options.find((option) => option.id === proposal.chosenOptionId) ?? null
-  const reference = proposal.actionType === "BOOK_RECOVERY" || proposal.actionType === "BOOK_TRAVEL" ? mockReference(proposal.actionType) : null
-  const effectIds: string[] = []
+  const checks = await checkAssumptions(proposal.caseId, proposal.orderId, proposal.assumptions)
+  if (checks.some((check) => !check.holds)) return markOutdated(proposal, checks)
 
-  if (options.outcome) {
-    // "I'll handle it": the person did it outside the system and logged what happened.
-    const event = await appendEvent({
-      caseId: proposal.caseId, orderId: proposal.orderId, actorType: "operator", actorId: options.by, kind: "effect", channel: "internal",
-      body: `Done by ${await operatorPhrase(options.by)}: ${proposal.title}. Outcome: ${options.outcome}`,
-      data: { proposal_id: proposal.id, outcome: options.outcome, handled_outside: true },
-    })
-    effectIds.push(event.id)
-  } else {
-    if (draft) {
-      const toDriver = draft.to_type === "driver"
-      const event = await appendEvent({
-        caseId: proposal.caseId, orderId: proposal.orderId, actorType: actor.type, actorId: actor.id, kind: toDriver ? "message" : "effect",
-        channel: toDriver ? "driver_chat" : draft.to_type === "customer" ? "customer_email" : "site_chat",
-        recipientType: toDriver ? "driver" : draft.to_type === "customer" ? "customer" : "site", recipientId: draft.to_id,
-        body: toDriver ? draft.body : draft.channel === "phone_call" ? `Call ${draft.to_name}. Talking points: ${draft.body}` : `Sent to ${draft.to_name} (simulated): ${draft.body}`,
-        data: { proposal_id: proposal.id, simulated: true, channel: draft.channel, subject: draft.subject ?? null, edited: Boolean(proposal.editedDraftMessage), approved_by: proposal.decidedBy },
-      })
-      effectIds.push(event.id)
-    }
-    if (!draft || proposal.changes.length > 0 || reference) {
-      const event = await appendEvent({
-        caseId: proposal.caseId, orderId: proposal.orderId, actorType: actor.type, actorId: actor.id, kind: "effect", channel: "internal",
-        body: effectText(proposal, chosen?.label ?? null, reference),
-        data: { proposal_id: proposal.id, simulated: true, changes: proposal.changes, option_id: proposal.chosenOptionId, reference },
-      })
-      effectIds.push(event.id)
-    }
-  }
+  if (!(await claimExecution(proposal.id, `${proposal.id}:${proposal.revision}`))) return (await getProposal(proposal.id))!
 
+  const actor: Actor = approved ? { id: proposal.decidedBy ?? options.by, type: "operator" } : { id: AGENT_ID, type: "agent" }
+  const { after, result, unknown } = await performEffects(proposal, actor)
   const done = await transitionProposal(proposal.id, ["APPROVED", "EDITED_AND_APPROVED", "PENDING"], {
-    status: "EXECUTED", executedAt: simNow(),
-    execution: { effect_event_ids: effectIds, simulated: true, by: options.by, reference, outcome: options.outcome ?? null },
+    status: unknown ? "UNKNOWN_OUTCOME" : "EXECUTED", executedAt: simNow(),
+    executionResult: { ...result, simulated: true, by: actor.id, revision: proposal.revision, ...(unknown ? { reconcile: unknown } : {}) },
   })
   if (!done) throw new Error("The proposal changed while it was being carried out.")
-
-  const after = options.outcome ? { status: "AGENT_WORKING" as CaseStatus, waitingOn: null, checkInMs: null } : caseAfter(proposal, draft)
-  const stillPending = (await listProposals({ caseId: proposal.caseId, statuses: ["PENDING"] })).length > 0
-  await updateCase(proposal.caseId, {
-    status: stillPending ? "NEEDS_DECISION" : after.status,
-    waitingOn: after.waitingOn,
-    nextStep: proposal.nextStepIfApproved,
-    nextCheckAt: after.checkInMs ? new Date(simNow().getTime() + after.checkInMs) : null,
-    owner: after.status === "AGENT_WORKING" || after.status === "RESOLVED" ? "agent" : proposal.decidedBy ?? null,
-  })
+  await finishCase(proposal.caseId, after, after.status === "AGENT_WORKING" || after.status === "RESOLVED" ? "agent" : unknown ? null : actor.type === "operator" ? actor.id : null)
   return done
 }
 
-export type FollowUpKind = "approved" | "rejected" | "instructed" | "outcome"
+// ---------------------------------------------------------------- decisions
+
+export type FollowUpKind = "approved" | "rejected" | "instructed" | "outcome" | "outdated" | "customer_answer"
 
 export type DecisionOutcome = DecisionResponse & {
   followUp: { kind: FollowUpKind; proposal: ProposalRow; caseRow: CaseRow; text: string | null } | null
@@ -378,32 +454,54 @@ async function pendingLeft(caseId: string): Promise<boolean> {
   return (await listProposals({ caseId, statuses: ["PENDING"] })).length > 0
 }
 
-/** An operator's decision on a card: approve (with an edited draft or a chosen option), reject, handle it themselves, or instruct the agent. */
+async function response(proposal: ProposalRow, nextStep: string, followUp: DecisionOutcome["followUp"]): Promise<DecisionOutcome> {
+  const caseRow = (await getCase(proposal.caseId))!
+  return {
+    proposal_id: proposal.id, status: proposal.status, next_step: nextStep, next_check_at: caseRow.nextCheckAt?.toISOString() ?? null,
+    case_status: caseRow.status,
+    ...(proposal.status === "OUTDATED" ? { outdated: (proposal.executionResult?.outdated as AssumptionCheck[] | undefined) ?? [] } : {}),
+    followUp,
+  }
+}
+
+const capitalise = (text: string) => `${text.charAt(0).toUpperCase()}${text.slice(1)}`
+
+/**
+ * An operator's decision on a card: approve (with an edited draft or a chosen
+ * option), reject, "I'll handle it", or "Tell the agent instead". Approving a
+ * card that is already carried out returns the first result.
+ */
 export async function decideProposal(caseId: string, proposalId: string, request: DecisionRequest): Promise<DecisionOutcome> {
-  const proposal = await getProposal(proposalId)
+  let proposal = await getProposal(proposalId)
   if (!proposal || proposal.caseId !== caseId) throw new DecisionError(404, "This decision is not on this case.")
-  if (proposal.status !== "PENDING") throw new DecisionError(409, `This was already decided (${proposal.status.toLowerCase().replace(/_/g, " ")}).`)
   const by = request.decided_by?.trim()
   if (!by) throw new DecisionError(400, "Say who is deciding.")
+  if (proposal.status !== "PENDING") {
+    // A double click or a retried request: give back what already happened.
+    if ((request.decision === "approve" || request.decision === "handle") && ["APPROVED", "EDITED_AND_APPROVED", "EXECUTED", "UNKNOWN_OUTCOME", "OUTDATED"].includes(proposal.status)) {
+      return response(proposal, proposal.nextStep ?? proposal.nextStepIfApproved, null)
+    }
+    throw new DecisionError(409, `This was already decided (${proposal.status.toLowerCase().replace(/_/g, " ")}).`)
+  }
   const note = request.note?.trim() || null
   const now = simNow()
+  const who = await operatorPhrase(by)
 
   if (request.decision === "reject" || request.decision === "instruct") {
     const instructing = request.decision === "instruct"
     if (!note) throw new DecisionError(400, instructing ? "Write the instruction for the agent." : "Give a short reason so the agent can try something else.")
     const nextStep = instructing ? `The agent follows the instruction: ${note}` : proposal.nextStepIfRejected
-    const updated = await transitionProposal(proposal.id, ["PENDING"], { status: "REJECTED", decidedBy: by, decidedAt: now, decisionNote: note, nextStep })
+    const updated = await transitionProposal(proposal.id, ["PENDING"], { status: "REJECTED", decidedBy: by, decidedAt: now, decidedRevision: proposal.revision, decisionNote: note, nextStep })
     if (!updated) throw new DecisionError(409, "Someone else decided this first.")
     await appendEvent({
       caseId, orderId: proposal.orderId, actorType: "operator", actorId: by, kind: "decision", channel: "internal",
       body: instructing ? `Set aside "${proposal.title}" and told the agent: ${note}` : `Rejected "${proposal.title}". Reason: ${note}`,
       data: { proposal_id: proposal.id, decision: request.decision },
     })
-    const caseRow = await updateCase(caseId, { status: (await pendingLeft(caseId)) ? "NEEDS_DECISION" : "AGENT_WORKING", owner: "agent", nextStep, waitingOn: null })
-    return {
-      proposal_id: proposal.id, status: "REJECTED", next_step: nextStep, case_status: caseRow!.status,
-      followUp: { kind: instructing ? "instructed" : "rejected", proposal: updated, caseRow: caseRow!, text: note },
-    }
+    const caseRow = await updateCase(caseId, (await pendingLeft(caseId))
+      ? { status: "NEEDS_DECISION" }
+      : { status: "AGENT_WORKING", owner: "agent", nextAction: nextStep, waitingOn: "the agent", waitingFor: "agent", nextCheckAt: new Date(now.getTime() + 3 * MINUTE) })
+    return response(updated, nextStep, { kind: instructing ? "instructed" : "rejected", proposal: updated, caseRow: caseRow!, text: note })
   }
 
   const option = request.option_id
@@ -415,11 +513,17 @@ export async function decideProposal(caseId: string, proposalId: string, request
     throw new DecisionError(400, "An edit can change the message, not who it goes to.")
   }
 
-  if (request.decision === "handle") {
-    const who = await operatorPhrase(by)
-    const nextStep = `${who.charAt(0).toUpperCase()}${who.slice(1)} does this outside the system, then logs what happened.`
+  // A phone call is always done by a person: approving it means "I'll handle it".
+  const handling = request.decision === "handle" || (proposal.draftMessage?.channel === "phone_call" && proposal.actionType !== "CLEAR_TO_CONTINUE")
+  if (handling) {
+    const checks = await checkAssumptions(caseId, proposal.orderId, proposal.assumptions)
+    if (checks.some((check) => !check.holds)) {
+      proposal = await markOutdated(proposal, checks)
+      return response(proposal, "The agent redrafts the card with the current facts.", { kind: "outdated", proposal, caseRow: (await getCase(caseId))!, text: null })
+    }
+    const nextStep = `${capitalise(who)} does this outside the system, then logs what happened.`
     const updated = await transitionProposal(proposal.id, ["PENDING"], {
-      status: edited ? "EDITED_AND_APPROVED" : "APPROVED", decidedBy: by, decidedAt: now, decisionNote: note,
+      status: edited ? "EDITED_AND_APPROVED" : "APPROVED", decidedBy: by, decidedAt: now, decidedRevision: proposal.revision, decisionNote: note,
       chosenOptionId: option?.id ?? null, editedDraftMessage: edited, nextStep,
     })
     if (!updated) throw new DecisionError(409, "Someone else decided this first.")
@@ -428,28 +532,125 @@ export async function decideProposal(caseId: string, proposalId: string, request
       body: `Will handle it personally: "${proposal.title}"${option ? ` (${option.label})` : ""}.`,
       data: { proposal_id: proposal.id, decision: "handle", option_id: option?.id ?? null },
     })
-    const caseRow = await updateCase(caseId, {
-      status: (await pendingLeft(caseId)) ? "NEEDS_DECISION" : "WAITING_EXTERNAL", owner: by, waitingOn: `${who} to log what happened`, nextStep,
-      nextCheckAt: new Date(now.getTime() + HOUR / 2),
-    })
-    return { proposal_id: proposal.id, status: updated.status, next_step: nextStep, case_status: caseRow!.status, followUp: null }
+    await updateCase(caseId, (await pendingLeft(caseId))
+      ? { status: "NEEDS_DECISION" }
+      : { status: "WAITING_EXTERNAL", owner: by, waitingOn: `${who} to log what happened`, waitingFor: "operator", nextAction: nextStep, nextCheckAt: new Date(now.getTime() + (urgentCase(await getCase(caseId)) ? 15 : 30) * MINUTE) })
+    return response(updated, nextStep, null)
   }
 
   const updated = await transitionProposal(proposal.id, ["PENDING"], {
-    status: edited ? "EDITED_AND_APPROVED" : "APPROVED", decidedBy: by, decidedAt: now, decisionNote: note,
+    status: edited ? "EDITED_AND_APPROVED" : "APPROVED", decidedBy: by, decidedAt: now, decidedRevision: proposal.revision, decisionNote: note,
     chosenOptionId: option?.id ?? null, editedDraftMessage: edited, nextStep: proposal.nextStepIfApproved,
   })
   if (!updated) throw new DecisionError(409, "Someone else decided this first.")
   await appendEvent({
     caseId, orderId: proposal.orderId, actorType: "operator", actorId: by, kind: "decision", channel: "internal",
     body: `Approved "${proposal.title}"${option ? `, choosing: ${option.label}` : ""}${edited ? ", with an edited message" : ""}.${note ? ` Note: ${note}` : ""}`,
-    data: { proposal_id: proposal.id, decision: "approve", option_id: option?.id ?? null, edited: Boolean(edited) },
+    data: { proposal_id: proposal.id, decision: "approve", option_id: option?.id ?? null, edited: Boolean(edited), revision: proposal.revision },
   })
   const executed = await executeProposal(proposal.id, { by })
+  if (executed.status === "OUTDATED") {
+    return response(executed, "The agent redrafts the card with the current facts.", { kind: "outdated", proposal: executed, caseRow: (await getCase(caseId))!, text: null })
+  }
+  const caseRow = (await getCase(caseId))!
+  return response(executed, executed.status === "UNKNOWN_OUTCOME" ? caseRow.nextAction ?? proposal.nextStepIfApproved : proposal.nextStepIfApproved, { kind: "approved", proposal: executed, caseRow, text: note })
+}
+
+/**
+ * "Log what happened": after "I'll handle it", or to reconcile a booking whose
+ * outcome was unknown (`confirmed` says whether it exists).
+ */
+export async function logOutcome(caseId: string, input: LogOutcomeRequest): Promise<DecisionOutcome> {
+  const text = input.text?.trim()
+  const by = input.logged_by?.trim()
+  if (!text) throw new DecisionError(400, "Write one line on what happened.")
+  if (!by) throw new DecisionError(400, "Say who is logging this.")
   const caseRow = await getCase(caseId)
+  if (!caseRow) throw new DecisionError(404, "Case not found.")
+  const waiting = await listProposals({ caseId, statuses: ["APPROVED", "EDITED_AND_APPROVED", "UNKNOWN_OUTCOME"] })
+  const proposal = input.proposal_id ? waiting.find((row) => row.id === input.proposal_id) : waiting.filter((row) => !row.executedAt || row.status === "UNKNOWN_OUTCOME").at(-1)
+  const who = await operatorPhrase(by)
+
+  if (!proposal) {
+    // An outcome with no card waiting is still useful: record it and let the agent continue.
+    await insertEffect({ orderId: caseRow.orderId, caseId, kind: "OUTCOME_LOGGED", state: "RECORDED", value: { text }, authority: { by, by_type: "operator", at: simNow().toISOString(), basis: `Logged by ${who}` } })
+    await appendEvent({ caseId, orderId: caseRow.orderId, actorType: "operator", actorId: by, kind: "note", channel: "internal", body: `Logged by ${who}: ${text}`, data: { outcome: true } })
+    await updateCase(caseId, { status: "AGENT_WORKING", owner: "agent", waitingOn: "the agent", waitingFor: "agent", nextAction: "The agent continues from the logged outcome.", nextCheckAt: later(3) })
+    return { proposal_id: "", status: "EXECUTED", next_step: "The agent continues from the logged outcome.", next_check_at: later(3).toISOString(), case_status: "AGENT_WORKING", followUp: null }
+  }
+
+  if (proposal.status === "UNKNOWN_OUTCOME") {
+    if (typeof input.confirmed !== "boolean") throw new DecisionError(400, "Say whether the booking exists (confirmed: true or false).")
+    const unconfirmed = (await listEffects({ caseId, kinds: ["BOOKING"] })).filter((row) => row.proposalId === proposal.id && row.state === "UNCONFIRMED").at(-1)
+    const authority: EffectAuthority = { by, by_type: "operator", at: simNow().toISOString(), proposal_id: proposal.id, revision: proposal.revision, basis: `Reconciled by ${who}: ${text}` }
+    if (input.confirmed && unconfirmed) await effect(proposal, "BOOKING", "RECORDED", { ...unconfirmed.value, reconciled: true }, authority, {}, unconfirmed.id)
+    await effect(proposal, "OUTCOME_LOGGED", "RECORDED", { text, booking_exists: input.confirmed }, authority)
+    await appendEvent({
+      caseId, orderId: proposal.orderId, actorType: "operator", actorId: by, kind: "effect", channel: "internal",
+      body: `${capitalise(who)} checked the booking: ${input.confirmed ? "it exists" : "it does not exist; nothing was booked"}. ${text}`, data: { proposal_id: proposal.id, booking_exists: input.confirmed },
+    })
+    const updated = await transitionProposal(proposal.id, ["UNKNOWN_OUTCOME"], { status: input.confirmed ? "EXECUTED" : "FAILED" })
+    await updateCase(caseId, { status: "AGENT_WORKING", owner: "agent", waitingOn: "the agent", waitingFor: "agent", nextAction: "The agent continues from the reconciled booking.", nextCheckAt: later(3) })
+    return response(updated!, "The agent continues from the reconciled booking.", { kind: "outcome", proposal: updated!, caseRow: (await getCase(caseId))!, text })
+  }
+
+  if (!(await claimExecution(proposal.id, `${proposal.id}:${proposal.revision}`))) {
+    return response((await getProposal(proposal.id))!, "Already logged.", null)
+  }
+  const authority: EffectAuthority = { by, by_type: "operator", at: simNow().toISOString(), proposal_id: proposal.id, revision: proposal.revision, basis: `Done by ${who} outside the system; outcome logged` }
+  const logged = await effect(proposal, "OUTCOME_LOGGED", "RECORDED", { text }, authority)
+  await appendEvent({
+    caseId, orderId: proposal.orderId, actorType: "operator", actorId: by, kind: "effect", channel: "internal",
+    body: `Done by ${who}: ${proposal.title}. Outcome: ${text}`, data: { proposal_id: proposal.id, effect_id: logged.id, outcome: text, handled_outside: true },
+  })
+  const updated = await transitionProposal(proposal.id, ["APPROVED", "EDITED_AND_APPROVED"], {
+    status: "EXECUTED", executedAt: simNow(), executionResult: { effect_id: logged.id, outcome: text, by, handled_outside: true, revision: proposal.revision },
+  })
+  await updateCase(caseId, { status: "AGENT_WORKING", owner: "agent", waitingOn: "the agent", waitingFor: "agent", nextAction: "The agent continues from the logged outcome.", nextCheckAt: later(3) })
+  return response(updated!, "The agent continues from the logged outcome.", { kind: "outcome", proposal: updated!, caseRow: (await getCase(caseId))!, text })
+}
+
+/**
+ * The customer's answer to a proposed promise change. Only "agreed", with its
+ * evidence, changes the effective promise (PLAN.md rule 2).
+ */
+export async function recordCustomerAnswer(caseId: string, input: CustomerAnswerRequest): Promise<DecisionOutcome> {
+  const by = input.logged_by?.trim()
+  const note = input.note?.trim()
+  if (!by || !note) throw new DecisionError(400, "Say who is logging this and what the customer said.")
+  if (input.answer !== "agreed" && input.answer !== "declined") throw new DecisionError(400, "The answer is agreed or declined.")
+  const caseRow = await getCase(caseId)
+  if (!caseRow) throw new DecisionError(404, "Case not found.")
+  const promiseEffects = await listEffects({ caseId, kinds: ["PROMISE_CHANGE"] })
+  const answered = new Set(promiseEffects.map((row) => row.supersedesId).filter(Boolean))
+  const proposed = input.effect_id
+    ? await getEffect(input.effect_id)
+    : promiseEffects.filter((row) => row.state === "PROPOSED_TO_CUSTOMER" && !answered.has(row.id)).at(-1) ?? null
+  if (!proposed || proposed.caseId !== caseId || proposed.state !== "PROPOSED_TO_CUSTOMER" || answered.has(proposed.id)) {
+    throw new DecisionError(409, "There is no proposed date waiting for the customer's answer on this case.")
+  }
+  const facts = await loadOrderFacts(caseRow.orderId)
+  const who = await operatorPhrase(by)
+  const answer = await insertEffect({
+    orderId: caseRow.orderId, caseId, proposalId: proposed.proposalId, kind: "PROMISE_CHANGE",
+    state: input.answer === "agreed" ? "CUSTOMER_AGREED" : "CUSTOMER_DECLINED", value: proposed.value, target: proposed.target,
+    authority: { by: facts?.customer.id ?? "customer", by_type: "customer", at: simNow().toISOString(), proposal_id: proposed.proposalId, basis: `Customer ${input.answer} (logged by ${who}): ${note}` },
+    evidenceRefs: [{ kind: "cr_effects", id: proposed.id, label: "Proposed date change", at: proposed.at.toISOString() }], supersedesId: proposed.id,
+  })
+  await appendEvent({
+    caseId, orderId: caseRow.orderId, actorType: "operator", actorId: by, kind: "effect", channel: "internal",
+    body: input.answer === "agreed"
+      ? `Customer agreed to the new date (${String(proposed.value.text ?? "")}). The promise is now changed. Evidence: ${note}`
+      : `Customer declined the new date. The original promise stands. Evidence: ${note}`,
+    data: { effect_id: answer.id, customer_answer: input.answer },
+  })
+  await updateCase(caseId, { status: "AGENT_WORKING", owner: "agent", waitingOn: "the agent", waitingFor: "agent", nextAction: "The agent continues from the customer's answer.", nextCheckAt: later(3) })
+  const proposal = proposed.proposalId ? await getProposal(proposed.proposalId) : null
+  const updatedCase = (await getCase(caseId))!
   return {
-    proposal_id: proposal.id, status: executed.status, next_step: proposal.nextStepIfApproved, case_status: caseRow!.status,
-    followUp: { kind: "approved", proposal: executed, caseRow: caseRow!, text: note },
+    proposal_id: proposal?.id ?? "", status: proposal?.status ?? "EXECUTED", next_step: "The agent continues from the customer's answer.",
+    next_check_at: updatedCase.nextCheckAt?.toISOString() ?? null, case_status: updatedCase.status,
+    followUp: proposal ? { kind: "customer_answer", proposal, caseRow: updatedCase, text: `${input.answer}: ${note}` } : null,
   }
 }
 
@@ -466,37 +667,15 @@ export async function refreshProposal(caseId: string, proposalId: string, by: st
   if (!changed.some((entry) => entry.proposalId === proposalId)) throw new DecisionError(409, "Nothing new has come in since this card was drafted.")
   const nextStep = "The agent drafts a fresh card with the new facts."
   const updated = await transitionProposal(proposal.id, ["PENDING"], {
-    status: "REJECTED", decidedBy: by.trim(), decidedAt: simNow(), decisionNote: "Set aside: facts changed since it was drafted.", nextStep,
+    status: "OUTDATED", decidedBy: by.trim(), decidedAt: simNow(), decisionNote: "Set aside: facts changed since it was drafted.", nextStep,
   })
   if (!updated) throw new DecisionError(409, "Someone else decided this first.")
   await appendEvent({
     caseId, orderId: proposal.orderId, actorType: "operator", actorId: by.trim(), kind: "decision", channel: "internal",
     body: `Asked for a fresh card: facts changed since "${proposal.title}" was drafted.`, data: { proposal_id: proposal.id, decision: "refresh" },
   })
-  const caseRow = await updateCase(caseId, { status: (await pendingLeft(caseId)) ? "NEEDS_DECISION" : "AGENT_WORKING", owner: "agent", nextStep, waitingOn: null })
-  return { proposal_id: proposal.id, status: "REJECTED", next_step: nextStep, case_status: caseRow!.status }
-}
-
-/** "Log what happened" after "I'll handle it": records the outcome and lets the agent continue. */
-export async function logOutcome(caseId: string, input: { text: string; logged_by: string; proposal_id?: string | null }): Promise<DecisionOutcome> {
-  const text = input.text?.trim()
-  const by = input.logged_by?.trim()
-  if (!text) throw new DecisionError(400, "Write one line on what happened.")
-  if (!by) throw new DecisionError(400, "Say who is logging this.")
-  const waiting = (await listProposals({ caseId, statuses: ["APPROVED", "EDITED_AND_APPROVED"] }))
-  const proposal = input.proposal_id ? waiting.find((row) => row.id === input.proposal_id) : waiting.at(-1)
-  if (!proposal) {
-    // An outcome with no card waiting is still useful: record it and let the agent continue.
-    const caseRow = await getCase(caseId)
-    if (!caseRow) throw new DecisionError(404, "Case not found.")
-    await appendEvent({ caseId, orderId: caseRow.orderId, actorType: "operator", actorId: by, kind: "note", channel: "internal", body: `Logged: ${text}` })
-    const updated = await updateCase(caseId, { status: "AGENT_WORKING", owner: "agent", waitingOn: null, nextStep: "The agent continues from the logged outcome." })
-    return { proposal_id: "", status: "EXECUTED", next_step: updated!.nextStep ?? "", case_status: updated!.status, followUp: null }
-  }
-  const executed = await executeProposal(proposal.id, { by, outcome: text })
-  const caseRow = await updateCase(caseId, { owner: "agent", nextStep: "The agent continues from the logged outcome." })
-  return {
-    proposal_id: proposal.id, status: executed.status, next_step: caseRow!.nextStep ?? "", case_status: caseRow!.status,
-    followUp: { kind: "outcome", proposal: executed, caseRow: caseRow!, text },
-  }
+  const caseRow = await updateCase(caseId, (await pendingLeft(caseId))
+    ? { status: "NEEDS_DECISION" }
+    : { status: "AGENT_WORKING", owner: "agent", nextAction: nextStep, waitingOn: "the agent", waitingFor: "agent", nextCheckAt: later(3) })
+  return { proposal_id: proposal.id, status: "OUTDATED", next_step: nextStep, next_check_at: caseRow!.nextCheckAt?.toISOString() ?? null, case_status: caseRow!.status }
 }

@@ -131,7 +131,7 @@ Checked / changed / rejected:
   signals, simulated driver for the video only. Kept the map and voice.
 - Reserved 40 s of the video for the process story.
 
-## 2026-10-24 ~12:15 UTC · Claude Code (stream A agent) · M0 foundation
+## 2026-10-24 ~11:45 UTC · Claude Code (stream A agent) · M0 foundation
 
 Asked: do M0 (shared contract) since `lib/cr/` did not exist, then move on to
 the agent.
@@ -160,7 +160,7 @@ Checked / changed / rejected:
 - Left the dark-mode token skeleton (also M0) to stream B, since
   `globals.css` is theirs.
 
-## 2026-10-24 ~13:30 UTC · Claude Code (stream A agent) · agent core + channel routes
+## 2026-10-24 ~12:00 UTC · Claude Code (stream A agent) · agent core + channel routes
 
 Asked: build the agent (loop, tools, gates) toward M1; mid-way, pull the
 updated plan (OpenRouter, channel contract 4.2c, decision options 4.2b,
@@ -203,7 +203,7 @@ Checked / changed / rejected:
 - Not yet run against the model: `OPENROUTER_API_KEY` is not visible in this
   session.
 
-## 2026-10-24 ~14:15 UTC · Claude Code (stream A agent) · M1 acceptance tests
+## 2026-10-24 ~12:05 UTC · Claude Code (stream A agent) · M1 acceptance tests
 
 Asked: prove in code that customer contact cannot happen without approval
 (M1), and get scenario A ready to run end to end.
@@ -231,7 +231,7 @@ Checked / changed / rejected:
 - Still open: a real-model run and its trace. `OPENROUTER_API_KEY` is not
   visible to this session.
 
-## 2026-10-24 ~14:40 UTC · Claude Code (stream A agent) · plan re-check, out-of-date cards
+## 2026-10-24 ~12:10 UTC · Claude Code (stream A agent) · plan re-check, out-of-date cards
 
 Asked: pull, re-read PLAN.md 4.2–4.2c and 6, push the contract and channel
 stubs first, then continue toward M1 (telemetry trigger, 4.2b decisions).
@@ -253,3 +253,60 @@ Checked / changed / rejected:
   silently discard a card.
 - Still blocked: the real-model M1 trace. `OPENROUTER_API_KEY` is not visible
   in this session.
+
+## 2026-10-24 ~12:45 UTC · Claude Code (stream A agent) · contract v2: follow-ups, effects, drivability
+
+Asked: pull and re-read PLAN.md rules 2 and 8 and sections 4.1, 4.2, 4.2b and 7,
+then adjust everything already built: case follow-up fields, proposal
+revisions, assumptions and execution keys, `cr_effects` with
+`lib/cr/effective.ts`, context per audience, the drivability screen,
+template-only safety instructions, follow-up and watchdog triggers with
+`POST /api/cases/tick`, and the M1 tests.
+
+Got: all of it, in `lib/cr/` and `lib/agent/`. `npm test` runs 42 tests, all
+passing, with no model needed. Typecheck, smoke and build pass.
+- Every open case now says what happens next, who or what it waits on, and
+  when we look again. `POST /api/cases/tick` sends one reminder to a silent
+  driver (5 sim minutes when urgent, 30 otherwise), then escalates with what is
+  known, what is missing and one next action. A watchdog catches a run that
+  hangs or errors and turns it into a "the agent couldn't finish" card.
+- Cards carry a revision, the assumptions they rely on, and an execution key.
+  The assumptions are checked again just before anything runs. If one changed,
+  the card is marked OUTDATED and the agent redrafts it. Two approvals of the
+  same card execute once. A booking with no answer from the provider becomes
+  UNKNOWN_OUTCOME, and an operator has to confirm it before anything else
+  happens.
+- Results go into `cr_effects` with who authorised them and on what basis.
+  `effectiveOrder()` reads them. Approving a new delivery date only records
+  "proposed to the customer". The promise changes only when the customer's
+  agreement is logged (`POST /api/cases/{id}/customer-answer`).
+- Each audience gets its own context. A site gets nothing about the customer
+  or prices, and a driver gets no prices. A customer's own site is treated as
+  the customer. Rule 8: a driver can only write about an assignment that is
+  ASSIGNED or IN_PROGRESS.
+- Every message to a driver is screened. Patterns check it first, sentence by
+  sentence while it streams. Haiku then catches the indirect phrasings. If
+  Haiku is unavailable, a message that mentions driving is held. A held
+  message is never sent; it becomes a CLEAR_TO_CONTINUE card. The driver gets
+  a fixed "please stay where you are" line instead.
+
+Checked / changed / rejected:
+- Safety instructions are fixed templates. The server fills in only the
+  driver's first name; the model never writes free text into them. This is
+  stricter than the plan's slots, because a slot is still a place where the
+  model can write "it's fine to drive".
+- Added a `waiting_for` column (driver, site, customer, operator, agent,
+  provider, dispatch) next to the free-text `waiting_on`. The tick needs to
+  know whom to chase, and parsing that out of prose would break.
+- Approving a phone-call card now means "I'll handle it". The case waits for
+  the operator to log what happened. The agent does not pretend it called
+  anyone.
+- Refresh now marks the old card OUTDATED instead of rejecting it, so the
+  history shows why it was replaced.
+- Renamed for the plan's words (B and C told): `nextStep` → `nextAction`,
+  `sourceRefs` → `linkedRecords`, `execution` → `executionResult`. Existing
+  databases need `npm run cr:reset-schema && npm run db:push`, because
+  drizzle-kit's rename prompts would otherwise hang.
+- Tests found two bugs in my own first draft. The "no prices" check flagged
+  "Europe/Helsinki". The double-approval race test assumed the first click
+  always wins; now either click may win, as long as exactly one executes.

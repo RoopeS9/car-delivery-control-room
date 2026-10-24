@@ -21,6 +21,10 @@ export const OPEN_CASE_STATUSES: readonly CaseStatus[] = ["NEEDS_DECISION", "AGE
 export const URGENCIES = ["CRITICAL", "HIGH", "NORMAL", "LOW"] as const
 export type Urgency = (typeof URGENCIES)[number]
 
+/** Who an open case waits on, for follow-ups. `waiting_on` says the same in words. */
+export const WAITING_FOR = ["driver", "site", "customer", "operator", "agent", "provider", "dispatch"] as const
+export type WaitingFor = (typeof WAITING_FOR)[number]
+
 // ---------------------------------------------------------------- timeline
 
 export const ACTOR_TYPES = ["driver", "site", "customer", "operator", "agent", "obd", "phone", "system"] as const
@@ -71,11 +75,38 @@ export const ACTION_TYPES = [
 ] as const
 export type ActionType = (typeof ACTION_TYPES)[number]
 
-export const PROPOSAL_STATUSES = ["PENDING", "APPROVED", "EDITED_AND_APPROVED", "REJECTED", "EXECUTED", "FAILED"] as const
+/**
+ * OUTDATED: an assumption changed before it executed; nothing ran and the
+ * agent redrafts it as a new revision. UNKNOWN_OUTCOME: an outside action
+ * (a mock provider) did not confirm; reconcile before anything is retried.
+ */
+export const PROPOSAL_STATUSES = [
+  "PENDING", "OUTDATED", "APPROVED", "EDITED_AND_APPROVED", "REJECTED", "EXECUTED", "FAILED", "UNKNOWN_OUTCOME",
+] as const
 export type ProposalStatus = (typeof PROPOSAL_STATUSES)[number]
 
-/** One line of "what changes if you approve": before → after. */
-export type ProposalChange = { label: string; before: string | null; after: string }
+/**
+ * Something a card relied on (PLAN.md 4.2b). Rechecked against the effective
+ * state before execution; if it no longer holds the card becomes OUTDATED.
+ * - `record`: a field on a dataset or effective record, e.g.
+ *   `{ table: "travel_reservations", id, field: "status", expected: "BOOKED" }`.
+ * - `no_new_message`: nothing new from that party on the case after `after`
+ *   ("no driver message after 09:12").
+ * - `car_codes`: the car still reports exactly these trouble codes.
+ */
+export type Assumption =
+  | { kind: "record"; table: string; id: string; field: string; expected: string | number | boolean | null; label: string }
+  | { kind: "no_new_message"; from: "driver" | "site" | "customer"; after: string; label: string }
+  | { kind: "car_codes"; codes: string[]; label: string }
+
+/** Why a card became OUTDATED: each assumption that no longer holds, and what is true now. */
+export type AssumptionCheck = { assumption: Assumption; holds: boolean; now: string }
+
+/**
+ * One line of "what changes if you approve": before → after. `value` carries
+ * the structured window for UPDATE_ETA and CHANGE_PROMISE (UTC).
+ */
+export type ProposalChange = { label: string; before: string | null; after: string; value?: { start_utc: string; end_utc: string } | null }
 
 /** A message the agent drafted. A person approves it before it goes out. */
 export type DraftMessage = {
@@ -135,9 +166,13 @@ export type DecisionRequest = {
 export type DecisionResponse = {
   proposal_id: string
   status: ProposalStatus
-  /** What happens now, in words, for the "what happens next" line. */
+  /** What happens now, who does it, in words, for the "what happens next" line. */
   next_step: string
+  /** When we check again (simulated clock), if a check is scheduled. */
+  next_check_at: string | null
   case_status: CaseStatus
+  /** Set when the card turned OUTDATED instead of executing: what changed. */
+  outdated?: AssumptionCheck[]
   error?: string
 }
 
@@ -164,6 +199,11 @@ export type LogOutcomeRequest = {
   logged_by: string
   /** The card the outcome belongs to. Defaults to the case's card waiting on an outcome. */
   proposal_id?: string | null
+  /**
+   * Required when reconciling a card with an UNKNOWN_OUTCOME (a booking that
+   * timed out): does the booking exist? true records it, false marks it FAILED.
+   */
+  confirmed?: boolean | null
 }
 
 /**
@@ -181,7 +221,26 @@ export const instructPath = (caseId: string) => `/api/cases/${caseId}/instruct`
 export type InstructRequest = { text: string; by: string }
 
 /** Response of the decision, outcome and instruct routes when the agent continues in the background. */
-export type CaseActionResponse = { case_id: string; case_status: CaseStatus; next_step: string | null; error?: string }
+export type CaseActionResponse = { case_id: string; case_status: CaseStatus; next_step: string | null; next_check_at?: string | null; error?: string }
+
+/**
+ * POST here to record the customer's answer to a proposed promise change
+ * (from a call the operator made, or a customer message). Body:
+ * `CustomerAnswerRequest`. Only "agreed" changes the effective promise.
+ */
+export const customerAnswerPath = (caseId: string) => `/api/cases/${caseId}/customer-answer`
+
+export type CustomerAnswerRequest = {
+  answer: "agreed" | "declined"
+  /** The evidence in one line, e.g. "Dealer agreed to 27 Oct 10:00-14:00 on the phone". */
+  note: string
+  logged_by: string
+  /** The PROPOSED_TO_CUSTOMER effect it answers. Defaults to the latest one on the case. */
+  effect_id?: string | null
+}
+
+/** POST /api/cases/tick (no body): runs due follow-ups and the watchdog against the sim clock. Cheap; call it on every poll. */
+export type TickResponse = { now: string; followed_up: string[]; escalated: string[] }
 
 // ---------------------------------------------------------------- channels (PLAN.md 4.2c)
 
@@ -226,10 +285,11 @@ export type FeedMessage = {
   /** Who wrote it. */
   from: ActorType
   fromName: string
-  /** `safety` is an immediate safety instruction; show it prominently and, in voice mode, ring. */
-  kind: "message" | "safety" | "photo_request"
+  /** `safety` is an immediate safety instruction; show it prominently. `call` rings the voice call screen. */
+  kind: "message" | "safety" | "photo_request" | "call"
   text: string
   photoRequest?: { subject: string } | null
+  callId?: string | null
 }
 
 // ---------------------------------------------------------------- cases API
@@ -244,8 +304,16 @@ export type CasesResponse = {
 /** GET /api/cases/{id}?since=ISO: the case, all its proposals, and its events (since `since` if given). */
 export type CaseSummary = {
   id: string; order_id: string; order_ref: string; kind: CaseKind; status: CaseStatus; urgency: Urgency
-  title: string; summary: string; owner: string | null; waiting_on: string | null; next_step: string | null
-  next_check_at: string | null; opened_at: string; updated_at: string
+  title: string; summary: string; owner: string | null
+  /** What happens next and who does it. Always set on open cases. */
+  next_action: string | null
+  waiting_on: string | null
+  next_check_at: string | null
+  /** True when next_check_at has passed on the sim clock: show it as "Overdue". */
+  overdue: boolean
+  linked_records: SourceRef[]
+  last_run_status: RunStatus | null
+  opened_at: string; updated_at: string
 }
 
 /** POST /api/agent/telemetry: the simulator reports a fault; the agent contacts the driver first. */
@@ -258,6 +326,34 @@ export type TelemetryTriggerRequest = {
   note?: string | null
   /** The `dtc` event the simulator already wrote, if any. Otherwise the route writes one. */
   eventId?: string | null
+}
+
+// ---------------------------------------------------------------- effects (lib/cr/effective.ts)
+
+export const EFFECT_KINDS = [
+  "ETA_ESTIMATE", "PROMISE_CHANGE", "BOOKING", "EXPENSE_DECISION", "DRIVER_INSTRUCTION", "MESSAGE_SENT", "OUTCOME_LOGGED",
+] as const
+export type EffectKind = (typeof EFFECT_KINDS)[number]
+
+/**
+ * A promise change goes PROPOSED_TO_CUSTOMER → CUSTOMER_AGREED (or
+ * CUSTOMER_DECLINED). Only CUSTOMER_AGREED, backed by a customer message or an
+ * operator-logged call outcome, changes the effective promise. Everything else
+ * is RECORDED when it happens; a mock booking that did not confirm is UNCONFIRMED.
+ */
+export const EFFECT_STATES = ["RECORDED", "PROPOSED_TO_CUSTOMER", "CUSTOMER_AGREED", "CUSTOMER_DECLINED", "UNCONFIRMED"] as const
+export type EffectState = (typeof EFFECT_STATES)[number]
+
+/** Who authorised an effect and on what evidence. Kept for every step (PLAN.md rule 2). */
+export type EffectAuthority = {
+  /** Operator role id, `road-agent` under autonomy, or the customer for an agreement. */
+  by: string
+  by_type: "operator" | "agent" | "customer"
+  at: string
+  proposal_id?: string | null
+  revision?: number | null
+  /** In words: "Approved on the decision card", "Customer agreed on a call logged by the shift lead". */
+  basis: string
 }
 
 // ---------------------------------------------------------------- autonomy
