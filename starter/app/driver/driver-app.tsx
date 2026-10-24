@@ -142,8 +142,10 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow, onJob }
   }
 
   const openRequest = [...thread].reverse().find((message) => message.kind === "photo_request")
-  const answered = openRequest && thread.some((message) => message.kind === "photo" && message.at > openRequest.at)
-  const photoAsk = openRequest && !answered ? openRequest : null
+  // A request is open until a photo answers it, operations has written since (the case moved on), or three hours pass.
+  const answered = openRequest && thread.some((message) => (message.kind === "photo" || message.from === "operator") && message.at > openRequest.at)
+  const stale = openRequest && readings && Date.parse(readings.now) - Date.parse(openRequest.at) > 3 * 3600_000
+  const photoAsk = openRequest && !answered && !stale ? openRequest : null
 
   if (calling && job) return <CallScreen onClose={() => setCalling(false)} target={{
     orderRef: job.reference, purpose: "DRIVER_INBOUND", calleeName: "Road Desk", purposeLabel: "Calling Road Desk",
@@ -203,7 +205,7 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow, onJob }
       </section>
 
       {photoAsk && <div className={styles.photoAsk}>
-        <p><Icon name="photo" /> Bahn asks for a photo of the <b>{photoAsk.photoSubject ?? "car"}</b>.</p>
+        <p><Icon name="photo" /> <span>Bahn asks for a photo of the <b>{photoAsk.photoSubject ?? "car"}</b>.</span></p>
         <div>
           <button type="button" onClick={() => { pendingPhotoSubject.current = photoAsk.photoSubject; fileInput.current?.click() }}>Take photo</button>
           <button type="button" className={styles.quiet} onClick={() => void sendDemoPhoto(photoAsk.photoSubject)}>Send demo picture</button>

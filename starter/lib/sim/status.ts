@@ -104,7 +104,7 @@ export async function fleetOverview(): Promise<{ now: string; start: string; spe
       const plan = faults.get(car.orderId) ?? null
       const row = {
         reference: car.reference, orderId: car.orderId, vehicleTitle: car.vehicleTitle, driverName: car.driverName, driverId: car.driverId,
-        phone: car.phone, fault: plan ? plan.codes.join(", ") : null, quietFrom: car.quietFrom?.toISOString() ?? null,
+        phone: car.phone, fault: plan && !(plan.profile === "misfire" && plan.resumedAt) ? plan.codes.join(", ") : null, quietFrom: car.quietFrom?.toISOString() ?? null,
       }
       // Say only what a report supports: no position without one, and an old one as old.
       if (car.phone === "NONE" || !car.lastObservation) {
