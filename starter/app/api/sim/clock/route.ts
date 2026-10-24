@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { resetSimClock, simNow } from "@/lib/cr/clock"
+import { advanceSimClock, simNow } from "@/lib/cr/clock"
+import type { TickResponse } from "@/lib/cr/types"
 import { syncTelemetry } from "@/lib/sim/sync"
 
 export const runtime = "nodejs"
@@ -16,10 +17,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "minutes must be between 1 and 120." }, { status: 400 })
   }
   const from = simNow()
-  resetSimClock(new Date(from.getTime() + minutes * 60_000).toISOString())
+  advanceSimClock(minutes)
   const telemetry = await syncTelemetry()
   const caseTimers = await fetch(new URL("/api/cases/tick", request.url), { method: "POST" })
-    .then((response) => response.ok ? "ran" : "not available")
-    .catch(() => "not available")
+    .then(async (response) => {
+      if (!response.ok) return { ran: false as const }
+      const tick = (await response.json()) as TickResponse
+      return { ran: true as const, followedUp: tick.followed_up.length, escalated: tick.escalated.length }
+    })
+    .catch(() => ({ ran: false as const }))
   return NextResponse.json({ from: from.toISOString(), now: simNow().toISOString(), telemetry, caseTimers })
 }

@@ -92,7 +92,7 @@ export function SiteChat({ contact, initialThread, serverNow }: { contact: SiteC
         <span className={styles.who}>Bahn assistant</span>
         <p>{streaming || "…"}</p>
       </div>}
-      {held && <p className={styles.held}>Bahn has your message. A colleague will answer here shortly.</p>}
+      {held && <p className={styles.held}>Bahn has your message. Operations will reply here.</p>}
       <div ref={bottom} />
     </section>
 

@@ -182,7 +182,7 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow }: {
           return <div key={message.id}>
             {index === 0 && message.origin === "dataset" && <p className={styles.divider}>Earlier on this job</p>}
             {firstNew && <p className={styles.divider}>Today</p>}
-            <Bubble message={message} />
+            <Bubble message={message} callHref={hasVoice ? `/driver/voice?driver=${driver.id}&order=${job.reference}` : null} />
           </div>
         })}
         {streaming !== null && <div className={`${styles.bubble} ${styles.theirs}`}>
@@ -229,12 +229,22 @@ function fromFeed(message: FeedMessage): ThreadMessage {
     id: message.id, at: message.at, from: mine ? "me" : message.from === "agent" ? "agent" : message.from === "operator" ? "operator" : "system",
     fromName: mine ? "You" : message.from === "agent" ? "Bahn assistant" : "Bahn operations",
     kind: message.kind, text: message.text, voice: false, photo: null, photoSubject: message.photoRequest?.subject ?? null, origin: null,
+    callId: message.callId ?? null,
   }
 }
 
-function Bubble({ message }: { message: ThreadMessage }) {
+function Bubble({ message, callHref }: { message: ThreadMessage; callHref: string | null }) {
   const mine = message.from === "me"
   const time = new Date(message.at).toISOString().slice(11, 16)
+  if (message.kind === "call") {
+    return <div className={styles.call} role="status">
+      <span className={styles.who}>Road Desk is calling · {time} UTC</span>
+      <p>{message.text}</p>
+      {callHref
+        ? <Link className={styles.callButton} href={`${callHref}${message.callId ? `&call=${message.callId}` : ""}`}><PhoneIcon /> Answer</Link>
+        : <small>Calls open in the voice screen, which is not installed in this build. Reply here instead.</small>}
+    </div>
+  }
   if (message.kind === "safety") {
     return <div className={styles.safety} role="alert">
       <span className={styles.who}>Safety instruction · {time} UTC</span>

@@ -78,8 +78,9 @@ export default function DemoPage() {
     setBusy(`jump-${minutes}`)
     try {
       const response = await fetch("/api/sim/clock", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ minutes }) })
-      const result = (await response.json()) as { now?: string; error?: string; caseTimers?: string }
-      const timers = result.caseTimers === "ran" ? "Due follow-ups ran." : "The agent's case timers are not available yet."
+      const result = (await response.json()) as { now?: string; error?: string; caseTimers?: { ran: boolean; followedUp?: number; escalated?: number } }
+      const timers = !result.caseTimers?.ran ? "The agent's case timers did not answer."
+        : `Case timers ran: ${result.caseTimers.followedUp ?? 0} followed up, ${result.caseTimers.escalated ?? 0} handed to a person.`
       setLog((items) => [{ at: new Date().toISOString(), ok: response.ok,
         text: response.ok && result.now ? `Clock jumped ${minutes} min to ${clock(result.now).slice(0, 5)} UTC. ${timers}` : result.error ?? "The clock did not move." }, ...items].slice(0, 8))
     } finally {

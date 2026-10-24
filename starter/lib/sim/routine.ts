@@ -6,7 +6,7 @@
 import { inArray, isNull, notInArray, or } from "drizzle-orm"
 import { crDb } from "@/lib/cr/db"
 import { resetCrData } from "@/lib/cr/queries"
-import { crAgentRuns, crCases, crEvents, crProposals, crTelemetry } from "@/lib/cr/schema"
+import { crAgentRuns, crCases, crEffects, crEvents, crProposals, crTelemetry } from "@/lib/cr/schema"
 
 export type RoutineQuestion = { reference: string; text: string; answerFrom: string }
 
@@ -46,6 +46,7 @@ export async function clearDemoData(options: { keepRoutine: boolean }): Promise<
   const keep = await routineOrderIds()
   if (keep.length === 0) return resetCrData()
   await crDb().transaction(async (tx) => {
+    await tx.delete(crEffects).where(notInArray(crEffects.orderId, keep))
     await tx.delete(crProposals).where(notInArray(crProposals.orderId, keep))
     await tx.delete(crEvents).where(notInArray(crEvents.orderId, keep))
     await tx.delete(crAgentRuns).where(or(isNull(crAgentRuns.orderId), notInArray(crAgentRuns.orderId, keep)))
@@ -59,6 +60,7 @@ export async function clearRoutine(): Promise<void> {
   const ids = await routineOrderIds()
   if (ids.length === 0) return
   await crDb().transaction(async (tx) => {
+    await tx.delete(crEffects).where(inArray(crEffects.orderId, ids))
     await tx.delete(crProposals).where(inArray(crProposals.orderId, ids))
     await tx.delete(crEvents).where(inArray(crEvents.orderId, ids))
     await tx.delete(crAgentRuns).where(inArray(crAgentRuns.orderId, ids))

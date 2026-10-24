@@ -51,7 +51,9 @@ export type ThreadMessage = {
   at: string
   from: "me" | "agent" | "operator" | "system"
   fromName: string
-  kind: "message" | "safety" | "photo_request" | "photo"
+  kind: "message" | "safety" | "photo_request" | "photo" | "call"
+  /** For a `call` item: the voice call to answer. */
+  callId?: string | null
   text: string
   voice: boolean
   /** Data URL for a photo the driver sent, when small enough to show inline. */

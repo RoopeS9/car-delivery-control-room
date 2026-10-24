@@ -627,3 +627,27 @@ Checked / changed / rejected:
   "Europe/Helsinki". The double-approval race test assumed the first click
   always wins; now either click may win, as long as exactly one executes.
 
+
+## 2026-10-24 ~15:00 UTC · Claude Code (stream C) · contract v2, first real-model run
+
+Asked (by stream A's session, checked against their branch): merge contract
+v2 (renamed case columns, `cr_effects`, `advanceSimClock`,
+`POST /api/cases/tick`, feed kind `call`).
+
+Got: merged, ran `cr:reset-schema` and `db:push`. The clock jump now uses
+`advanceSimClock` and reports what the case timers did ("1 followed up, 0
+handed to a person"); the keep-routine reset also clears `cr_effects`; the
+driver app shows a `call` feed item as an incoming call with an Answer button
+once the voice screen exists; the site chat says "Operations will reply here"
+when nothing streams back. `npm test` 50 pass, smoke and build pass.
+
+Checked / changed / rejected:
+- After a container restart the session had `OPENROUTER_API_KEY`, so
+  scenario F ran against Sonnet 5.5 for the first time (under $0.001):
+  P0217 at 09:06:30, the agent told William to stop, one reminder after the
+  reply deadline, then escalation. **Found for stream A:** the escalation
+  turn failed with a JSON parse error in a tool input ("Expected ',' or '}'
+  ... position 241"); the watchdog then moved the case to *Needs your
+  decision* with "The agent couldn't finish" instead of the planned
+  "Call William" card. The failure path held; the planned card did not
+  appear. Not fixed here: it is in `lib/agent/`.

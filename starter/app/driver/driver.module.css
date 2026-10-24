@@ -133,3 +133,8 @@
 .connect p { flex: 1; font-size: 12px; color: var(--brown); }
 .connect button { flex: none; height: 32px; padding: 0 12px; border-radius: 999px; border: 0; background: var(--ink); color: var(--birch); font-size: 12.5px; font-weight: 600; }
 .connect button:disabled { opacity: 0.5; }
+.call { margin: 4px 0; padding: 10px 12px; border-radius: 14px; background: var(--green-bg); color: var(--green-ink); box-shadow: 0 0 0 1px var(--green); }
+.call .who { color: var(--green-ink); }
+.call p { margin: 2px 0 8px; font-size: 14px; color: var(--ink); }
+.call small { display: block; font-size: 12px; color: var(--muted); }
+.call .callButton { width: max-content; }
