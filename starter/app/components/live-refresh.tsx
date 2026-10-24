@@ -3,21 +3,29 @@
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 
-let tickMissing = false
+const missing = new Set<string>()
 
-/**
- * PLAN.md 4.2: operator pages advance due follow-ups and watchdogs on every
- * poll (`POST /api/cases/tick`, stream A). Until that route exists the page
- * stops asking after the first 404, and nothing else depends on it.
- */
-export async function tickCases(): Promise<void> {
-  if (tickMissing) return
+/** POST a tick route; stop asking after its first 404/405 so a missing route costs one request. */
+async function post(path: string): Promise<void> {
+  if (missing.has(path)) return
   try {
-    const response = await fetch("/api/cases/tick", { method: "POST" })
-    if (response.status === 404 || response.status === 405) tickMissing = true
+    const response = await fetch(path, { method: "POST" })
+    if (response.status === 404 || response.status === 405) missing.add(path)
   } catch {
     // Offline or restarting; the next poll tries again.
   }
+}
+
+/**
+ * What an operator page does on every poll. The simulated world only moves when
+ * asked (stream C's `/api/sim/tick` writes due telemetry and sets overheating
+ * codes), and the driver app or /demo may not be open. Then PLAN.md 4.2's
+ * `POST /api/cases/tick` (stream A) advances due follow-ups and watchdogs against
+ * that fresh state. Both are idempotent.
+ */
+export async function tickCases(): Promise<void> {
+  await post("/api/sim/tick")
+  await post("/api/cases/tick")
 }
 
 /**

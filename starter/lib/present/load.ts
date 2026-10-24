@@ -10,6 +10,7 @@ import {
 import { simNowIso } from "@/lib/cr/clock"
 import { effectiveOrder } from "@/lib/cr/effective"
 import { latestPositions, latestTelemetry, listCases, listEvents, listProposals, type TelemetryRow } from "@/lib/cr/queries"
+import { syncTelemetry } from "@/lib/sim/sync"
 import { Directory, snapshotNames } from "./actors"
 import { type Bundle, type CrSlice, emptyCr, type PlaceRow, type RelatedRow, type SiteRow } from "./bundle"
 import type { Row } from "./types"
@@ -17,6 +18,21 @@ import type { Row } from "./types"
 type OrderRow = typeof orders.$inferSelect
 type CustomerRow = typeof customers.$inferSelect
 type ItemRow = { item: typeof orderItems.$inferSelect; vehicle: typeof vehicles.$inferSelect }
+
+/**
+ * The simulator writes samples only when something asks it to, and the driver
+ * app and /demo are not always open. Operator pages ask before they read, so a
+ * card never says "car stopped, engine off" beside a speed from minutes ago
+ * (PLAN.md 4.5). The call is idempotent and shares one run between callers; if
+ * it fails, the page shows the last stored samples, each labelled with its age.
+ */
+async function syncSimulator(): Promise<void> {
+  try {
+    await syncTelemetry()
+  } catch (error) {
+    console.warn("Simulated telemetry could not be brought up to date.", error instanceof Error ? error.message : error)
+  }
+}
 
 const iso = (value: Date | string | null | undefined): string => value instanceof Date ? value.toISOString() : value ? String(value) : ""
 
@@ -98,6 +114,7 @@ async function loadCr(orderId?: string): Promise<{ now: string; byOrder: Map<str
     for (const row of proposals) slice(row.orderId).proposals.push(row)
     for (const row of events) slice(row.orderId).events.push(row)
     if (orderId) {
+      await syncSimulator()
       const [obd, gps, effective] = await Promise.all([latestTelemetry(orderId, "OBD"), latestTelemetry(orderId, "PHONE_GPS"), effectiveOrder(orderId)])
       Object.assign(slice(orderId), { obd, gps, effective })
     }
@@ -357,6 +374,7 @@ export async function orderRefs(ids: Iterable<string>): Promise<Record<string, s
 
 /** The latest simulated phone position per order, for the map. Empty if the cr_ tables are missing. */
 export async function loadPositions(): Promise<TelemetryRow[]> {
+  await syncSimulator()
   try {
     return await latestPositions()
   } catch (error) {
