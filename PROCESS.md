@@ -198,3 +198,36 @@ Checked / changed / rejected:
   who had not written; replaced with a fixed safety-first line.
 - Not yet run against the model: `OPENROUTER_API_KEY` is not visible in this
   session.
+
+## 2026-10-24 ~12:45 UTC · Claude Code (stream C) · driver app shell, wired to the agent
+
+Asked: the driver app shell, against the 4.2c channel contract; then connect
+the simulator to stream A's agent once their routes landed.
+
+Got: `/driver` (pick a driver, then job card, car status bar, one thread
+with Bahn, photo send, photo requests, safety instructions shown apart) and
+`app/driver/channel.ts` (SSE reader, photo upload, feed polling) that the
+site chat will reuse. Scenario A now calls stream A's real trigger
+`POST /api/agent/telemetry`; my guessed `/api/agent/trigger` is gone.
+Checked end to end in a browser (Playwright): reset, start the warning
+light, the agent's first message arrives through the feed, a typed reply
+streams back, the drawn dashboard picture uploads and survives a reload.
+No model key on this machine, so the agent ran in stream A's stub mode.
+
+Checked / changed / rejected:
+- A driver sees only their own thread: dataset messages they wrote or that
+  were addressed to them (PUBLIC), plus our events to or from them. No
+  internal notes, customer mail or other drivers' work.
+- The picker first listed the order's primary car and route; for a trade-in
+  return (CD-420055) that is the wrong car. It now names the car and leg the
+  driver is actually assigned. Demo drivers are listed first.
+- Messages added in the browser were stamped with the real clock (12:09)
+  while the server used the sim clock (09:00); the thread jumped on reload.
+  The app now carries the server's sim-clock offset.
+- At phone width the job card pushed the thread off screen. It now folds to
+  car, route and the one time that matters next (ferry check-in, else
+  delivery).
+- Every instruction on the job card says where it came from ("From the
+  place's standard instructions"), and the ferry line says "check-in not
+  confirmed yet" rather than implying the driver is booked onto the ship.
+- The Call button appears only once `/driver/voice` exists (voice stream).
