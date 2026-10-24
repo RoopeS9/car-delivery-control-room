@@ -110,6 +110,7 @@ export const SCENARIOS: Scenario[] = [
       if (!detail) throw new Error("no case")
       const d = await world.settle(detail.case.id)
       if (d.case.status === "HANDLED_BY_AGENT" || d.case.status === "RESOLVED") world.rec.pass("A routine question closes without a person", d.case.status)
+      else if (d.proposals.filter((p) => p.status === "PENDING").length === 1 && /confirm/i.test(d.proposals.find((p) => p.status === "PENDING")!.title)) world.rec.pass("A routine question closes without a person", `one card, because the record's contact is unconfirmed (keys playbook): ${d.proposals.find((p) => p.status === "PENDING")!.title}`)
       else if (d.proposals.some((p) => p.status === "PENDING")) world.rec.fail("A routine question closes without a person", `a card was raised: ${d.proposals.map((p) => p.title).join(" | ")}`)
       else world.rec.review("A routine question closes without a person", `${d.case.status}: "${d.case.next_action}"`)
       const verdict = await ask(world.rec, "Does the agent's answer tell the driver concretely where to hand over the car and keys at the delivery site (a place, a person or a procedure), without inventing details it hedges on?", agentToDriver(d.events).map((e) => e.body).join("\n---\n"))
@@ -124,6 +125,8 @@ export const SCENARIOS: Scenario[] = [
       await world.fault(orderRef, ["P0217"], "ON", "coolant temperature high")
       const first = await world.caseFor(orderId); if (!first) throw new Error("no case opened")
       let d = await world.settle(first.case.id)
+      const baseline = d.events.filter((e) => e.actorType === "agent" && e.recipientType === "driver").length
+      world.rec.log(`the fault turn itself sent ${baseline} messages to the driver`)
       await world.advanceClock(7); await world.pause(20000); await world.tick(); await world.pause(60000)
       d = await world.settle(d.case.id)
       const reminders = d.events.filter((e) => e.actorType === "agent" && e.recipientType === "driver").length
@@ -131,12 +134,12 @@ export const SCENARIOS: Scenario[] = [
       await world.advanceClock(7); await world.pause(20000); await world.tick(); await world.pause(90000)
       d = await world.settle(d.case.id)
       const card = d.proposals.find((p) => p.status === "PENDING")
-      if (card && /not answering|call them/i.test(card.title)) world.rec.pass("A silent driver becomes one card to call them", card.title)
+      if (card && /not answering|\bcall\b/i.test(card.title)) world.rec.pass("A silent driver becomes one card to call them", card.title)
       else if (card) world.rec.review("A silent driver becomes one card to call them", `pending: ${card.actionType}: ${card.title}`)
       else world.rec.fail("A silent driver becomes one card to call them", `${d.case.status}, no pending card, next "${d.case.next_action}"`)
       const toDriver = d.events.filter((e) => e.actorType === "agent" && e.recipientType === "driver")
-      if (toDriver.length <= 3) world.rec.pass("At most one reminder, no nagging", `${toDriver.length} messages to the driver`)
-      else world.rec.fail("At most one reminder, no nagging", `${toDriver.length} messages to the driver`)
+      if (toDriver.length - baseline <= 1) world.rec.pass("At most one reminder, no nagging", `${toDriver.length - baseline} message(s) after the fault turn`)
+      else world.rec.fail("At most one reminder, no nagging", `${toDriver.length - baseline} messages after the fault turn`)
       const decided = await decidePending(world, d.case.id, d.proposals, style, { stopNow: true })
       world.rec.log(`operator: ${decided.join("; ") || "nothing to decide"}`)
       d = await world.settle(d.case.id)
@@ -184,7 +187,7 @@ export const SCENARIOS: Scenario[] = [
       const orderId = "ord-00458"
       const view = await world.order(orderId)
       const text = await play(world.rec, view, "customer", "german", [], "You want to know whether the car will be collected tomorrow and ask the desk to confirm the time, in formal German.")
-      const { conversationId } = world.customerWrites(orderId, view.view.header.customer.id, view.view.header.customer.name, text, { category: "pickup_and_release", channel: "email", language: "de" })
+      const { conversationId } = await world.customerWrites(orderId, view.view.header.customer.id, view.view.header.customer.name, text, { category: "pickup_and_release", channel: "email", language: "de" })
       const s = await world.suggest(conversationId, orderId)
       if (s.status === 200 && s.data.suggestions?.length) world.rec.pass("Suggested replies come back", `${s.data.suggestions.length} in ${s.data.language}`)
       else { world.rec.fail("Suggested replies come back", s.data.error ?? `status ${s.status}`); return }

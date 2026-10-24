@@ -70,7 +70,7 @@ function offlineReply(request: TurnRequest): string {
   return request.trigger === "telemetry" ? OFFLINE_REPLY.telemetry : OFFLINE_REPLY[request.audience as "driver" | "site"]
 }
 
-const DRIVE_ON_FALLBACK = "An operator has to confirm before you drive on. Please stay where you are for now."
+const DRIVE_ON_FALLBACK = "I can't clear you to drive on myself; an operator has to confirm that. I'll come back to you as soon as they have."
 
 // ---------------------------------------------------------------- per-case lock
 

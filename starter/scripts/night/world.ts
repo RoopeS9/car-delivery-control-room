@@ -44,8 +44,9 @@ export class World {
   }
 
   /** A customer writes in on the helpdesk: a message row in a conversation (opened if needed), since no channel exists for it. */
-  customerWrites(orderId: string, customerId: string, customerName: string, text: string, opts: { category?: string; channel?: string; language?: string; conversationId?: string } = {}) {
-    const at = sql("select now()").split(".")[0]!.replace(" ", "T") + "Z"
+  /** The customer's message is stamped on the app's simulated clock, like everything the app writes, so the thread orders. */
+  async customerWrites(orderId: string, customerId: string, customerName: string, text: string, opts: { category?: string; channel?: string; language?: string; conversationId?: string } = {}) {
+    const at = (await getJson<{ now: string }>(`${APP}/api/sim/state`)).now
     let conversationId = opts.conversationId ?? null
     if (!conversationId) {
       conversationId = `conv-night-${Math.random().toString(36).slice(2, 10)}`
@@ -54,8 +55,8 @@ export class World {
     }
     const id = `msg-night-${Math.random().toString(36).slice(2, 10)}`
     const details = { author_id: customerId, author_type: "customer", authored_at: at, body: text, channel: opts.channel ?? "email", conversation_id: conversationId, id, language: opts.language ?? null, order_id: orderId, recipient_id: "ops-support", recipient_type: "operator", visibility: "PUBLIC" }
-    sql(`insert into messages (id, order_id, conversation_id, author_type, body, authored_at, details) values (${q(id)}, ${q(orderId)}, ${q(conversationId)}, 'customer', ${q(text)}, now(), ${q(JSON.stringify(details))}::jsonb)`)
-    sql(`update conversations set updated_at = now() where id = ${q(conversationId)}`)
+    sql(`insert into messages (id, order_id, conversation_id, author_type, body, authored_at, details) values (${q(id)}, ${q(orderId)}, ${q(conversationId)}, 'customer', ${q(text)}, ${q(at)}::timestamptz, ${q(JSON.stringify(details))}::jsonb)`)
+    sql(`update conversations set updated_at = ${q(at)}::timestamptz where id = ${q(conversationId)}`)
     this.rec.log(`customer -> (${conversationId}) "${text.slice(0, 200)}"`)
     return { conversationId, messageId: id }
   }
@@ -102,8 +103,9 @@ export class World {
   async tick() { const r = await postJson<{ followed_up?: string[]; escalated?: string[] }>(`${APP}/api/cases/tick`, {}); if ((r.data.followed_up?.length ?? 0) + (r.data.escalated?.length ?? 0) > 0) this.rec.log(`tick: followed up ${JSON.stringify(r.data.followed_up)}, escalated ${JSON.stringify(r.data.escalated)}`); return r.data }
 
   /** Wait until the case has no run in flight (status not AGENT_WORKING, or a pending card), up to a limit. */
-  async settle(caseId: string, timeoutMs = 240_000): Promise<CaseDetail> {
-    const detail = await waitFor(async () => { const d = await this.caseDetail(caseId); return d.case.status !== "AGENT_WORKING" || d.proposals.some((p) => p.status === "PENDING") ? d : null }, timeoutMs, 5000)
+  /** Wait until the agent is not running on the case (a turn can take minutes on the pro model), then read it. */
+  async settle(caseId: string, timeoutMs = 420_000): Promise<CaseDetail> {
+    const detail = await waitFor(async () => { const d = await this.caseDetail(caseId); return d.case.status !== "AGENT_WORKING" ? d : null }, timeoutMs, 5000)
     if (!detail) { const d = await this.caseDetail(caseId); this.rec.log(`settle: still ${d.case.status} after ${timeoutMs / 1000}s`); return d }
     this.rec.log(`case ${detail.case.status} ${detail.case.urgency} waiting_for=${detail.case.waiting_for ?? "-"} pending=${detail.proposals.filter((p) => p.status === "PENDING").map((p) => `${p.actionType}:${p.title}`).join(" | ") || "none"} next="${(detail.case.next_action ?? "").slice(0, 140)}"`)
     return detail

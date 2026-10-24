@@ -9,6 +9,7 @@ import { simNow } from "@/lib/cr/clock"
 import { crDb } from "@/lib/cr/db"
 import { appendEvent, insertTelemetry, type NewTelemetry } from "@/lib/cr/queries"
 import { crEvents } from "@/lib/cr/schema"
+import type { ObdData } from "@/lib/cr/types"
 import { loadFleet, simStart, type FleetCar } from "./fleet"
 import { notifyAgent } from "./agent-hooks"
 import { freezeFrame, gpsSample, motionAt, obdSample, obdSilentFrom, type FaultPlan, type OverheatPlan } from "./motion"
@@ -23,6 +24,8 @@ const BACKFILL_S = 10 * 60
 const FAULT_FAST_S = 15 * 60
 
 type Latest = Map<string, Date>
+/** The codes the newest stored dongle frame carries, per order: a fault reported outside a scenario plan stays lit on the stream. */
+type StickyCodes = Map<string, { mil: ObdData["mil"]; dtcs: string[] }>
 
 const holder = globalThis as unknown as { __simSyncing?: Promise<SyncResult> }
 
@@ -51,14 +54,16 @@ export async function activeFaults(): Promise<Map<string, FaultPlan>> {
   return plans
 }
 
-async function latestBySource(): Promise<{ gps: Latest; obd: Latest }> {
-  const result = await crDb().execute(sql`SELECT order_id, source, max(at) AS at FROM cr_telemetry GROUP BY order_id, source`)
+async function latestBySource(): Promise<{ gps: Latest; obd: Latest; codes: StickyCodes }> {
+  const result = await crDb().execute(sql`SELECT DISTINCT ON (order_id, source) order_id, source, at, data FROM cr_telemetry ORDER BY order_id, source, at DESC`)
   const gps: Latest = new Map()
   const obd: Latest = new Map()
-  for (const row of result as unknown as { order_id: string; source: string; at: string | Date }[]) {
+  const codes: StickyCodes = new Map()
+  for (const row of result as unknown as { order_id: string; source: string; at: string | Date; data: Partial<ObdData> | null }[]) {
     ;(row.source === "PHONE_GPS" ? gps : obd).set(row.order_id, new Date(row.at))
+    if (row.source === "OBD" && Array.isArray(row.data?.dtcs) && row.data.dtcs.length) codes.set(row.order_id, { mil: row.data.mil ?? "ON", dtcs: row.data.dtcs })
   }
-  return { gps, obd }
+  return { gps, obd, codes }
 }
 
 /**
@@ -83,7 +88,7 @@ async function runSync(now: Date): Promise<SyncResult> {
   for (const car of fleet) {
     const plan = faults.get(car.orderId) ?? null
     for (const sample of gpsDue(car, plan, latest.gps.get(car.orderId) ?? null, now)) { rows.push(sample); gps += 1 }
-    for (const sample of obdDue(car, plan, latest.obd.get(car.orderId) ?? null, now)) { rows.push(sample); obd += 1 }
+    for (const sample of obdDue(car, plan, latest.obd.get(car.orderId) ?? null, now, latest.codes.get(car.orderId) ?? null)) { rows.push(sample); obd += 1 }
   }
   for (let index = 0; index < rows.length; index += 500) await insertTelemetry(rows.slice(index, index + 500))
   for (const car of fleet) {
@@ -142,8 +147,10 @@ function gpsDue(car: FleetCar, plan: FaultPlan | null, last: Date | null, now: D
   return grid(from, until, every).map((at) => ({ ...base, at, data: gpsSample(car, motionAt(car, at, plan), at) }))
 }
 
-function obdDue(car: FleetCar, plan: FaultPlan | null, last: Date | null, now: Date) {
+function obdDue(car: FleetCar, plan: FaultPlan | null, last: Date | null, now: Date, sticky: { mil: ObdData["mil"]; dtcs: string[] } | null) {
   const base = { orderId: car.orderId, vehicleId: car.vehicleId, source: "OBD" as const, simulated: true }
+  // A code set outside a scenario plan (a reported fault) stays on the frames: a dongle does not forget a code by itself.
+  const withCodes = (data: ReturnType<typeof obdSample>) => !plan && sticky ? { ...data, mil: data.engine_on ? sticky.mil : "ON" as const, dtcs: sticky.dtcs } : data
   // Only scenario cars carry a dongle; a parked car's dongle sleeps until the driver reconnects it.
   if (!car.obd || car.stoppedNote) return []
   const silent = obdSilentFrom(plan)
@@ -154,7 +161,7 @@ function obdDue(car: FleetCar, plan: FaultPlan | null, last: Date | null, now: D
   for (const at of grid(from, until, every)) {
     const motion = motionAt(car, at, plan)
     if (motion.engineOn) {
-      samples.push({ ...base, at, data: obdSample(car, motion, at, plan) })
+      samples.push({ ...base, at, data: withCodes(obdSample(car, motion, at, plan)) })
       continue
     }
     // The dongle sleeps with the ignition off. After a fault it sends one last frame as the engine stops.

@@ -25,7 +25,7 @@ export const SAFETY_TEMPLATES: readonly SafetyTemplate[] = [
   { id: "do_not_drive_on", label: "Do not drive on", text: "Please do not drive the car any further until an operator has confirmed what happens next." },
   { id: "leave_car_behind_barrier", label: "Leave the car, stand behind the barrier", text: "Please get out on the side away from traffic and stand behind the barrier, well away from the car." },
   { id: "call_112", label: "Call 112", text: "If anyone is hurt, or you see smoke or fire, call 112 now. Your safety comes first." },
-  { id: "wait_for_help", label: "Wait for help", text: "Please stay in a safe place near the car. Help is being arranged and we will message you soon." },
+  { id: "wait_for_help", label: "Wait for help", text: "Please stay in a safe place near the car. An operator is deciding what happens next and we will message you soon." },
 ]
 
 export function renderSafetyTemplate(id: string, driverFirstName: string | null): string | null {
