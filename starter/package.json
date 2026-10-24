@@ -12,7 +12,7 @@
     "attachments:seed": "tsx scripts/seed-attachments.ts",
     "attachments:smoke": "tsx scripts/smoke-attachments.ts",
     "smoke": "tsx scripts/smoke.ts",
-    "test": "tsx --test lib/agent/*.test.ts lib/sim/*.test.ts",
+    "test": "tsx --test lib/agent/*.test.ts lib/sim/*.test.ts lib/present/*.test.ts",
     "agent:scenario-a": "tsx lib/agent/dev/scenario-a.ts",
     "cr:reset-schema": "tsx lib/cr/dev/reset-schema.ts",
     "sim:seed-routine": "tsx lib/sim/seed-routine.ts"

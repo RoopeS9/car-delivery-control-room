@@ -192,15 +192,31 @@ export function caseAttention(bundle: Bundle): AttentionItem[] {
 }
 
 /** Free text from the agent or the gate may carry a desk id ("ops-shift"); operators read the desk's title. */
+/**
+ * How a code-style name reads in a sentence ("a CONTACT_CUSTOMER proposal"). Anything not listed
+ * falls back to lower-case words, so a name the agent invents never reaches an operator raw.
+ */
+const TOKEN_WORDS: Record<string, string> = {
+  CONTACT_CUSTOMER: "customer-contact", CONTACT_SITE_AS_CUSTOMER: "site-contact", UPDATE_ETA: "ETA-update",
+  CHANGE_PROMISE: "promise-change", BOOK_RECOVERY: "recovery-booking", BOOK_TRAVEL: "travel-booking",
+  APPROVE_EXPENSE: "expense", REASSIGN_DRIVER: "driver-reassignment", CLEAR_TO_CONTINUE: "drive-on clearance",
+  STOP_NOW: "stop now", DRIVE_TO_SAFE_STOP: "drive to a safe stop", CONTINUE_AND_MONITOR: "continue and monitor",
+}
+
+export function plainTokens(text: string): string {
+  return text.replace(/\b[A-Z]{2,}(?:_[A-Z0-9]+)+\b/g, (token) => TOKEN_WORDS[token] ?? token.toLowerCase().replace(/_/g, " "))
+}
+
 export function plainText(bundle: Bundle, text: string): string
 export function plainText(bundle: Bundle, text: string | null): string | null
 export function plainText(bundle: Bundle, text: string | null): string | null {
   if (!text) return text
-  return text
+  const words = plainTokens(text)
+  return words
     .replace(/\bops-[a-z]+\b/g, (id, offset: number) => {
       const title = bundle.dir.title(id) ?? id
       // "Shift lead does this…" at the start; "waiting on the shift lead" mid-sentence.
-      return offset === 0 || /[.!?]\s*$/.test(text.slice(0, offset)) ? title : `the ${title.toLowerCase()}`
+      return offset === 0 || /[.!?]\s*$/.test(words.slice(0, offset)) ? title : `the ${title.toLowerCase()}`
     })
     .replace(/\broad-agent\b/g, AGENT_NAME)
 }
@@ -245,20 +261,20 @@ export function decisionCardView(bundle: Bundle, proposal: ProposalRow): Decisio
   return {
     id: proposal.id, caseId: proposal.caseId, actionType: proposal.actionType,
     actionLabel: ACTION_LABELS[proposal.actionType] ?? label(proposal.actionType),
-    title: proposal.title, rationale: proposal.rationale, status: proposal.status, statusLabel: status.label, tone: status.tone,
+    title: plainText(bundle, proposal.title), rationale: plainText(bundle, proposal.rationale), status: proposal.status, statusLabel: status.label, tone: status.tone,
     pending: !decided,
-    whatHappened: handover?.what_happened ?? null,
-    facts: (handover?.facts ?? []).map((fact) => ({ text: fact.text, sources: fact.sources.map(sourceChip) })),
-    agentDid: handover?.agent_did ?? [],
-    unknowns: handover?.unknowns ?? [],
-    recommendation: handover?.recommendation ?? null,
-    alternatives: handover?.alternatives ?? [],
+    whatHappened: plainText(bundle, handover?.what_happened ?? null),
+    facts: (handover?.facts ?? []).map((fact) => ({ text: plainText(bundle, fact.text), sources: fact.sources.map(sourceChip) })),
+    agentDid: (handover?.agent_did ?? []).map((line) => plainText(bundle, line)),
+    unknowns: (handover?.unknowns ?? []).map((line) => plainText(bundle, line)),
+    recommendation: plainText(bundle, handover?.recommendation ?? null),
+    alternatives: (handover?.alternatives ?? []).map((line) => plainText(bundle, line)),
     changes: proposal.changes,
     draft: draftView(proposal.draftMessage),
     editedDraft: proposal.editedDraftMessage ? draftView(proposal.editedDraftMessage) : null,
-    options: proposal.options.map((option) => ({ id: option.id, label: option.label, description: option.description ?? null, recommended: !!option.recommended })),
+    options: proposal.options.map((option) => ({ id: option.id, label: plainText(bundle, option.label), description: plainText(bundle, option.description ?? null), recommended: !!option.recommended })),
     evidence: proposal.evidenceRefs.map(sourceChip),
-    nextIfApproved: proposal.nextStepIfApproved, nextIfRejected: proposal.nextStepIfRejected,
+    nextIfApproved: plainText(bundle, proposal.nextStepIfApproved), nextIfRejected: plainText(bundle, proposal.nextStepIfRejected),
     createdAt: iso(proposal.createdAt) ?? "", createdBy: ownerName(bundle, proposal.createdBy) ?? AGENT_NAME,
     approvalRule: approvalRule(proposal.actionType),
     decision: decided ? {
