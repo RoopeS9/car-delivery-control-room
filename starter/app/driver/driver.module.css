@@ -1,0 +1,140 @@
+/* Driver app. A phone frame on a desktop, full screen on a phone. Colours come
+   from the shared tokens, so the app follows the light and dark themes. */
+
+.stage { min-height: 100dvh; display: grid; place-items: center; padding: 28px 16px; background: var(--canvas); }
+.phone {
+  position: relative; display: flex; flex-direction: column; width: 390px; height: min(844px, calc(100dvh - 56px));
+  border-radius: 36px; overflow: hidden; background: var(--birch); color: var(--ink);
+  box-shadow: 0 0 0 10px var(--ink), 0 0 0 11px var(--sand), 0 24px 60px rgba(18, 17, 14, 0.25);
+}
+@media (max-width: 520px) {
+  .stage { padding: 0; place-items: stretch; }
+  .phone { width: 100%; height: 100dvh; border-radius: 0; box-shadow: none; }
+}
+
+/* ── Picker ─────────────────────────────────────────────────────────────── */
+.picker { flex: 1; overflow-y: auto; padding: 28px 18px 32px; }
+.pickerHead h1 { font-family: var(--font-display); font-weight: 600; font-size: 24px; letter-spacing: -0.02em; line-height: 1.15; }
+.kicker { font-size: 12px; color: var(--subtle); margin-bottom: 6px; }
+.pickerNote { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.pickerGroup { display: flex; gap: 6px; align-items: baseline; margin: 24px 2px 8px; font-size: 13px; font-weight: 600; }
+.pickerGroup span { font-size: 12px; font-weight: 500; color: var(--subtle); }
+.pickerList { display: grid; gap: 6px; }
+.pickerItem { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; background: var(--birch); box-shadow: var(--shadow-card); text-decoration: none; color: inherit; }
+.pickerItem:hover { box-shadow: var(--shadow-card-hover); }
+.pickerText { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.pickerText b { font-size: 14px; font-weight: 600; }
+.pickerText small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pickerRef { flex: none; font-size: 11px; color: var(--subtle); }
+.avatar { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--hair-soft); color: var(--brown); font-size: 13px; font-weight: 600; }
+
+/* ── App shell ──────────────────────────────────────────────────────────── */
+.app { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.top { display: flex; align-items: center; gap: 10px; padding: 18px 16px 10px; border-bottom: 1px solid var(--hair-soft); }
+.topText { flex: 1; min-width: 0; display: grid; }
+.topText b { font-size: 15px; font-weight: 600; }
+.topText a { font-size: 12px; color: var(--muted); text-decoration: none; }
+.topText a:hover { color: var(--ink); text-decoration: underline; }
+.callButton { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: 999px; background: var(--green); color: #fff; font-size: 13px; font-weight: 600; text-decoration: none; }
+.callButton:hover { filter: brightness(0.95); }
+
+.jobTabs { display: flex; gap: 6px; padding: 8px 16px 0; overflow-x: auto; }
+.jobTabs a { flex: none; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--hair); font-size: 12px; color: var(--muted); text-decoration: none; }
+.jobTabs a[aria-current="page"] { background: var(--ink); border-color: var(--ink); color: var(--birch); }
+
+.state { padding: 40px 20px; }
+.state h1 { font-size: 18px; font-weight: 600; }
+.state p { margin-top: 6px; font-size: 13.5px; color: var(--muted); }
+
+/* ── Car status ─────────────────────────────────────────────────────────── */
+.carBar { margin: 10px 12px 0; padding: 10px 12px; border-radius: 14px; background: var(--tray); box-shadow: 0 0 0 1px var(--hair-soft); }
+.carWarn { background: var(--orange-bg); box-shadow: 0 0 0 1px var(--orange); }
+.carTop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.carState { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
+.carDot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+.carWarn .carDot { background: var(--orange); animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0.2; } }
+@media (prefers-reduced-motion: reduce) { .carWarn .carDot { animation: none; } }
+.carSource { font-size: 11px; color: var(--subtle); white-space: nowrap; }
+.carAlert { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px; font-weight: 600; color: var(--orange-ink); }
+.carValues { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 8px; }
+.carValues div { min-width: 0; }
+.carValuesOld { opacity: 0.55; }
+.carValues dt { font-size: 10.5px; color: var(--subtle); }
+.carValues dd { font-size: 15px; font-weight: 600; white-space: nowrap; }
+.carValues small { font-size: 10.5px; font-weight: 500; color: var(--muted); }
+.carPlace { display: flex; align-items: center; gap: 5px; margin-top: 8px; font-size: 12px; color: var(--brown); }
+.carPlace span { color: var(--subtle); white-space: nowrap; }
+
+/* ── Job card ───────────────────────────────────────────────────────────── */
+.job { margin: 10px 12px 0; border-radius: 14px; background: var(--birch); box-shadow: var(--shadow-card); }
+.jobHead { position: relative; display: grid; gap: 2px; width: 100%; padding: 11px 36px 8px 12px; border: 0; background: transparent; text-align: left; }
+.jobKicker { font-size: 11.5px; color: var(--subtle); }
+.jobHead b { font-size: 15px; font-weight: 600; }
+.jobRoute { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--brown); }
+.jobRoute :global(.icon) { color: var(--sand); }
+.chevron { position: absolute; right: 12px; top: 18px; color: var(--subtle); transition: transform 0.15s ease; }
+.chevronOpen { transform: rotate(90deg); }
+.jobNext { padding: 0 12px 10px; font-size: 12.5px; font-weight: 500; color: var(--ink); }
+.jobFacts { display: grid; gap: 4px; }
+.jobFacts div { display: flex; gap: 8px; font-size: 12.5px; }
+.jobFacts dt { flex: none; width: 52px; color: var(--subtle); }
+.jobFacts dd { min-width: 0; color: var(--ink); }
+.jobFacts small { display: block; font-size: 11.5px; color: var(--muted); }
+.jobMore { display: grid; gap: 10px; padding: 10px 12px 12px; border-top: 1px solid var(--hair-soft); }
+.stop h3 { font-size: 12.5px; font-weight: 600; }
+.stop p { margin-top: 2px; font-size: 12.5px; color: var(--brown); }
+.stopNote { padding: 6px 8px; border-radius: 8px; background: var(--tray); }
+.stopNote small { display: block; margin-top: 2px; font-size: 11px; color: var(--subtle); }
+.jobNote { font-size: 12px; color: var(--muted); }
+
+/* ── Thread ─────────────────────────────────────────────────────────────── */
+.thread { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 14px 12px 10px; overscroll-behavior: contain; }
+.threadEmpty { margin: auto 12px; text-align: center; font-size: 13px; color: var(--muted); }
+.divider { margin: 8px 0 4px; text-align: center; font-size: 11px; color: var(--subtle); }
+.bubble { max-width: 84%; padding: 7px 11px 6px; border-radius: 16px; font-size: 14px; line-height: 1.4; }
+.bubble p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.mine { margin-left: auto; background: var(--ink); color: var(--birch); border-bottom-right-radius: 5px; }
+.theirs { margin-right: auto; background: var(--hair-soft); color: var(--ink); border-bottom-left-radius: 5px; }
+.old { opacity: 0.72; }
+.who { display: block; margin-bottom: 1px; font-size: 11px; font-weight: 600; color: var(--teal-ink); }
+.meta { display: block; margin-top: 2px; font-size: 10.5px; text-align: right; opacity: 0.6; }
+.photo { display: block; width: 220px; max-width: 100%; border-radius: 10px; }
+.safety { margin: 4px 0; padding: 10px 12px; border-radius: 14px; background: var(--red-bg); color: var(--red-ink); box-shadow: 0 0 0 1px var(--red); font-size: 14.5px; font-weight: 600; }
+.safety .who { color: var(--red-ink); font-weight: 600; }
+.typing { display: inline-flex; gap: 4px; padding: 4px 0; }
+.typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--subtle); animation: bounce 1.2s infinite ease-in-out; }
+.typing i:nth-child(2) { animation-delay: 0.15s; }
+.typing i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes bounce { 0%, 80%, 100% { opacity: 0.3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+
+.photoAsk { margin: 0 12px 8px; padding: 10px 12px; border-radius: 14px; background: var(--teal-bg); color: var(--teal-ink); }
+.photoAsk p { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.photoAsk div { display: flex; gap: 8px; margin-top: 8px; }
+.photoAsk button { height: 32px; padding: 0 12px; border-radius: 999px; border: 0; background: var(--teal-ink); color: #fff; font-size: 13px; font-weight: 600; }
+.photoAsk .quiet { background: transparent; color: var(--teal-ink); box-shadow: inset 0 0 0 1px var(--teal); }
+
+.error { margin: 0 12px 8px; padding: 8px 10px; border-radius: 10px; background: var(--red-bg); color: var(--red-ink); font-size: 12.5px; }
+
+/* ── Composer ───────────────────────────────────────────────────────────── */
+.composer { position: relative; display: flex; align-items: center; gap: 8px; padding: 10px 12px 16px; border-top: 1px solid var(--hair-soft); background: var(--birch); }
+.field { flex: 1; min-width: 0; }
+.field input { width: 100%; height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--hair); background: var(--tray); font-size: 14.5px; outline: 0; }
+.field input:focus { border-color: var(--ink); }
+.iconButton, .sendButton { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; border: 0; background: transparent; color: var(--brown); }
+.iconButton:hover { background: var(--hair-soft); }
+.sendButton { background: var(--ink); color: var(--birch); }
+.sendButton:disabled { opacity: 0.35; cursor: default; }
+.photoMenu { position: absolute; left: 12px; bottom: 62px; z-index: 2; display: grid; min-width: 230px; padding: 6px; border-radius: 14px; background: var(--birch); box-shadow: var(--shadow-card-hover); }
+.photoMenu button { display: grid; gap: 1px; padding: 9px 10px; border: 0; border-radius: 9px; background: transparent; text-align: left; font-size: 13.5px; }
+.photoMenu button:hover { background: var(--hair-soft); }
+.photoMenu small { font-size: 11.5px; color: var(--subtle); }
+.connect { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.connect p { flex: 1; font-size: 12px; color: var(--brown); }
+.connect button { flex: none; height: 32px; padding: 0 12px; border-radius: 999px; border: 0; background: var(--ink); color: var(--birch); font-size: 12.5px; font-weight: 600; }
+.connect button:disabled { opacity: 0.5; }
+.call { margin: 4px 0; padding: 10px 12px; border-radius: 14px; background: var(--green-bg); color: var(--green-ink); box-shadow: 0 0 0 1px var(--green); }
+.call .who { color: var(--green-ink); }
+.call p { margin: 2px 0 8px; font-size: 14px; color: var(--ink); }
+.call small { display: block; font-size: 12px; color: var(--muted); }
+.call .callButton { width: max-content; }

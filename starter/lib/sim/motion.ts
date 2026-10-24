@@ -10,7 +10,7 @@ import { roughWhere } from "./places"
 
 export type MotionState =
   | "DRIVING" | "AT_TERMINAL" | "ON_FERRY" | "ARRIVED" | "PARKED"
-  | "LIMPING" | "STOPPING" | "STOPPED_IDLING" | "STOPPED_ENGINE_OFF"
+  | "LIMPING" | "STOPPING" | "STOPPED_IDLING" | "STOPPED_ENGINE_OFF" | "OVERHEATING"
 
 export type Motion = {
   state: MotionState
@@ -23,16 +23,25 @@ export type Motion = {
 }
 
 /**
- * A fault injected by a scenario. Stored in the `dtc` event's `data.sim` so
- * the simulation survives a server restart and disappears with a reset.
+ * A fault injected by a scenario. Stored in the scenario's OBD event
+ * (`data.sim`), so the simulation survives a server restart and disappears
+ * with a reset.
  */
-export type FaultPlan = {
-  profile: "misfire"
-  /** When the fault began; codes are detected a few seconds later. */
+export type FaultPlan = MisfirePlan | OverheatPlan
+
+type PlanBase = {
+  /** When the fault began; the code is set `detectAfterSeconds` later. */
   startedAt: string
   /** Position along the route (km) and speed when it began. */
   kmAtStart: number
   speedAtStart: number
+  codes: string[]
+  detectAfterSeconds: number
+}
+
+/** Scenario A: flashing light and reduced power; the driver pulls into a service area and stops. */
+export type MisfirePlan = PlanBase & {
+  profile: "misfire"
   /** Reduced-power speed while the driver looks for a place to stop. */
   limpKmh: number
   limpSeconds: number
@@ -42,9 +51,24 @@ export type FaultPlan = {
   engineOffAfterSeconds: number
   /** Where the car comes to rest, in words. */
   stopLabel: string
-  codes: string[]
-  detectAfterSeconds: number
 }
+
+/**
+ * Scenario F: coolant climbs, the temperature code is set, and then the dongle
+ * stops reporting while the car is still moving. Nobody knows whether it stopped.
+ */
+export type OverheatPlan = PlanBase & {
+  profile: "overheat"
+  coolantStart: number
+  coolantPerMinute: number
+  /** The dongle's last frame is this long after the start. */
+  silentAfterSeconds: number
+  /** Where to tell the agent when the code is set (the app's own origin). The code comes due during a later sync. */
+  notifyOrigin: string
+}
+
+/** One OBD frame as the simulator writes it: the shared shape plus whether the engine runs. */
+export type SimObd = ObdData & { engine_on: boolean }
 
 // ---------------------------------------------------------------- noise
 
@@ -131,8 +155,8 @@ function cruiseSpeed(car: FleetCar, at: Date): number {
   return Math.max(60, round(car.cruiseKmh + 30 + wave + 2 * noise(car.orderId, "speed", at)))
 }
 
-/** Speed profile of a fault: limping at reduced power, then slowing to a stop. */
-function faultSpeed(plan: FaultPlan, seconds: number): number {
+/** Speed profile of a misfire: limping at reduced power, then slowing to a stop. */
+function misfireSpeed(plan: MisfirePlan, seconds: number): number {
   if (seconds < 0) return plan.speedAtStart
   const settle = 20
   if (seconds < settle) return plan.speedAtStart + (plan.limpKmh - plan.speedAtStart) * (seconds / settle)
@@ -142,10 +166,21 @@ function faultSpeed(plan: FaultPlan, seconds: number): number {
   return 0
 }
 
+/** Overheating: the car keeps going; once the code is set the engine protects itself and power drops. */
+function overheatSpeed(plan: OverheatPlan, seconds: number): number {
+  const after = seconds - plan.detectAfterSeconds
+  if (after <= 0) return plan.speedAtStart
+  return Math.max(78, plan.speedAtStart - (plan.speedAtStart - 78) * Math.min(1, after / 60))
+}
+
+function faultSpeed(plan: FaultPlan, seconds: number): number {
+  return plan.profile === "misfire" ? misfireSpeed(plan, seconds) : overheatSpeed(plan, seconds)
+}
+
 /** Kilometres covered since the fault began, integrated second by second. */
 function faultDistanceKm(plan: FaultPlan, seconds: number): number {
   let km = 0
-  const end = Math.min(seconds, plan.limpSeconds + plan.rampSeconds)
+  const end = plan.profile === "misfire" ? Math.min(seconds, plan.limpSeconds + plan.rampSeconds) : seconds
   for (let second = 0; second < end; second += 1) km += faultSpeed(plan, second + 0.5) / 3600
   return km
 }
@@ -154,9 +189,13 @@ export function faultMotion(car: FleetCar, plan: FaultPlan, at: Date): Motion {
   const seconds = (at.getTime() - Date.parse(plan.startedAt)) / 1000
   const km = plan.kmAtStart + faultDistanceKm(plan, Math.max(0, seconds))
   const placed = placeOnRoute(car, km)
+  const where = `On the road ${roughWhere(placed.point, car.fromCity, car.toCity)}`
+  if (plan.profile === "overheat") {
+    return { state: "OVERHEATING", km, ...placed, speedKmh: round(faultSpeed(plan, seconds)), engineOn: true, placeLabel: where }
+  }
   const stopAfter = plan.limpSeconds + plan.rampSeconds
   if (seconds < plan.limpSeconds) {
-    return { state: "LIMPING", km, ...placed, speedKmh: round(faultSpeed(plan, seconds)), engineOn: true, placeLabel: `On the road ${roughWhere(placed.point, car.fromCity, car.toCity)}` }
+    return { state: "LIMPING", km, ...placed, speedKmh: round(faultSpeed(plan, seconds)), engineOn: true, placeLabel: where }
   }
   if (seconds < stopAfter) {
     return { state: "STOPPING", km, ...placed, speedKmh: round(faultSpeed(plan, seconds)), engineOn: true, placeLabel: `Pulling into ${plan.stopLabel}` }
@@ -168,6 +207,11 @@ export function faultMotion(car: FleetCar, plan: FaultPlan, at: Date): Motion {
 export function motionAt(car: FleetCar, at: Date, plan: FaultPlan | null): Motion {
   if (plan && at.getTime() >= Date.parse(plan.startedAt)) return faultMotion(car, plan, at)
   return baseMotion(car, at)
+}
+
+/** When the dongle stops reporting under this plan, if it does. */
+export function obdSilentFrom(plan: FaultPlan | null): Date | null {
+  return plan?.profile === "overheat" ? new Date(Date.parse(plan.startedAt) + plan.silentAfterSeconds * 1000) : null
 }
 
 // ---------------------------------------------------------------- GPS
@@ -186,67 +230,27 @@ export function gpsSample(car: FleetCar, motion: Motion, at: Date): GpsData {
 
 // ---------------------------------------------------------------- OBD
 
-export function obdSample(car: FleetCar, motion: Motion, at: Date, plan: FaultPlan | null): ObdData {
+/**
+ * Only the signals a decision uses (PLAN.md 4.5): trouble codes, the
+ * check-engine light, coolant, battery voltage, speed and engine on/off.
+ * Electric cars report speed, battery voltage, light and codes.
+ */
+export function obdSample(car: FleetCar, motion: Motion, at: Date, plan: FaultPlan | null): SimObd {
   const n = (signal: string) => noise(car.orderId, signal, at)
   const seed = hash(car.vehicleId)
-  const speed = motion.speedKmh
-
-  if (car.fuel === "electric") {
-    const soc = Math.max(8, 86 - (seed % 9) - (motion.km - kmAtObservation(car)) * 0.17 - (car.lastObservation?.progress ?? 0) * 40)
-    return { speed_kmh: round(speed), soc_pct: round(soc), battery_v: round(14.4 + 0.1 * n("bv"), 1), mil: "OFF", dtcs: [] }
-  }
-
+  const running = motion.engineOn
   const fault = plan && at.getTime() >= Date.parse(plan.startedAt) ? plan : null
-  const faultSeconds = fault ? (at.getTime() - Date.parse(fault.startedAt)) / 1000 : 0
-  const detected = !!fault && faultSeconds >= fault.detectAfterSeconds
-  const hybridEngineOff = car.fuel === "hybrid" && speed < 35 && !fault
-  const running = motion.engineOn && !hybridEngineOff
-  const idle = car.fuel === "diesel" ? 760 : 680
-  const perKmh = car.fuel === "diesel" ? 9.5 : 11.5
+  const seconds = fault ? (at.getTime() - Date.parse(fault.startedAt)) / 1000 : 0
+  const detected = !!fault && seconds >= fault.detectAfterSeconds
+  const mil: MilState = !detected ? "OFF" : fault.profile === "misfire" && running ? "FLASHING" : "ON"
+  const dtcs = detected ? [...fault.codes] : []
+  const battery = round(running ? 14.2 + 0.1 * n("bv") : 12.4 + 0.05 * n("bv"), 1)
 
-  let rpm = running ? idle + speed * perKmh + 40 * n("rpm") : 0
-  let load = running ? 16 + speed * 0.25 + 3 * n("load") : 0
-  let throttle = running ? 6 + speed * 0.11 + 2 * n("thr") : 0
-  let stft = running ? 2 * n("stft") : 0
-  const ltft = ((seed % 7) - 3) * 0.8
-  let misfires = 0
-  let mil: MilState = "OFF"
-  const dtcs: string[] = []
+  if (car.fuel === "electric") return { speed_kmh: round(motion.speedKmh), battery_v: battery, engine_on: running, mil, dtcs }
 
-  if (fault) {
-    misfires = Math.floor(3.2 * Math.max(0, Math.min(faultSeconds, fault.limpSeconds + fault.rampSeconds + fault.engineOffAfterSeconds)))
-    if (detected) dtcs.push(...fault.codes)
-    if (detected) mil = running ? "FLASHING" : "ON"
-    if (running) {
-      const rough = Math.abs(n("rough")) > 0.75 ? -260 : 0
-      rpm += 220 * n("jit") + rough
-      stft = 9 + 3 * n("stft")
-      if (motion.state === "LIMPING" || motion.state === "STOPPING") {
-        throttle = 34 + 8 * n("thr")
-        load = 72 + 10 * n("load")
-      } else {
-        rpm = 620 + 130 * n("idle") + rough / 2
-        load = 28 + 6 * n("load")
-        throttle = 0
-      }
-    }
-  }
-
-  const sample: ObdData = {
-    speed_kmh: round(speed),
-    rpm: round(Math.max(0, rpm)),
-    engine_load_pct: round(Math.max(0, Math.min(100, load))),
-    throttle_pct: round(Math.max(0, Math.min(100, throttle))),
-    coolant_c: round(running || fault ? 90 + (seed % 4) + 0.6 * n("cool") : 40 + (seed % 6), 1),
-    battery_v: round(running ? 14.2 + 0.1 * n("bv") : 12.5 + 0.05 * n("bv"), 1),
-    fuel_trim_short_pct: round(stft, 1),
-    fuel_trim_long_pct: round(ltft, 1),
-    misfire_count: misfires,
-    mil,
-    dtcs,
-  }
-  if (car.fuel === "hybrid") sample.soc_pct = round(58 + 6 * Math.sin(at.getTime() / 900_000 + seed))
-  return sample
+  let coolant = running ? 90 + (seed % 4) + 0.6 * n("cool") : 40 + (seed % 6)
+  if (fault?.profile === "overheat") coolant = Math.min(124, fault.coolantStart + fault.coolantPerMinute * (seconds / 60)) + 0.4 * n("cool")
+  return { speed_kmh: round(motion.speedKmh), coolant_c: round(coolant, 1), battery_v: battery, engine_on: running, mil, dtcs }
 }
 
 /** The freeze frame the dongle stores when it sets a code: the readings at that moment. */
@@ -254,7 +258,7 @@ export function freezeFrame(car: FleetCar, plan: FaultPlan): { code: string; at:
   const at = new Date(Date.parse(plan.startedAt) + plan.detectAfterSeconds * 1000)
   const sample = obdSample(car, faultMotion(car, plan, at), at, plan)
   const values: Record<string, number> = {}
-  for (const key of ["speed_kmh", "rpm", "engine_load_pct", "throttle_pct", "coolant_c", "fuel_trim_short_pct", "fuel_trim_long_pct", "battery_v"] as const) {
+  for (const key of ["speed_kmh", "coolant_c", "battery_v"] as const) {
     const value = sample[key]
     if (typeof value === "number") values[key] = value
   }

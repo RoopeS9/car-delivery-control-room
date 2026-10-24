@@ -8,17 +8,17 @@ import { useCallback, useEffect, useState } from "react"
 import { Icon } from "../components/icons"
 import styles from "./demo.module.css"
 
-type Scenario = { name: string; title: string; orderRef: string | null; description: string; started: boolean }
+type Scenario = { name: string; title: string; orderRef: string | null; description: string; started: boolean; links: { label: string; href: string }[] }
 type FleetRow = {
   reference: string; orderId: string; vehicleTitle: string; driverName: string; driverId: string
   phone: "LIVE" | "STALE" | "NONE"; state: string; placeLabel: string; speedKmh: number; fault: string | null; quietFrom: string | null
 }
-type FleetState = { now: string; start: string; cars: FleetRow[] }
+type FleetState = { now: string; start: string; spend: { dollars: number; runs: number }; routineCases: number; cars: FleetRow[] }
 
 const STATE_WORDS: Record<string, string> = {
   DRIVING: "Driving", AT_TERMINAL: "At the ferry terminal", ON_FERRY: "On the ferry", ARRIVED: "Near delivery", PARKED: "Stopped",
   LIMPING: "Reduced power", STOPPING: "Pulling over", STOPPED_IDLING: "Stopped, engine running", STOPPED_ENGINE_OFF: "Stopped, engine off",
-  UNKNOWN: "Position unknown", LAST_SEEN: "Not reporting",
+  OVERHEATING: "Overheating", UNKNOWN: "Position unknown", LAST_SEEN: "Not reporting",
 }
 
 const clock = (iso: string) => new Date(iso).toISOString().slice(11, 19)
@@ -29,6 +29,8 @@ export default function DemoPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [log, setLog] = useState<{ at: string; text: string; ok: boolean }[]>([])
   const [error, setError] = useState("")
+  const [keepRoutine, setKeepRoutine] = useState(true)
+  const [simDriver, setSimDriver] = useState<{ available: boolean; enabled: boolean; humans: string[]; usesModel: boolean } | null>(null)
 
   const refresh = useCallback(async () => {
     try {
@@ -36,6 +38,8 @@ export default function DemoPage() {
       if (!scenarioResponse.ok || !stateResponse.ok) throw new Error("The simulator did not answer")
       setScenarios(((await scenarioResponse.json()) as { scenarios: Scenario[] }).scenarios)
       setFleet((await stateResponse.json()) as FleetState)
+      const driverResponse = await fetch("/api/sim/driver")
+      if (driverResponse.ok) setSimDriver(await driverResponse.json())
       setError("")
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The simulator did not answer")
@@ -56,7 +60,9 @@ export default function DemoPage() {
     if (name === "reset" && !window.confirm("Reset the demo? Every case, message and decision added since the start is removed.")) return
     setBusy(name)
     try {
-      const response = await fetch(`/api/sim/scenarios/${name}`, { method: "POST" })
+      const response = await fetch(`/api/sim/scenarios/${name}`, {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(name === "reset" ? { keepRoutine } : {}),
+      })
       const result = (await response.json()) as { ok: boolean; message: string }
       setLog((items) => [{ at: new Date().toISOString(), text: result.message, ok: result.ok }, ...items].slice(0, 8))
       if (name === "reset") setLog([{ at: new Date().toISOString(), text: result.message, ok: result.ok }])
@@ -68,6 +74,26 @@ export default function DemoPage() {
     }
   }
 
+  async function jump(minutes: number) {
+    setBusy(`jump-${minutes}`)
+    try {
+      const response = await fetch("/api/sim/clock", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ minutes }) })
+      const result = (await response.json()) as { now?: string; error?: string; caseTimers?: { ran: boolean; followedUp?: number; escalated?: number } }
+      const timers = !result.caseTimers?.ran ? "The agent's case timers did not answer."
+        : `Case timers ran: ${result.caseTimers.followedUp ?? 0} followed up, ${result.caseTimers.escalated ?? 0} handed to a person.`
+      setLog((items) => [{ at: new Date().toISOString(), ok: response.ok,
+        text: response.ok && result.now ? `Clock jumped ${minutes} min to ${clock(result.now).slice(0, 5)} UTC. ${timers}` : result.error ?? "The clock did not move." }, ...items].slice(0, 8))
+    } finally {
+      setBusy(null)
+      void refresh()
+    }
+  }
+
+  async function toggleSimDriver(enabled: boolean) {
+    const response = await fetch("/api/sim/driver", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ enabled }) })
+    if (response.ok) setSimDriver(await response.json())
+  }
+
   const reset = scenarios?.find((scenario) => scenario.name === "reset")
   const stories = scenarios?.filter((scenario) => scenario.name !== "reset") ?? []
   const attention = fleet?.cars.filter((car) => car.fault || car.phone !== "LIVE") ?? []
@@ -77,12 +103,16 @@ export default function DemoPage() {
       <div>
         <p className={styles.eyebrow}>Presenter only · not part of the control room</p>
         <h1>Demo controls</h1>
+        {fleet && <p className={styles.spend}>Agent spend so far: <b className="num">${fleet.spend.dollars.toFixed(2)}</b> over {fleet.spend.runs} run{fleet.spend.runs === 1 ? "" : "s"}</p>}
       </div>
       <div className={styles.headRight}>
         <div className={styles.clock} aria-live="polite">
           <span>Sim time</span>
           <b className="num">{fleet ? clock(fleet.now) : "--:--:--"}</b>
-          <span>UTC · 21 Oct</span>
+          <span>UTC · {fleet ? new Date(fleet.now).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }) : "21 Oct"}</span>
+        </div>
+        <div className={styles.jumps} role="group" aria-label="Jump the sim clock forward">
+          {[5, 15, 60].map((minutes) => <button key={minutes} type="button" disabled={busy !== null} onClick={() => void jump(minutes)}>+{minutes} min</button>)}
         </div>
         <button type="button" className={styles.danger} disabled={busy !== null} onClick={() => void run("reset")}
           title={reset?.description}>
@@ -101,12 +131,15 @@ export default function DemoPage() {
           <div className={styles.scenarioText}>
             <h3>{scenario.title}{scenario.orderRef && <span className="mono"> · {scenario.orderRef}</span>}</h3>
             <p>{scenario.description}</p>
+            {scenario.links.length > 0 && <p className={styles.scenarioLinks}>
+              {scenario.links.map((link) => <Link key={link.href} href={link.href} target="_blank">{link.label} <Icon name="arrow" size={12} /></Link>)}
+            </p>}
           </div>
           <div className={styles.scenarioActions}>
             {scenario.started
               ? <span className="chip tone-accent"><span className="chip-dot" />Running</span>
               : <button type="button" className={styles.primary} disabled={busy !== null} onClick={() => void run(scenario.name)}>
-                {busy === scenario.name ? "Starting…" : "Start"}
+                {busy === scenario.name ? "Starting…" : "Run"}
               </button>}
           </div>
         </li>)}
@@ -117,10 +150,20 @@ export default function DemoPage() {
       <h2 id="open">Open in another window</h2>
       <div className={styles.links}>
         <Link href="/" target="_blank"><Icon name="work" />Control room</Link>
-        <Link href="/driver?driver=drv-042" target="_blank"><Icon name="driver" />Driver app as Leo Quellford (CD-420584)</Link>
-        <Link href="/driver" target="_blank"><Icon name="people" />Driver app, pick a driver</Link>
+        <Link href="/driver" target="_blank"><Icon name="driver" />Driver app, pick a driver</Link>
+        <Link href="/site" target="_blank"><Icon name="building" />Site chat, pick a place</Link>
       </div>
     </section>
+
+    {simDriver?.available && <section className={styles.section} aria-labelledby="simdriver">
+      <h2 id="simdriver">Simulated driver <span className={styles.count}>video only</span></h2>
+      <label className={styles.keep}>
+        <input type="checkbox" checked={simDriver.enabled} onChange={(event) => void toggleSimDriver(event.target.checked)} />
+        Let a simulated driver answer the agent in scenarios A, B and C ({simDriver.usesModel ? "Claude Haiku 5.5 from a fact sheet" : "scripted answers, no model key"}).
+      </label>
+      <p className={styles.muted}>Keep this off in the live demo: a teammate plays the driver. Typing in a driver app takes over from it for that driver.
+        In scenario F nobody answers, on purpose.{simDriver.humans.length ? ` A person is playing ${simDriver.humans.length} driver${simDriver.humans.length === 1 ? "" : "s"}.` : ""}</p>
+    </section>}
 
     <section className={styles.section} aria-labelledby="log">
       <h2 id="log">What happened</h2>
@@ -148,7 +191,13 @@ export default function DemoPage() {
       </table>
     </section>
 
-    {reset && <p className={`${styles.muted} ${styles.foot}`}>Reset: {reset.description}</p>}
+    {reset && <div className={`${styles.muted} ${styles.foot}`}>
+      <p>Reset: {reset.description}</p>
+      <label className={styles.keep}>
+        <input type="checkbox" checked={keepRoutine} onChange={(event) => setKeepRoutine(event.target.checked)} />
+        Keep the agent&apos;s routine cases on reset{fleet ? ` (${fleet.routineCases} stored)` : ""}. Seed them with <code>npm run sim:seed-routine</code>.
+      </label>
+    </div>}
   </main>
 }
 

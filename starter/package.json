@@ -14,9 +14,10 @@
     "smoke": "tsx scripts/smoke.ts",
     "voice:test": "tsx --import ./scripts/voice-register.mjs scripts/voice-test.ts",
     "voice:prerender": "tsx --import ./scripts/voice-register.mjs scripts/voice-prerender.ts",
-    "test": "tsx --test lib/agent/*.test.ts",
+    "test": "tsx --test lib/agent/*.test.ts lib/sim/*.test.ts",
     "agent:scenario-a": "tsx lib/agent/dev/scenario-a.ts",
-    "cr:reset-schema": "tsx lib/cr/dev/reset-schema.ts"
+    "cr:reset-schema": "tsx lib/cr/dev/reset-schema.ts",
+    "sim:seed-routine": "tsx lib/sim/seed-routine.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
