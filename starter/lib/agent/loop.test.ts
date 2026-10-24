@@ -238,6 +238,19 @@ describe("scenario A wiring", () => {
     assert.equal(result.reply, "Yes, please go with the truck and stay with the car.")
   })
 
+  test("a wait whose minutes contradict the check time it names runs at the named time", async () => {
+    const { simNow } = await import("@/lib/cr/clock")
+    const at = new Date(simNow().getTime() + 130 * 60000)
+    const hhmm = at.toISOString().slice(11, 16)
+    useTestLlm(scriptedModel([
+      { stop_reason: "tool_use", content: [tool("w1", "wait_for", { waiting_for: "provider", waiting_on: "the roadside help", next_action: `Check at ${hhmm} UTC that the help arrived; check-in closes 15:30 UTC.`, check_in_minutes: 12 })] },
+      { stop_reason: "end_turn", content: [text("Please stay with the car; the roadside help is on its way.")] },
+    ]))
+    await handleDriverMessage(await prepareDriverMessage({ orderRef: ORDER, driverId: DRIVER, text: "OK, waiting.", mode: "chat" }))
+    const row = await getCase(caseId)
+    assert.equal(row?.nextCheckAt?.toISOString().slice(11, 16), hhmm)
+  })
+
   test("a tool call with broken JSON is made once more with a note, without restarting the turn", async () => {
     const model = scriptedModel([
       { throws: "Expected ',' or '}' after property value in JSON at position 435 (line 1 column 436)" },

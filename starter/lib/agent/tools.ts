@@ -562,7 +562,20 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
     if (state.followUps.some((followUp) => followUp.kind === "analysis")) {
       return { content: "Not recorded: you handed this case to operations in this turn, and they decide the next step. Do not set a wait now; write your reply.", isError: true, gate: "REFUSED" }
     }
-    const minutes = typeof input.check_in_minutes === "number" ? Math.min(Math.max(Math.round(input.check_in_minutes), 1), 24 * 60) : 30
+    let minutes = typeof input.check_in_minutes === "number" ? Math.min(Math.max(Math.round(input.check_in_minutes), 1), 24 * 60) : 30
+    // The model writes the time it means ("check at 11:15 UTC") and sometimes gets the minutes wrong; the stated
+    // UTC time wins when the two disagree by more than a quarter of an hour.
+    // Only a time the check is tied to ("check at 11:15 UTC", "confirm at 14:15 UTC"), never a deadline it mentions.
+    const stated = /\b(?:check|checking|follow[- ]?up|look again|confirm)\b(?:(?!closes|cutoff|departs)[^.;]){0,24}?\b(\d{1,2}):(\d{2})\s*UTC\b/i.exec(str(input.next_action))
+    let corrected = false
+    if (stated) {
+      const now = simNow()
+      const at = new Date(now)
+      at.setUTCHours(Number(stated[1]), Number(stated[2]), 0, 0)
+      if (at.getTime() <= now.getTime()) at.setUTCDate(at.getUTCDate() + 1)
+      const statedMinutes = Math.round((at.getTime() - now.getTime()) / 60000)
+      if (statedMinutes >= 1 && statedMinutes <= 24 * 60 && Math.abs(statedMinutes - minutes) > 15) { minutes = statedMinutes; corrected = true }
+    }
     const pending = await listProposals({ caseId: state.caseRow.id, statuses: ["PENDING"] })
     const updated = await updateCase(state.caseRow.id, {
       ...(pending.length ? {} : { status: "WAITING_EXTERNAL" as const }),
@@ -578,7 +591,7 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
       caseId: state.caseRow.id, orderId: state.facts.id, actorType: "agent", actorId: AGENT_ID, kind: "note", channel: "internal",
       body: `Waiting on ${str(input.waiting_on)}. Next check at ${utcTime(at)}, in ${minutes} min: ${str(input.next_action)}`,
     })
-    return { content: `The case waits on ${str(input.waiting_on)}. The follow-up runs in ${minutes} minutes, at ${when} (simulated clock). If that is not the time you meant, call wait_for again with the corrected minutes.`, log: null }
+    return { content: `The case waits on ${str(input.waiting_on)}. The follow-up runs in ${minutes} minutes, at ${when} (simulated clock)${corrected ? ", the time your next action names (the minutes you gave did not match it)" : ""}. If that is not the time you meant, call wait_for again with the corrected minutes.`, log: null }
   },
 
   async hand_over(state, input) {
