@@ -235,7 +235,8 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
     const who = typeof data.who === "string" ? data.who : "the other party"
     const seconds = typeof data.duration_s === "number" ? data.duration_s : null
     const inbound = data.purpose === "DRIVER_INBOUND"
-    const title = `${inbound ? "Driver called Road Desk" : `Live call: ${labelIn(String(data.purpose ?? "call")).toLowerCase()}`} on the VoiceChat line${seconds != null ? `, ${Math.max(1, Math.round(seconds / 60))} min` : ""}`
+    const line = data.caller === "voicechat" ? "VoiceChat line" : data.caller === "roaddesk" ? "Road Desk line" : "VoiceChat line"
+    const title = `${inbound ? "Driver called Road Desk" : `Live call: ${labelIn(String(data.purpose ?? "call")).toLowerCase()}`} on the ${line}${seconds != null ? `, ${Math.max(1, Math.round(seconds / 60))} min` : ""}`
     const ingested = typeof data.ingested_call_id === "string" ? robo.find((call) => call.id === data.ingested_call_id) ?? null : null
     if (typeof data.ingested_call_id === "string") ingestedIds.add(data.ingested_call_id)
     const review = data.review as { verdict?: "PASS" | "PARTIAL" | "FAIL"; violations?: { kind: string; turnSeq: number; text: string }[] } | null
@@ -246,7 +247,7 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
     }
     behind.push({
       ...base, title: review?.verdict ? `${title} · review ${review.verdict.toLowerCase()}` : title,
-      source: "VoiceChat line, transcript of the phone's recording", tone: violations.length ? "danger" : base.tone,
+      source: `${line}, transcript of the phone's recording`, tone: violations.length ? "danger" : base.tone,
       violations, verdict: review?.verdict ?? null,
     })
     recent.push({ id: `line-${event.id}`, at, text: violations.length ? `${title}: ${violations.length} forbidden line${violations.length === 1 ? "" : "s"}` : title })

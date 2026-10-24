@@ -13,6 +13,8 @@ type LinkBody = {
   orderRef?: unknown; callId?: unknown; purpose?: unknown; who?: unknown; duration?: unknown
   /** Epoch seconds from the phone's record. */
   started?: unknown; ended?: unknown
+  /** The phone contact that placed the call: roaddesk (chained STT, LLM, TTS) or voicechat. */
+  caller?: unknown
   transcript?: Line[]
 }
 
@@ -42,7 +44,7 @@ export async function POST(request: Request) {
       const response = await fetch(`${BASE}/calls/ingest`, {
         method: "POST", headers: { "content-type": "application/json" }, cache: "no-store", signal: AbortSignal.timeout(90_000),
         body: JSON.stringify({
-          ref: order.reference, purpose, engine: "VOICECHAT_11B", lineCallId: body.callId,
+          ref: order.reference, purpose, engine: body.caller === "voicechat" ? "VOICECHAT_11B" : "CHAINED_STT_LLM_TTS", lineCallId: body.callId,
           startedAt: new Date(startedMs).toISOString(), endedAt: new Date(endedMs).toISOString(),
           // The phone's model is Mira; the user is whoever answered.
           turns: transcript.map((line) => ({ speaker: line.role === "model" ? "model" : "user", text: line.text, startedAt: new Date(startedMs + line.t * 1000).toISOString() })),
@@ -62,9 +64,9 @@ export async function POST(request: Request) {
   const event = await appendEvent({
     caseId: null, orderId: order.id, actorType: "system", actorId: "voicechat-line",
     kind: "note", channel: purpose === "DRIVER_INBOUND" ? "driver_voice" : "system",
-    body: `Live call on the VoiceChat line with ${who}${seconds != null ? `, ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}` : ""}. Recorded on the phone line.`,
+    body: `Live call on the ${body.caller === "voicechat" ? "VoiceChat" : "Road Desk"} line with ${who}${seconds != null ? `, ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}` : ""}. Recorded on the phone line.`,
     data: {
-      line_call_id: body.callId, purpose, who, duration_s: seconds, transcript,
+      line_call_id: body.callId, purpose, who, duration_s: seconds, transcript, caller: body.caller === "voicechat" ? "voicechat" : "roaddesk",
       ingested_call_id: ingested?.call.id ?? null, review: ingested?.review ?? null,
     },
   })

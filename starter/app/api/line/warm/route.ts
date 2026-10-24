@@ -17,8 +17,10 @@ export async function GET(request: Request) {
   const purpose = url.searchParams.get("purpose")
   if (!ref || !purpose || !/^[A-Z0-9-]+$/i.test(ref) || !/^[A-Z_]+$/.test(purpose)) return NextResponse.json({ ok: false, error: "ref and purpose are required" }, { status: 400 })
   const byModel = url.searchParams.get("by") === "model"
+  // `context` is the dossier-holding prompt for the turn-based roaddesk contact; `card` the brief for VoiceChat.
+  const kind = url.searchParams.get("kind") === "context" ? "context" : "card"
   try {
-    const response = await fetch(`${BASE}/card/${encodeURIComponent(ref)}/${purpose}${byModel ? "?by=model" : ""}`, { cache: "no-store", signal: AbortSignal.timeout(90_000) })
+    const response = await fetch(`${BASE}/${kind}/${encodeURIComponent(ref)}/${purpose}${byModel ? "?by=model" : ""}`, { cache: "no-store", signal: AbortSignal.timeout(90_000) })
     if (response.ok) return NextResponse.json({ ok: true, by: response.headers.get("x-brief-by") })
     const body = await response.json().catch(() => null) as { error?: string } | null
     return NextResponse.json({ ok: false, error: body?.error ?? `The call service answered ${response.status}.` }, { status: response.status === 400 ? 400 : 502 })

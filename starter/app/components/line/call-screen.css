@@ -35,3 +35,16 @@
   box-shadow: 0 0 0 10px var(--ink), 0 0 0 11px var(--sand), 0 24px 60px rgba(15, 15, 15, 0.35); }
 .cs-claims { display: grid; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--birch); box-shadow: var(--shadow-card); font-size: 12.5px; }
 .cs-claims h3 { margin-top: 4px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+/* Whose turn it is: listening, thinking (the 1.5 to 3 s before a reply), speaking. */
+.cs-turn { display: inline-flex; align-items: center; gap: 7px; margin-top: 4px; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 500; background: var(--hair-soft); color: var(--muted); }
+.cs-turn i { width: 8px; height: 8px; border-radius: 50%; background: var(--tone-fine); }
+.cs-turn-speaking { background: color-mix(in srgb, var(--tone-agent) 15%, transparent); color: var(--teal-ink); }
+.cs-turn-speaking i { background: var(--tone-agent); animation: cs-pulse 0.9s ease-in-out infinite; }
+.cs-turn-thinking { background: color-mix(in srgb, var(--tone-watch) 15%, transparent); color: var(--orange-ink); }
+.cs-turn-thinking i { background: var(--tone-watch); animation: cs-pulse 1.4s ease-in-out infinite; }
+.cs-turn-listening i { background: var(--ink); }
+@keyframes cs-pulse { 50% { opacity: 0.3; transform: scale(0.8); } }
+@media (prefers-reduced-motion: reduce) { .cs-turn i { animation: none !important; } }
+.cs-line { display: inline-flex; margin-top: 8px; padding: 2px; border-radius: 999px; background: var(--hair-soft); }
+.cs-line button { border: 0; background: none; padding: 4px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.cs-line button[aria-pressed="true"] { background: var(--birch); color: var(--ink); box-shadow: 0 1px 2px var(--shadow-lift); }
