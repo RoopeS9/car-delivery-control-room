@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next"
 import Script from "next/script"
+import { BuildWatch } from "./components/build-watch"
 import { THEME_SCRIPT } from "./components/theme"
 import "./globals.css"
 
@@ -32,7 +33,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Reddit+Mono:wght@400;500&family=Unbounded:wght@500;600;700&display=swap"
         />
       </head>
-      <body>{children}</body>
+      <body>{children}<BuildWatch id={process.env.ROAD_DESK_BUILD ?? "development"} /></body>
     </html>
   )
 }
