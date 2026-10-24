@@ -72,7 +72,7 @@ export function planTimeline(ds: Dataset, orderId: string): Instant[] {
     const slotAt = Date.parse(slot.start_at)
     out.push({ label: "two days before the pickup slot", at: Math.max(snapshot, slotAt - 47 * H), overlay: {} })
     if (assignment) out.push({ label: "the day before the pickup", at: Math.max(snapshot + MIN, slotAt - 26 * H), overlay: { status: "WAITING_FOR_PICKUP", note: "driver booked" } })
-    out.push({ label: "the car is collected", at: slotAt + 30 * MIN, overlay: { status: "IN_TRANSIT", note: "collected at the slot" } })
+    out.push({ label: "the car is collected (simulated)", at: slotAt + 30 * MIN, overlay: { status: "IN_TRANSIT", note: "the run assumes the collection happened at the slot" } })
   } else if (order.status === "IN_TRANSIT") {
     out.push({ label: "now, on the road", at: snapshot, overlay: {} })
   }
@@ -84,11 +84,11 @@ export function planTimeline(ds: Dataset, orderId: string): Instant[] {
     if (ferry?.check_in_cutoff_at) {
       const cutoff = Date.parse(ferry.check_in_cutoff_at)
       if (cutoff - 5 * H > onRoadFrom) out.push({ label: "five hours before the ferry check-in closes", at: cutoff - 5 * H, overlay: { status: "IN_TRANSIT", note: "on the road, before the ferry" }, phone: { kind: "PHONE", state: "LIVE", quietFrom: null, note: null } })
-      else out.push({ label: "before the ferry check-in closes", at: Math.max(onRoadFrom + 2 * H, cutoff - 90 * MIN), overlay: { status: "IN_TRANSIT", note: "on the road, before the ferry" }, phone: { kind: "PHONE", state: "LIVE", quietFrom: null, note: null } })
+      else out.push({ label: "before the ferry check-in closes", at: Math.max(onRoadFrom + 2 * H, cutoff - 90 * MIN), overlay: { status: "IN_TRANSIT", note: "on the road, before the ferry" }, phone: { kind: "PHONE", state: "LIVE", quietFrom: null, note: "simulated: the app receives position reports normally; the run lists no fixes" } })
     }
     if (promise) {
       const promiseAt = Date.parse(promise.start_at)
-      out.push({ label: "the delivery is due", at: Math.max(onRoadFrom + 3 * H, promiseAt - 2 * H), overlay: { status: "IN_TRANSIT", note: "approaching delivery" }, phone: { kind: "PHONE", state: "LIVE", quietFrom: null, note: null } })
+      out.push({ label: "the delivery is due", at: Math.max(onRoadFrom + 3 * H, promiseAt - 2 * H), overlay: { status: "IN_TRANSIT", note: "approaching delivery" }, phone: { kind: "PHONE", state: "LIVE", quietFrom: null, note: "simulated: the app receives position reports normally; the run lists no fixes" } })
       out.push({ label: "delivered", at: Math.max(onRoadFrom + 4 * H, promiseAt + H), overlay: { status: "DELIVERED", note: "handed over inside the promise" }, phone: null })
     }
   }

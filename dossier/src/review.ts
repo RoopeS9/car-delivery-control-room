@@ -47,6 +47,8 @@ export function reviewCall(c: CallRecord): CallReview {
   for (const t of caller) for (const kind of c.brief.mustNot) { const re = PATTERNS[kind]; if (re && re.test(t.text) && !(kind === "OTHER_ORDERS" && t.text.includes(c.brief.mayState.join(" ").match(/C D [a-z ]+/i)?.[0] ?? "\u0000"))) violations.push({ kind, turnSeq: t.seq, text: t.text }) }
   const card = [c.brief.opening, ...c.brief.mayState, c.brief.closing].join(" ").toLowerCase()
   const cardNumbers = new Set(numbersIn(card))
+  // A number the other party said is theirs to repeat: reading it back is the brief's own rule, not an invention.
+  for (const t of c.turns) if (t.speaker === "CALLEE") for (const n of numbersIn(t.text.toLowerCase())) cardNumbers.add(n)
   // a card time like 09:00 or 15:30 may be spoken as "nine", "nine o'clock", "fifteen thirty", "half past three", "three in the afternoon"
   const hourWord = ["twelve", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty", "twenty-one", "twenty-two", "twenty-three"]
   // a card number like 22 (a date) may be spoken as "twenty-two", "twenty two" or "twenty-second"
