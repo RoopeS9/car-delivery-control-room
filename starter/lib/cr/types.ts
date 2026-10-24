@@ -208,8 +208,8 @@ export type LogOutcomeRequest = {
 
 /**
  * POST here when a card says "Facts changed since this was drafted" and the
- * operator asks for a fresh one. Body: `{ by }`. The old card is set aside
- * (REJECTED with a note) and the agent drafts a new one in the background.
+ * operator asks for a fresh one. Body: `{ by }`. The old card is marked
+ * OUTDATED and the agent drafts the next revision in the background.
  * Response: `CaseActionResponse`. Which cards are out of date: the
  * `facts_changed` list on GET /api/cases/{id}, or `proposalsWithChangedFacts()`.
  */
@@ -308,6 +308,8 @@ export type CaseSummary = {
   /** What happens next and who does it. Always set on open cases. */
   next_action: string | null
   waiting_on: string | null
+  /** Who or what it waits on, as a key: driver, site, customer, operator, agent, provider, dispatch. */
+  waiting_for: WaitingFor | null
   next_check_at: string | null
   /** True when next_check_at has passed on the sim clock: show it as "Overdue". */
   overdue: boolean

@@ -19,7 +19,7 @@ export async function orderRefs(orderIds: string[]): Promise<Map<string, string>
 export function caseSummary(row: CaseRow, refs: Map<string, string>): CaseSummary {
   return {
     id: row.id, order_id: row.orderId, order_ref: refs.get(row.orderId) ?? row.orderId, kind: row.kind, status: row.status, urgency: row.urgency,
-    title: row.title, summary: row.summary, owner: row.owner, next_action: row.nextAction, waiting_on: row.waitingOn,
+    title: row.title, summary: row.summary, owner: row.owner, next_action: row.nextAction, waiting_on: row.waitingOn, waiting_for: row.waitingFor,
     next_check_at: row.nextCheckAt?.toISOString() ?? null,
     overdue: Boolean(row.nextCheckAt && row.nextCheckAt.getTime() <= simNow().getTime() && !["RESOLVED", "HANDLED_BY_AGENT"].includes(row.status)),
     linked_records: row.linkedRecords, last_run_status: row.lastRunStatus,
