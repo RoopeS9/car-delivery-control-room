@@ -6,13 +6,13 @@
 .eyebrow { font-size: 12.5px; color: var(--subtle); margin-bottom: 6px; }
 .headRight { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .jumps { display: flex; gap: 4px; }
-.jumps button { height: 32px; padding: 0 10px; border-radius: var(--radius); border: 1px solid var(--hair); background: var(--birch); font-size: 12.5px; font-weight: 500; color: var(--brown); white-space: nowrap; }
+.jumps button { height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--hair); background: var(--birch); font-size: 12.5px; font-weight: 500; color: var(--brown); white-space: nowrap; }
 .jumps button:hover:not(:disabled) { border-color: var(--sand); color: var(--ink); }
 .jumps button:disabled { opacity: 0.45; }
 .spend { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
 .spend b { font-weight: 600; color: var(--ink); }
 .clock { display: grid; justify-items: end; gap: 1px; font-size: 12px; color: var(--muted); }
-.clock b { font-family: var(--font-mono); font-size: 26px; font-weight: 500; color: var(--ink); line-height: 1.1; }
+.clock b { font-family: var(--font-brand); font-size: 26px; font-weight: 400; letter-spacing: -0.01em; color: var(--ink); line-height: 1.1; }
 
 .error { margin-top: 16px; padding: 10px 12px; border-radius: var(--radius); background: var(--red-bg); color: var(--red-ink); font-size: 13px; }
 .section { margin-top: 28px; }
@@ -31,7 +31,7 @@
 .scenarioLinks a { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 500; color: var(--teal-ink); text-decoration: none; }
 .scenarioLinks a:hover { text-decoration: underline; }
 
-.primary, .danger { height: 36px; padding: 0 18px; border-radius: var(--radius); border: 1px solid var(--ink); background: var(--ink); color: var(--birch); font-size: 13.5px; font-weight: 500; white-space: nowrap; }
+.primary, .danger { height: 36px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--ink); background: var(--ink); color: var(--birch); font-size: 13.5px; font-weight: 500; white-space: nowrap; }
 .primary:hover:not(:disabled) { opacity: 0.88; }
 .danger { border-color: var(--red-ink); background: transparent; color: var(--red-ink); }
 .danger:hover:not(:disabled) { background: var(--red-bg); }

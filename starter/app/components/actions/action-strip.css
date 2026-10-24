@@ -4,10 +4,10 @@
 .as-route b { font-weight: 600; color: var(--ink); }
 .as-route .icon { color: var(--sand); }
 .as-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.as-btn { display: inline-flex; flex-direction: column; justify-content: center; min-height: 34px; padding: 5px 12px; border-radius: var(--radius); font-size: 13px; font-weight: 500; text-decoration: none; line-height: 1.25; }
+.as-btn { display: inline-flex; flex-direction: column; justify-content: center; min-height: 34px; padding: 5px 16px; border-radius: 999px; font-size: 13px; font-weight: 500; text-decoration: none; line-height: 1.25; }
 .as-agent { flex-direction: row; align-items: center; gap: 6px; background: var(--ink); color: var(--birch); }
 .as-agent:hover { opacity: 0.9; }
-.as-human { border: 1px solid var(--hair); background: var(--birch); color: var(--ink); }
+.as-human { border: 1px solid var(--sand); background: transparent; color: var(--ink); }
 .as-human:hover { border-color: var(--sand); }
 .as-human small { font-size: 11px; font-weight: 400; color: var(--subtle); }
 .action-strip.compact { margin: 12px 18px 0; padding: 10px 12px; box-shadow: none; background: var(--tray); }

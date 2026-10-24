@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#fffef7" },
-    { media: "(prefers-color-scheme: dark)", color: "#16150f" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f0f0f" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -30,7 +30,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Reddit+Mono:wght@400;500&family=Unbounded:wght@500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Poppins:wght@400;500;600&family=Reddit+Mono:wght@400;500&display=swap"
         />
       </head>
       <body>{children}<BuildWatch id={process.env.ROAD_DESK_BUILD ?? "development"} /></body>

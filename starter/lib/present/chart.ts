@@ -17,7 +17,11 @@ import type { QueueRow, Tone } from "./types"
 /** A phone that has not reported for this long is drawn hollow, with "last seen". */
 export const CHART_STALE_MINUTES = 30
 
-export type ChartAttention = "decide" | "agent" | "waiting" | "fine"
+/** The tone scale: red needs a person, amber watching (deadline near, silent gap, waiting, conflict), teal agent working, grey fine. */
+export type ChartAttention = "decide" | "watch" | "agent" | "fine"
+
+/** What kind of place a location mark is. */
+export type PlaceKind = "dealer" | "yard" | "private"
 
 export type ChartGps = { lat: number; lng: number; heading: number | null; speedKmh: number | null; at: string; placeLabel: string | null }
 
@@ -45,6 +49,14 @@ export type ChartNode = {
   at: string | null
   ageLabel: string | null
   stale: boolean
+  /** Watching: why, in a few words. */
+  watchReason: string | null
+  /** Pickup and delivery place names, and the promise in the delivery's zone ("Mon 10:00 to 16:00"). */
+  fromName: string
+  toName: string
+  promiseText: string | null
+  /** Berths: what kind of place the order waits at. */
+  placeKind: PlaceKind | null
   /** "On the road between Turku and Seinäjoki", "On the ferry to …", simulated. */
   placeLabel: string | null
   /** Recent simulated positions, oldest first. */
@@ -61,7 +73,7 @@ export type ChartNode = {
 /** A route track, only sent for drawing on hover or selection. */
 export type ChartRoute = { parts: { kind: "road" | "sea"; label: string; coords: LatLng[] }[]; simulated: true }
 
-export type ChartPort = { id: string; kind: "terminal" | "dealer" | "yard"; name: string; lat: number; lng: number; count: number }
+export type ChartPort = { id: string; kind: "terminal"; name: string; lat: number; lng: number; count: number }
 
 export type ChartCard = {
   orderId: string
@@ -92,13 +104,22 @@ export type ChartView = {
 
 export type GpsSample = { orderId: string; at: string; lat: number; lng: number; heading: number | null; speedKmh: number | null; placeLabel: string | null }
 
-const RANK: Record<ChartAttention, number> = { decide: 0, agent: 1, waiting: 2, fine: 3 }
+const RANK: Record<ChartAttention, number> = { decide: 0, watch: 1, agent: 2, fine: 3 }
 
 function card(row: QueueRow, source: string): ChartCard {
   return {
     orderId: row.orderId, reference: row.reference, vehicle: row.vehicle, headline: row.headline, ask: row.ask,
     tone: row.tone, since: row.since, sinceLabel: row.sinceLabel, source,
   }
+}
+
+/** "Mon 10:00" in a zone. */
+function weekdayClock(iso: string, zone: string | null): string {
+  return new Intl.DateTimeFormat("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: zone ?? "UTC" }).format(new Date(iso)).replace(",", "")
+}
+
+function clockIn(iso: string, zone: string | null): string {
+  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: zone ?? "UTC" }).format(new Date(iso))
 }
 
 /** Same UTC calendar day. */
@@ -112,7 +133,7 @@ export function buildChart(input: { bundles: Bundle[]; fleet: FleetCar[]; sample
   const attentionOf = new Map<string, { attention: ChartAttention; row: QueueRow }>()
   for (const row of queue.decide) attentionOf.set(row.orderId, { attention: "decide", row })
   for (const row of queue.agentWorking) if (!attentionOf.has(row.orderId)) attentionOf.set(row.orderId, { attention: "agent", row })
-  for (const row of queue.waiting) if (!attentionOf.has(row.orderId)) attentionOf.set(row.orderId, { attention: "waiting", row })
+  for (const row of queue.waiting) if (!attentionOf.has(row.orderId)) attentionOf.set(row.orderId, { attention: "watch", row })
 
   const samplesByOrder = new Map<string, GpsSample[]>()
   for (const sample of samples) {
@@ -138,10 +159,26 @@ export function buildChart(input: { bundles: Bundle[]; fleet: FleetCar[]; sample
     const active = rows(bundle, "work_assignments").find((row) => ["IN_PROGRESS", "ASSIGNED", "ACCEPTED"].includes(str(row.details.status) ?? ""))
     const driver = car?.driverName ?? (active ? bundle.dir.driverName(active.details.driver_id) : null)
     const found = attentionOf.get(bundle.order.id)
-    const attention = found?.attention ?? "fine"
-    const tone: Tone = found?.row.tone ?? "neutral"
     const { deliveredAt } = milestones(bundle)
     const { keyDates } = deriveKeyDates(bundle)
+    // Watching, derived from the records only: a date at risk, a silent phone, an unconfirmed ferry check-in near its cutoff, a conflict, or a wait.
+    const track = samplesByOrder.get(bundle.order.id) ?? []
+    const lastFix = track.at(-1)
+    const phoneQuiet = lane === "moving" && ((!!lastFix && (minutesBetween(lastFix.at, now) ?? 0) > CHART_STALE_MINUTES) || car?.phone === "STALE")
+    const riskyDate = keyDates.find((date) => (date.key === "promise" || date.key === "pickup_slot" || date.key === "eta") && (date.tone === "danger" || date.tone === "warn"))
+    const cutoffNear = !deliveredAt && rows(bundle, "travel_reservations").some((row) => {
+      const cutoff = str(row.details.check_in_cutoff_at)
+      const minutes = cutoff ? minutesBetween(now, cutoff) : null
+      return row.details.kind === "FERRY" && row.details.status === "BOOKED" && row.details.check_in_confirmation !== "CONFIRMED_BY_GATE_SCAN" && minutes != null && minutes >= 0 && minutes < 6 * 60
+    })
+    const conflict = rows(bundle, "endpoint_claims").some((row) => !str(row.details.resolved_at) && str(row.details.status) !== "RESOLVED")
+    const watchReason = riskyDate ? `${riskyDate.label}: ${riskyDate.note ?? "at risk"}` : cutoffNear ? "Ferry check-in closes soon, no gate scan yet" : phoneQuiet ? "Phone quiet" : conflict ? "Two records disagree" : found?.attention === "watch" ? found.row.statusLabel : null
+    const attention: ChartAttention = found && found.attention !== "watch" ? found.attention : watchReason ? "watch" : "fine"
+    const tone: Tone = attention === "decide" ? (found?.row.tone ?? "danger") : attention === "watch" ? "warn" : attention === "agent" ? "accent" : "neutral"
+    const promise = keyDates.find((date) => date.key === "promise")
+    const promiseText = promise ? `${weekdayClock(promise.start, promise.zone)}${promise.end ? ` to ${clockIn(promise.end, promise.zone)}` : ""}` : null
+    const pickupSite = from?.managedSiteId ? bundle.sites.get(from.managedSiteId) : null
+    const deliverySite = to?.managedSiteId ? bundle.sites.get(to.managedSiteId) : null
 
     if (lane === "moving") counts.moving += 1
     if (lane === "booked") {
@@ -157,20 +194,20 @@ export function buildChart(input: { bundles: Bundle[]; fleet: FleetCar[]; sample
       orderId: bundle.order.id, reference: bundle.order.reference, vehicle, make: primary?.vehicle.make ?? null,
       customer: bundle.customer.name, driver, from: from?.city ?? "Unknown", to: to?.city ?? "Unknown",
       lane, laneLabel: laneLabel(lane), attention, tone,
-      headline: found?.row.headline ?? null, ask: found?.row.ask ?? null,
+      headline: found?.row.headline ?? (attention === "watch" ? watchReason : null), ask: found?.row.ask ?? null,
+      watchReason, fromName: from?.name ?? from?.city ?? "Pickup", toName: to?.name ?? to?.city ?? "Delivery", promiseText,
     }
-    const track = samplesByOrder.get(bundle.order.id) ?? []
-    const last = track.at(-1)
+    const last = lastFix
     if (lane === "moving" && last) {
       const minutes = minutesBetween(last.at, now) ?? 0
       const rel = relativeTo(last.at, now)
       const stale = minutes > CHART_STALE_MINUTES || car?.phone === "STALE"
       nodes.push({
         ...base, kind: "vessel", lat: last.lat, lng: last.lng, berth: null, berthNote: null,
-        heading: last.heading, speedKmh: stale ? null : last.speedKmh, at: last.at,
+        placeKind: null, heading: last.heading, speedKmh: stale ? null : last.speedKmh, at: last.at,
         ageLabel: rel ? (rel.text === "now" ? "just now" : rel.text) : null, stale,
         placeLabel: last.placeLabel, trail: track.slice(-12).map((sample) => [sample.lat, sample.lng] as LatLng),
-        sig: [attention, found?.row.headline ?? "", found?.row.statusLabel ?? "", stale ? "stale" : "live"].join("|"),
+        sig: [attention, found?.row.headline ?? "", found?.row.statusLabel ?? "", watchReason ?? "", stale ? "stale" : "live"].join("|"),
       })
       continue
     }
@@ -181,32 +218,23 @@ export function buildChart(input: { bundles: Bundle[]; fleet: FleetCar[]; sample
     const point = cityPoint(place.city, place.country)
     if (!point) continue
     const berthNote = lane === "delivered" ? `Delivered in ${place.city}` : lane === "moving" ? `Moving, but the driver app has not reported a position. Shown at the pickup city.` : `At the pickup city, ${place.city}. A place in the records, not a position.`
+    const site = lane === "delivered" ? deliverySite : pickupSite
+    const placeKind: PlaceKind = !site ? "private" : site.kind === "TRANSFER_YARD" || site.kind === "INDEPENDENT_STORAGE" ? "yard" : "dealer"
     nodes.push({
-      ...base, kind: "berth", lat: point[0], lng: point[1], berth: `${place.city}|${place.country}`, berthNote,
+      ...base, kind: "berth", lat: point[0], lng: point[1], berth: `${place.city}|${place.country}`, berthNote, placeKind,
       heading: null, speedKmh: null, at: null, ageLabel: null, stale: false, placeLabel: null, trail: [],
-      sig: [attention, found?.row.headline ?? "", found?.row.statusLabel ?? "", lane].join("|"),
+      sig: [attention, found?.row.headline ?? "", found?.row.statusLabel ?? "", watchReason ?? "", lane].join("|"),
     })
   }
   nodes.sort((a, b) => RANK[b.attention] - RANK[a.attention] || a.reference.localeCompare(b.reference))
 
-  // Ports: the four ferry terminals, then dealers and yards grouped by city.
+  // Ports: the four ferry terminals. Dealers, yards and private addresses are the orders' own location marks.
   const ports: ChartPort[] = []
   for (const id of ["terminal-west-baltic", "terminal-south-baltic", "terminal-east-nordic", "terminal-south-finland"]) {
     const terminal = terminalPoint(id)
     if (terminal) ports.push({ id, kind: "terminal", name: terminal.name, lat: terminal.point[0], lng: terminal.point[1], count: 1 })
   }
-  const sites = bundles[0]?.sites ?? new Map()
-  const byCity = new Map<string, ChartPort>()
-  for (const site of sites.values()) {
-    const point = cityPoint(site.city, site.country)
-    if (!point) continue
-    const kind = site.kind === "TRANSFER_YARD" || site.kind === "INDEPENDENT_STORAGE" ? "yard" : "dealer"
-    const key = `${kind}:${site.city}|${site.country}`
-    const known = byCity.get(key)
-    if (known) known.count += 1
-    else byCity.set(key, { id: key, kind, name: site.city, lat: point[0], lng: point[1], count: 1 })
-  }
-  ports.push(...byCity.values())
+
 
   return {
     simNow: now, snapshotAt, nodes, routes, ports, counts,

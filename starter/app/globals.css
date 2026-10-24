@@ -4,15 +4,15 @@
 :root {
   color-scheme: light;
   --birch: #fffef7;
-  --canvas: #f5f3ec;
-  --tray: #faf8f2;
-  --hair: #e6e1d6;
-  --hair-soft: #eeeae1;
-  --sand: #ccc6ba;
+  --canvas: #f6f3ec;
+  --tray: #faf8f1;
+  --hair: #e8e3d9;
+  --hair-soft: #f0ece4;
+  --sand: #cfc8bb;
   --ink: #12110e;
-  --brown: #423d33;
-  --muted: #726958;
-  --subtle: #8a7f6b;
+  --brown: #2a2721;
+  --muted: #7d7464;
+  --subtle: #a09786;
   --red: #fd4a61;
   --red-ink: #b42c42;
   --red-bg: #fff0f2;
@@ -27,7 +27,14 @@
   --green-ink: #1b7a52;
   --green-bg: #e9f6ef;
   --font-body: "Poppins", "Duplet Open", Arial, Helvetica, sans-serif;
-  --font-display: "Unbounded", "Owners Wide", Arial, Helvetica, sans-serif;
+  /* Headings use the UI face at 600, as bahnexpress.fi does; the wide black face is only for the brand mark and big numbers. */
+  --font-display: "Poppins", "Duplet Open", Arial, Helvetica, sans-serif;
+  --font-brand: "Archivo Black", "Owners Wide", Arial Black, sans-serif;
+  /* The tone scale: red needs a person, amber watching, teal agent working, grey fine. */
+  --tone-need: #e5484d;
+  --tone-watch: #d98a1c;
+  --tone-agent: #1f9e95;
+  --tone-fine: #8f887b;
   --font-mono: "Reddit Mono", "SF Mono", Menlo, Consolas, monospace;
   --radius: 8px;
   --radius-lg: 16px;
@@ -53,16 +60,20 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --birch: #16150f;
-    --canvas: #1e1c16;
-    --tray: #1b1913;
-    --hair: #35322a;
-    --hair-soft: #2a2720;
-    --sand: #545044;
-    --ink: #f4f1e6;
-    --brown: #d8d1c1;
-    --muted: #aba290;
-    --subtle: #948a77;
+    --birch: #0f0f0f;
+    --canvas: #171716;
+    --tray: #131312;
+    --hair: #2a2926;
+    --hair-soft: #1f1e1c;
+    --sand: #45423c;
+    --ink: #fffef7;
+    --brown: #e7e3d8;
+    --muted: #a09786;
+    --subtle: #8a8273;
+    --tone-need: #f2555a;
+    --tone-watch: #e9a23b;
+    --tone-agent: #3cc0b5;
+    --tone-fine: #9a9488;
     --red: #ff6b7e;
     --red-ink: #ff95a3;
     --red-bg: #3b1c22;
@@ -76,7 +87,7 @@
     --green: #3cc78c;
     --green-ink: #79dbae;
     --green-bg: #15302a;
-    --glass: rgba(22, 21, 15, 0.72);
+    --glass: rgba(15, 15, 15, 0.78);
     --pin-quiet: #8d8574;
     --shadow-soft: rgba(0, 0, 0, 0.3);
     --shadow-lift: rgba(0, 0, 0, 0.45);
@@ -84,16 +95,20 @@
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --birch: #16150f;
-  --canvas: #1e1c16;
-  --tray: #1b1913;
-  --hair: #35322a;
-  --hair-soft: #2a2720;
-  --sand: #545044;
-  --ink: #f4f1e6;
-  --brown: #d8d1c1;
-  --muted: #aba290;
-  --subtle: #948a77;
+  --birch: #0f0f0f;
+  --canvas: #171716;
+  --tray: #131312;
+  --hair: #2a2926;
+  --hair-soft: #1f1e1c;
+  --sand: #45423c;
+  --ink: #fffef7;
+  --brown: #e7e3d8;
+  --muted: #a09786;
+  --subtle: #8a8273;
+  --tone-need: #f2555a;
+  --tone-watch: #e9a23b;
+  --tone-agent: #3cc0b5;
+  --tone-fine: #9a9488;
   --red: #ff6b7e;
   --red-ink: #ff95a3;
   --red-bg: #3b1c22;
@@ -107,7 +122,7 @@
   --green: #3cc78c;
   --green-ink: #79dbae;
   --green-bg: #15302a;
-  --glass: rgba(22, 21, 15, 0.72);
+  --glass: rgba(15, 15, 15, 0.78);
   --pin-quiet: #8d8574;
   --shadow-soft: rgba(0, 0, 0, 0.3);
   --shadow-lift: rgba(0, 0, 0, 0.45);
@@ -159,7 +174,7 @@ ul, ol { padding: 0; list-style: none; }
 .app { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); min-height: 100dvh; }
 .app-board { height: 100dvh; overflow: hidden; }
 .sidebar { position: sticky; top: 0; height: 100dvh; display: flex; flex-direction: column; gap: 26px; padding: 20px 14px 18px; border-right: 1px solid var(--hair); background: var(--birch); }
-.wordmark { display: block; padding: 0 10px; font-family: var(--font-display); font-weight: 600; font-size: 15px; letter-spacing: -0.01em; text-decoration: none; color: var(--ink); white-space: nowrap; }
+.wordmark { display: block; padding: 0 10px; font-family: var(--font-brand); font-weight: 400; font-size: 15px; letter-spacing: -0.01em; text-transform: uppercase; text-decoration: none; color: var(--ink); white-space: nowrap; }
 .sidebar-nav { display: grid; gap: 20px; }
 .nav-label { margin: 0 10px 5px; font-size: 11.5px; color: var(--subtle); }
 .nav-link { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; font-size: 13.5px; font-weight: 500; color: var(--brown); text-decoration: none; }
@@ -667,7 +682,7 @@ details.more > :not(summary) { margin-top: 8px; }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 14px; border: 1px solid var(--hair); border-radius: var(--radius); background: var(--birch); font-size: 13.5px; font-weight: 500; color: var(--ink); white-space: nowrap; }
 .btn:hover:not(:disabled) { border-color: var(--sand); }
 .btn:disabled { opacity: 0.55; cursor: progress; }
-.btn.primary { background: var(--ink); border-color: var(--ink); color: var(--birch); }
+.btn.primary { background: var(--ink); border-color: var(--ink); color: var(--birch); border-radius: 999px; padding: 0 18px; }
 .btn.primary:hover:not(:disabled) { opacity: 0.9; }
 .btn.danger { background: var(--red-ink); border-color: var(--red-ink); color: var(--birch); }
 .btn.quiet { border-color: transparent; background: transparent; color: var(--muted); }

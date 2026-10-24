@@ -10,10 +10,12 @@
   --c-ink: var(--ink);
   --c-soft: var(--brown);
   --c-quiet: var(--subtle);
-  --c-fine: var(--brown);
-  --c-decide: color-mix(in srgb, var(--red) 88%, var(--brown));
-  --c-agent: var(--teal);
-  --c-waiting: var(--orange);
+  --c-fine: var(--tone-fine);
+  --c-decide: var(--tone-need);
+  --c-watch: var(--tone-watch);
+  --c-agent: var(--tone-agent);
+  --c-waiting: var(--tone-watch);
+  --c-accent: var(--ink);
   --c-ok: var(--green);
   --c-berth: var(--pin-quiet);
   --c-track: var(--muted);
@@ -99,9 +101,11 @@
 .v path, .v circle { fill: var(--c-fine); stroke: var(--c-glow); stroke-width: 1.2; }
 .v-decide path, .v-decide circle { fill: var(--c-decide); }
 .v-agent path, .v-agent circle { fill: var(--c-agent); }
-.v-waiting path, .v-waiting circle { fill: var(--c-waiting); }
+.v-watch path, .v-watch circle { fill: var(--c-watch); }
 .v-stale path, .v-stale circle { fill: transparent; stroke: var(--c-fine); stroke-width: 1.6; }
 .v-stale.v-decide path, .v-stale.v-decide circle { stroke: var(--c-decide); }
+.v-stale.v-watch path, .v-stale.v-watch circle { stroke: var(--c-watch); }
+.v-stale.v-agent path, .v-stale.v-agent circle { stroke: var(--c-agent); }
 .v-sel::after, .b-sel::after { content: ""; position: absolute; inset: -6px; border: 1.5px solid var(--c-ink); border-radius: 50%; }
 .v-label { position: absolute; left: 25px; top: 5px; font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap;
   text-shadow: 0 0 3px var(--c-glow), 0 0 3px var(--c-glow); display: none; pointer-events: none; }
@@ -353,3 +357,61 @@
 
 /* Seamarks are a texture, not information: kept faint and desaturated. */
 .seamarks { filter: grayscale(1); }
+
+/* ---- locations: every place is a tiny muted mark; only cars are large */
+.loc { display: block; position: relative; margin: auto; width: 5px; height: 5px; background: var(--muted); opacity: 0.85; }
+.node-wrap > .loc { position: absolute; inset: 0; }
+.loc-yard { transform: rotate(45deg) scale(0.9); }
+.loc-private { background: transparent; box-shadow: inset 0 0 0 1.2px var(--muted); }
+.loc-sel { width: 9px; height: 9px; background: var(--c-accent); opacity: 1; box-shadow: 0 0 0 2px var(--birch); }
+.loc-private.loc-sel { background: var(--birch); box-shadow: inset 0 0 0 2px var(--c-accent); }
+.chart-strip .loc, .lg-places .loc { display: inline-block; vertical-align: 0; margin: 0 5px 0 8px; }
+
+/* ---- car clusters: a count in the colour of the most urgent car */
+.cl { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; box-sizing: border-box; border-radius: 50%;
+  background: var(--birch); box-shadow: 0 0 0 2px var(--c-fine), 0 1px 3px var(--shadow-lift); color: var(--ink); font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cl-decide { box-shadow: 0 0 0 2px var(--c-decide), 0 1px 3px var(--shadow-lift); }
+.cl-watch { box-shadow: 0 0 0 2px var(--c-watch), 0 1px 3px var(--shadow-lift); }
+.cl-agent { box-shadow: 0 0 0 2px var(--c-agent), 0 1px 3px var(--shadow-lift); }
+
+/* ---- terminals: a tiny anchor, named only when zoomed in */
+.pt-terminal { width: 11px; height: 11px; border-radius: 0; background: none; box-shadow: none; }
+.pt-terminal svg { width: 11px; height: 11px; margin: 0; stroke: var(--muted); stroke-width: 1.6; }
+.pt-label { left: 15px; top: -2px; font-size: 11px; }
+.z-low .pt-label, .z-mid .pt-label { display: none; }
+
+/* ---- routes carry the car's tone; a selection dims the rest and draws its own in the accent */
+.route-ahead.rt-decide, .route-done.rt-decide { stroke: var(--c-decide); }
+.route-ahead.rt-watch, .route-done.rt-watch { stroke: var(--c-watch); }
+.route-ahead.rt-agent, .route-done.rt-agent { stroke: var(--c-agent); }
+.route-ahead.rt-fine, .route-done.rt-fine, .route-ahead.rt-stale, .route-done.rt-stale { stroke: var(--c-fine); }
+.route-ahead.rt-stale { stroke-dasharray: 2 4; }
+.route-ahead { stroke-opacity: 0.4; }
+.route-done { stroke-opacity: 0.72; }
+.has-route .route-ahead, .has-route .route-done { stroke-opacity: 0.1; }
+.track-sel.track-ahead { stroke: var(--c-accent); stroke-opacity: 0.55; }
+.track-sel.track-done { stroke: var(--c-accent); stroke-opacity: 0.95; }
+.track-from { stroke: var(--c-accent); fill: var(--birch); }
+.track-dest { stroke: var(--birch); stroke-width: 2.5; fill: var(--c-accent); }
+.chart-home .track-label-dest { display: grid; gap: 1px; padding: 6px 10px; font-size: 12.5px; }
+.chart-home .track-label-dest b { font-weight: 600; }
+.chart-home .track-label-dest span { color: var(--muted); font-size: 12px; }
+
+/* ---- legend and big numbers */
+.lg-watch { background: var(--c-watch); }
+.lg-places { color: var(--subtle); }
+.chart-strip b.num { font-family: var(--font-brand); font-weight: 400; letter-spacing: -0.01em; }
+.tip-watch { color: var(--c-watch); }
+
+/* The panel speaks the same tone scale as the marks and routes. */
+.watch-danger .watch-dot { background: var(--tone-need); }
+.watch-warn .watch-dot { background: var(--tone-watch); }
+.watch-accent .watch-dot { background: var(--tone-agent); }
+.needs-peek[data-tone="danger"] > .q-bar, .need[data-tone="danger"] > .q-bar { background: var(--tone-need); }
+.needs-peek[data-tone="warn"] > .q-bar, .need[data-tone="warn"] > .q-bar { background: var(--tone-watch); }
+.needs-peek[data-tone="accent"] > .q-bar, .need[data-tone="accent"] > .q-bar { background: var(--tone-agent); }
+.ds-need b { color: var(--tone-need); }
+.tone-edge-danger { border-left-color: var(--tone-need); }
+.tone-edge-warn { border-left-color: var(--tone-watch); }
+.tone-edge-accent { border-left-color: var(--tone-agent); }
+.sp-now .sp-dot { background: var(--tone-agent); }

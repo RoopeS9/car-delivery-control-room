@@ -25,7 +25,7 @@ const ATTRIBUTION = 'Tiles &copy; <a href="https://www.esri.com/">Esri</a>, HERE
 const POLL_MS = 3000
 const GLIDE_MS = 1400
 const PULSE_MS = 9000
-/** Below this zoom, orders waiting close together fold into a harbour mark; from here up every order is its own mark. */
+/** Below this zoom, cars that would overlap share a cluster; from here up every car is its own mark. Locations are never grouped. */
 const FAN_ZOOM = 6
 /** Harbour marks gather cities whose marks would sit within this many pixels. */
 const CLUSTER_PX = 28
@@ -42,26 +42,34 @@ function readTheme(): ChartTheme {
 const escape = (text: string) => text.replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char] as string)
 
 const STATE_WORD: Record<ChartNode["attention"], string> = {
-  decide: "Needs a person", agent: "Agent working", waiting: "Waiting on others", fine: "Nothing open",
+  decide: "Needs a person", watch: "Watching", agent: "Agent working", fine: "Nothing open",
 }
 
 function vesselHtml(node: ChartNode, selected: boolean): string {
   const moving = node.heading != null && (node.speedKmh ?? 0) > 0 && !node.stale
   const classes = ["v", `v-${node.attention}`, node.stale ? "v-stale" : "", selected ? "v-sel" : "", moving ? "v-moving" : "v-still"].filter(Boolean).join(" ")
   const shape = moving
-    ? `<svg viewBox="0 0 20 20" style="transform:rotate(${Math.round(node.heading ?? 0)}deg)"><path d="M10 1.8 15.2 17.4 10 14.2 4.8 17.4Z"/></svg>`
-    : `<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.8"/></svg>`
+    ? `<svg viewBox="0 0 20 20" style="transform:rotate(${Math.round(node.heading ?? 0)}deg)"><path d="M10 2.6 16 17.2 10 13.8 4 17.2Z"/></svg>`
+    : `<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="5.2"/></svg>`
   return `<span class="${classes}">${shape}<span class="v-label">${escape(node.reference)}</span></span>`
 }
 
+/** Locations are small and muted: a square for a dealer or site, a diamond for a yard, a hollow square for a private address. */
 function berthHtml(node: ChartNode, selected: boolean): string {
-  return `<span class="b b-${node.attention} b-${node.lane}${selected ? " b-sel" : ""}"></span>`
+  return `<span class="loc loc-${node.placeKind ?? "private"}${selected ? " loc-sel" : ""}"></span>`
 }
 
-function harbourHtml(nodes: ChartNode[]): string {
-  const worst = nodes.some((node) => node.attention === "decide") ? "decide" : nodes.some((node) => node.attention === "agent") ? "agent" : nodes.some((node) => node.attention === "waiting") ? "waiting" : "fine"
-  const decide = nodes.filter((node) => node.attention === "decide").length
-  return `<span class="hb hb-${worst}"><b>${nodes.length}</b>${decide ? `<i>${decide}</i>` : ""}</span>`
+/** A group of cars that would overlap at this zoom: a count in the colour of the most urgent car. */
+function clusterHtml(nodes: ChartNode[]): string {
+  const worst = (["decide", "watch", "agent", "fine"] as const).find((attention) => nodes.some((node) => node.attention === attention)) ?? "fine"
+  return `<span class="cl cl-${worst}"><b>${nodes.length}</b></span>`
+}
+
+function clusterTip(nodes: ChartNode[]): string {
+  const count = (attention: ChartNode["attention"]) => nodes.filter((node) => node.attention === attention).length
+  return `<div class="tip-head"><b>${nodes.length} cars here</b></div>
+    <div class="tip-route">${[["decide", "need a person"], ["watch", "watching"], ["agent", "with the agent"]].map(([key, word]) => count(key as ChartNode["attention"]) ? `${count(key as ChartNode["attention"])} ${word}` : null).filter(Boolean).join(" · ") || "nothing open"}</div>
+    <div class="tip-quiet">Zoom in to see each car.</div>`
 }
 
 function tipHtml(node: ChartNode): string {
@@ -74,20 +82,10 @@ function tipHtml(node: ChartNode): string {
     ${node.headline ? `<div class="tip-state tip-${node.attention}">${escape(STATE_WORD[node.attention])}: ${escape(node.headline)}</div>` : ""}`
 }
 
-function harbourTip(city: string, nodes: ChartNode[]): string {
-  const byLane = new Map<string, number>()
-  for (const node of nodes) byLane.set(node.laneLabel, (byLane.get(node.laneLabel) ?? 0) + 1)
-  const decide = nodes.filter((node) => node.attention === "decide").length
-  return `<div class="tip-head"><b>${escape(city)}</b></div>
-    <div class="tip-route">${[...byLane].map(([lane, count]) => `${count} ${escape(lane.toLowerCase())}`).join(" · ")}</div>
-    ${decide ? `<div class="tip-state tip-decide">${decide} need${decide === 1 ? "s" : ""} a person</div>` : ""}
-    <div class="tip-quiet">Placed at the city from the records, not a position. Zoom in to see each order.</div>`
-}
-
 /** Pixel offsets on a sunflower spiral, so a city's berths fan out around its port mark. */
 function fan(index: number): [number, number] {
   const angle = index * 2.39996
-  const radius = 15 + 9.5 * Math.sqrt(index)
+  const radius = 7 + 5 * Math.sqrt(index)
   return [Math.cos(angle) * radius, Math.sin(angle) * radius]
 }
 
@@ -241,7 +239,7 @@ export function ChartHome({ initial }: { initial: ChartView }) {
     return () => cancelAnimationFrame(frame)
   }, [])
 
-  // ---- ports: terminals always, dealers and yards when zoomed in (CSS hides them below)
+  // ---- ports: the ferry terminals, as a tiny anchor
   useEffect(() => {
     const leaflet = L.current
     if (!ready || !leaflet || !layers.current) return
@@ -250,12 +248,12 @@ export function ChartHome({ initial }: { initial: ChartView }) {
       const terminal = port.kind === "terminal"
       const html = terminal
         ? `<span class="pt pt-terminal"><svg viewBox="0 0 16 16"><path d="M8 3.2v9.6M5.2 5.4h5.6M3.4 9.2c.6 2.2 2.4 3.6 4.6 3.6s4-1.4 4.6-3.6"/><circle cx="8" cy="2.6" r="1.2"/></svg><span class="pt-label">${escape(port.name)}</span></span>`
-        : `<span class="pt pt-${port.kind}" title=""></span>`
+        : ""
       leaflet.marker([port.lat, port.lng], {
         pane: "ports", interactive: true, keyboard: false,
-        icon: leaflet.divIcon({ className: "pt-wrap", html, iconSize: terminal ? [22, 22] : [8, 8], iconAnchor: terminal ? [-10, -8] : [4, 4] }),
+        icon: leaflet.divIcon({ className: "pt-wrap", html, iconSize: [11, 11], iconAnchor: [-6, -4] }),
       }).bindTooltip(terminal ? `<b>${escape(port.name)}</b><div class="tip-quiet">Ferry terminal. Fictional; placed at city level, no gate address recorded.</div>`
-        : `<b>${port.count} ${port.kind === "yard" ? "yard" : "dealer"}${port.count === 1 ? "" : "s"} in ${escape(port.name)}</b><div class="tip-quiet">Sites from the records, drawn at the city centre.</div>`, { className: "chart-tip", direction: "top", offset: [0, -8] })
+        : "", { className: "chart-tip", direction: "top", offset: [0, -8] })
         .addTo(layers.current.ports)
     }
   }, [ready, view.ports])
@@ -300,47 +298,42 @@ export function ChartHome({ initial }: { initial: ChartView }) {
       markers.current.set(key, { marker, html: look, trail: line, tip })
     }
 
-    // One layering for every mark: berths, then harbours, then vessels; within each, more urgent on top; the selection above all.
-    const rank = { decide: 300, agent: 200, waiting: 100, fine: 0 }
-    const layer = { berth: 100, still: 400, harbour: 500, vessel: 1000 }
+    // One layering: locations, then stopped cars, then car clusters, then moving cars; more urgent on top; the selection above all.
+    const rank = { decide: 300, watch: 200, agent: 100, fine: 0 }
+    const layer = { berth: 100, still: 400, cluster: 500, vessel: 1000 }
     const zFor = (kind: keyof typeof layer, attention: ChartNode["attention"], isSelected = false) => layer[kind] + rank[attention] + (isSelected ? 5000 : 0)
-    for (const node of nodes) {
-      const isSelected = node.orderId === selectedId
-      const select = (event?: { originalEvent?: Event }) => { event?.originalEvent?.stopPropagation(); setSelectedId(node.orderId) }
-      if (node.kind === "vessel") {
-        place(node.orderId, [node.lat, node.lng], vesselHtml(node, isSelected), tipHtml(node), 26, [13, 13], zFor(node.heading != null && (node.speedKmh ?? 0) > 0 && !node.stale ? "vessel" : "still", node.attention, isSelected), select, null, node.orderId)
-      }
+    const movingNow = (node: ChartNode) => node.heading != null && (node.speedKmh ?? 0) > 0 && !node.stale
+    // Cars that would overlap below FAN_ZOOM share a cluster (greedy, most urgent first). Locations are never grouped.
+    const vessels = nodes.filter((node) => node.kind === "vessel").sort((a, b) => rank[b.attention] - rank[a.attention])
+    const clusters: { anchor: ChartNode; nodes: ChartNode[]; point: { x: number; y: number } }[] = []
+    for (const node of vessels) {
+      const point = map.current.latLngToLayerPoint([node.lat, node.lng])
+      const near = !fanOut && node.orderId !== selectedId ? clusters.find((cluster) => cluster.anchor.orderId !== selectedId && Math.hypot(cluster.point.x - point.x, cluster.point.y - point.y) < CLUSTER_PX) : null
+      if (near) near.nodes.push(node)
+      else clusters.push({ anchor: node, nodes: [node], point })
     }
-    // Below FAN_ZOOM, cities whose berths would overlap on screen share one harbour mark (greedy, most urgent city first).
-    // From FAN_ZOOM up nothing is grouped; only orders at the very same point fan out around it.
-    const urgency = (group: ChartNode[]) => Math.max(...group.map((node) => rank[node.attention]))
-    const cities = [...berths].sort((a, b) => urgency(b[1]) - urgency(a[1]) || b[1].length - a[1].length)
-    const harbours: { key: string; anchor: ChartNode; nodes: ChartNode[]; point: { x: number; y: number }; names: string[] }[] = []
-    if (!fanOut) {
-      for (const [city, group] of cities) {
-        const point = map.current.latLngToLayerPoint([group[0].lat, group[0].lng])
-        const near = harbours.find((harbour) => Math.hypot(harbour.point.x - point.x, harbour.point.y - point.y) < CLUSTER_PX)
-        if (near) { near.nodes.push(...group); near.names.push(city.split("|")[0]); near.key += `+${city}` }
-        else harbours.push({ key: `harbour:${city}`, anchor: group[0], nodes: [...group], point, names: [city.split("|")[0]] })
+    for (const cluster of clusters) {
+      if (cluster.nodes.length === 1) {
+        const node = cluster.anchor
+        const isSelected = node.orderId === selectedId
+        const select = (event?: { originalEvent?: Event }) => { event?.originalEvent?.stopPropagation(); setSelectedId(node.orderId) }
+        place(node.orderId, [node.lat, node.lng], vesselHtml(node, isSelected), tipHtml(node), 26, [13, 13], zFor(movingNow(node) ? "vessel" : "still", node.attention, isSelected), select, null, node.orderId)
+        continue
       }
+      const at = cluster.anchor
+      place(`cluster:${cluster.nodes.map((node) => node.orderId).sort().join("+")}`, [at.lat, at.lng], clusterHtml(cluster.nodes), clusterTip(cluster.nodes), 26, [13, 13], zFor("cluster", at.attention),
+        () => map.current?.flyTo([at.lat, at.lng], Math.max(FAN_ZOOM, (map.current?.getZoom() ?? 5) + 1), { duration: 0.6 }), null, null)
     }
-    const spread = (group: ChartNode[]) => {
+    // Locations: tiny and muted; orders at the very same point fan out a few pixels.
+    for (const [, group] of berths) {
       const sorted = [...group].sort((a, b) => rank[b.attention] - rank[a.attention] || a.reference.localeCompare(b.reference))
       sorted.forEach((node, index) => {
         const [dx, dy] = sorted.length === 1 ? [0, 0] : fan(index)
         const isSelected = node.orderId === selectedId
-        const size = node.attention === "decide" ? 16 : 12
+        const size = isSelected ? 11 : 7
         place(node.orderId, [node.lat, node.lng], berthHtml(node, isSelected), tipHtml(node), size, [Math.round(size / 2 - dx), Math.round(size / 2 - dy)], zFor("berth", node.attention, isSelected),
           (event?: { originalEvent?: Event }) => { event?.originalEvent?.stopPropagation(); setSelectedId(node.orderId) }, null, node.orderId)
       })
-    }
-    if (fanOut) for (const [, group] of berths) spread(group)
-    for (const harbour of harbours) {
-      if (harbour.nodes.length === 1) { spread(harbour.nodes); continue }
-      const sorted = [...harbour.nodes].sort((a, b) => rank[b.attention] - rank[a.attention] || a.reference.localeCompare(b.reference))
-      const at = harbour.anchor
-      place(harbour.key, [at.lat, at.lng], harbourHtml(sorted), harbourTip(harbour.names.join(", "), sorted), 32, [16, 16], zFor("harbour", sorted[0].attention),
-        () => map.current?.flyTo([at.lat, at.lng], Math.max(FAN_ZOOM, (map.current?.getZoom() ?? 5) + 1), { duration: 0.6 }), null, null)
     }
     for (const [key, entry] of markers.current) {
       if (seen.has(key)) continue
@@ -393,11 +386,19 @@ export function ChartHome({ initial }: { initial: ChartView }) {
       const split = nearestIndex(coords, node.lat, node.lng)
       const done = [...coords.slice(0, split + 1), [node.lat, node.lng] as [number, number]]
       const ahead = [[node.lat, node.lng] as [number, number], ...coords.slice(split + 1)]
+      const tone = node.stale ? "stale" : node.attention
       const known = tracks.current.get(node.orderId)
-      if (known) { known.done.setLatLngs(done); known.ahead.setLatLngs(ahead); continue }
+      if (known) {
+        known.done.setLatLngs(done); known.ahead.setLatLngs(ahead)
+        for (const [line, part] of [[known.done, "done"], [known.ahead, "ahead"]] as const) {
+          const element = line.getElement()
+          if (element) element.setAttribute("class", `route-${part} rt-${tone}`)
+        }
+        continue
+      }
       tracks.current.set(node.orderId, {
-        ahead: leaflet.polyline(ahead, { pane: "trails", className: "route-ahead", weight: 1, interactive: false }).addTo(layers.current.trails),
-        done: leaflet.polyline(done, { pane: "trails", className: "route-done", weight: 1, interactive: false }).addTo(layers.current.trails),
+        ahead: leaflet.polyline(ahead, { pane: "trails", className: `route-ahead rt-${tone}`, weight: 1, interactive: false }).addTo(layers.current.trails),
+        done: leaflet.polyline(done, { pane: "trails", className: `route-done rt-${tone}`, weight: 1, interactive: false }).addTo(layers.current.trails),
       })
     }
     for (const [id, track] of tracks.current) {
@@ -406,8 +407,9 @@ export function ChartHome({ initial }: { initial: ChartView }) {
     }
   }, [ready, nodes, view.routes])
 
-  // ---- the route track: brightened for the hovered or selected node, with its endpoints named
-  const trackId = hoverId ?? selectedId
+  // ---- the route track. Selected: in the accent colour, every other route dimmed, the destination enlarged and named with
+  // the promise, and the pickup named. Hovered: brightened, ends named.
+  const trackId = selectedId ?? hoverId
   useEffect(() => {
     const leaflet = L.current
     if (!ready || !leaflet || !layers.current) return
@@ -426,27 +428,45 @@ export function ChartHome({ initial }: { initial: ChartView }) {
       const done = part.coords.slice(0, Math.max(0, Math.min(part.coords.length, nearest - start + 1)))
       const ahead = part.coords.slice(Math.max(0, Math.min(part.coords.length - 1, nearest - start)))
       const sea = part.kind === "sea"
-      if (ahead.length > 1) leaflet.polyline(ahead, { pane: "route", className: `track track-ahead${sea ? " track-sea" : ""}`, weight: 2, interactive: false }).addTo(layers.current.route)
-      if (done.length > 1) leaflet.polyline(done, { pane: "route", className: `track track-done${sea ? " track-sea" : ""}`, weight: 2.5, interactive: false }).addTo(layers.current.route)
+      const picked = trackId === selectedId ? " track-sel" : ""
+      if (ahead.length > 1) leaflet.polyline(ahead, { pane: "route", className: `track track-ahead${sea ? " track-sea" : ""}${picked}`, weight: picked ? 3 : 2, interactive: false }).addTo(layers.current.route)
+      if (done.length > 1) leaflet.polyline(done, { pane: "route", className: `track track-done${sea ? " track-sea" : ""}${picked}`, weight: picked ? 3.5 : 2.5, interactive: false }).addTo(layers.current.route)
     }
     const first = route.parts[0]?.coords[0]
     const last = route.parts.at(-1)?.coords.at(-1)
-    const end = (point: [number, number] | undefined, text: string) => point && leaflet.circleMarker(point, { pane: "route", radius: 4, className: "track-end", interactive: false })
-      .bindTooltip(text, { permanent: true, direction: "right", offset: [8, 0], className: "track-label" }).addTo(layers.current!.route)
-    end(first, `Pickup · ${node.from}`)
-    end(last, `Delivery · ${node.to}`)
-  }, [ready, trackId, view.routes, byId])
+    const selectedNow = trackId === selectedId
+    if (first) leaflet.circleMarker(first, { pane: "route", radius: selectedNow ? 4.5 : 3.5, className: "track-end track-from", interactive: false })
+      .bindTooltip(selectedNow ? `From ${escape(node.fromName)}` : `Pickup · ${escape(node.from)}`, { permanent: true, direction: "left", offset: [-8, 0], className: "track-label" }).addTo(layers.current.route)
+    if (last) leaflet.circleMarker(last, { pane: "route", radius: selectedNow ? 7 : 3.5, className: `track-end track-to${selectedNow ? " track-dest" : ""}`, interactive: false })
+      .bindTooltip(selectedNow ? `<b>${escape(node.toName)}</b>${node.promiseText ? `<span>promised ${escape(node.promiseText)}</span>` : ""}` : `Delivery · ${escape(node.to)}`,
+        { permanent: true, direction: "right", offset: [10, 0], className: `track-label${selectedNow ? " track-label-dest" : ""}` }).addTo(layers.current.route)
+  }, [ready, trackId, selectedId, view.routes, byId])
+
+  // ---- a new selection with a route frames the whole journey left of the panel, so pickup and destination are both in view
+  const framed = useRef<string | null>(null)
+  useEffect(() => {
+    const leaflet = L.current
+    if (!ready || !leaflet || !map.current || !selectedId || framed.current === selectedId) return
+    framed.current = selectedId
+    const route = view.routes[selectedId]
+    if (!route) return
+    const points = route.parts.flatMap((part) => part.coords)
+    if (points.length < 2) return
+    map.current.flyToBounds(leaflet.latLngBounds(points), { paddingTopLeft: [80, 80], paddingBottomRight: [500, 90], maxZoom: 9, duration: 0.7 })
+  }, [ready, selectedId, view.routes])
+  useEffect(() => { if (!selectedId) framed.current = null }, [selectedId])
 
   // ---- keyboard: Escape closes, [ and ] step through what needs a person
   const needIds = useMemo(() => view.needs.map((needed) => needed.orderId).filter((id) => byId.has(id)), [view.needs, byId])
   const focus = useCallback((id: string) => {
     const node = byId.get(id)
     setSelectedId(id)
-    if (node && map.current) {
+    // A car with a route is framed by its whole journey (below); anything else is flown to.
+    if (node && map.current && !view.routes[id]) {
       const target = Math.max(map.current.getZoom(), FAN_ZOOM)
       map.current.flyTo([node.lat, node.lng], target, { duration: 0.7 })
     }
-  }, [byId])
+  }, [byId, view.routes])
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLElement && ["INPUT", "TEXTAREA"].includes(event.target.tagName)) return
@@ -465,7 +485,7 @@ export function ChartHome({ initial }: { initial: ChartView }) {
 
   return <AppFrame section="map" rail snapshotAt={view.snapshotAt} counts={{ map: view.needs.length }}
 >
-    <div className={`chart-home z-${zoom < 6 ? "low" : zoom < 8 ? "mid" : "high"}${selected ? " has-dossier" : ""}`} data-chart={theme}>
+    <div className={`chart-home z-${zoom < 6 ? "low" : zoom < 8 ? "mid" : "high"}${selected ? " has-dossier" : ""}${selected && view.routes[selected.orderId] ? " has-route" : ""}`} data-chart={theme}>
       <div ref={holder} className="chart-map" role="region" aria-label="Map of deliveries. Car positions are simulated phone GPS." />
 
       {!selected && <NeedsPeek view={view} onPick={focus} onHover={setHoverId} selectedId={selectedId} />}
@@ -485,11 +505,11 @@ export function ChartHome({ initial }: { initial: ChartView }) {
         </span>
         <span className="strip-legend" aria-label="Legend">
           <span><i className="lg lg-decide" />Needs a person</span>
+          <span><i className="lg lg-watch" />Watching</span>
           <span><i className="lg lg-agent" />Agent working</span>
-          <span><i className="lg lg-fine" />Moving</span>
+          <span><i className="lg lg-fine" />Fine</span>
           <span><i className="lg lg-stale" />Phone quiet</span>
-          <span><i className="lg lg-berth" />Waiting in the city</span>
-          <span><i className="lg lg-done" />Delivered</span>
+          <span className="lg-places"><i className="loc loc-dealer" />Dealer <i className="loc loc-yard" />Yard <i className="loc loc-private" />Private address</span>
         </span>
         <span className="strip-note">Car positions are simulated phone GPS</span>
       </div>
