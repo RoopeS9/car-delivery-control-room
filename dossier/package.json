@@ -12,7 +12,8 @@
     "sim:calls": "tsx src/cli/sim-calls.ts",
     "serve": "tsx src/serve.ts",
     "reason": "tsx src/cli/reason.ts",
-    "derived": "tsx src/cli/derived-all.ts"
+    "derived": "tsx src/cli/derived-all.ts",
+    "run-delivery": "tsx src/cli/run-delivery.ts"
   },
   "dependencies": {
     "zod": "^3.24.2"

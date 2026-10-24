@@ -8,6 +8,9 @@
 //   POST /calls/run {personaId, at?}      -> runs the simulated call, stores it, returns the CallRecord
 //   GET  /calls?ref=CD-xxxxxx             -> stored CallRecords (all, or for one order), newest first
 //   GET  /calls/:id                       -> one CallRecord
+//   GET  /calls/:id/audio/:seq            -> that turn's mp3 (simulated calls rendered with SIM_TTS=1)
+//   POST /runs {ref, twist?, mode?}       -> starts a delivery run (TIMELINE walks the order through its phases; LIVE is one tick as the app sees it); 202 with the run id
+//   GET  /runs?ref=CD-xxxxxx              -> stored runs, newest first;  GET /runs/:id -> one run (mutating while it runs);  GET /runs/plan/:ref -> the timeline a run would walk
 import { createServer } from "node:http"
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { buildDossier, loadDataset } from "./build"
@@ -22,11 +25,14 @@ import { cardText, contextPrompt } from "./context"
 import { renderCallAudio, ttsEnabled } from "./tts"
 import { pullLive } from "./livepull"
 import { derive } from "./derived"
+import { RunMode, newRunReport, planTimeline, runDelivery, type RunReport } from "./run"
+import { Twist } from "./sim/persona-from-dossier"
 
 const root = new URL("../", import.meta.url)
 const callsDir = new URL("data/out/calls/", root)
 const audioDir = new URL("data/out/audio/", root)
-mkdirSync(callsDir, { recursive: true }); mkdirSync(audioDir, { recursive: true })
+const runsDir = new URL("data/out/runs/", root)
+mkdirSync(callsDir, { recursive: true }); mkdirSync(audioDir, { recursive: true }); mkdirSync(runsDir, { recursive: true })
 const ds = loadDataset(new URL("data/dataset/", root))
 const byRef = new Map(ds.rows.orders.map((o) => [o.reference, o.id]))
 const purposeFor = (p: (typeof PERSONAS)[number]): CallPurpose => (p.inbound ? "DRIVER_INBOUND" : p.role === "PICKUP_SITE_DESK" ? "PICKUP_READINESS" : "DRIVER_START_CHECK")
@@ -42,6 +48,11 @@ const reasonCache = new Map<string, ReasonRun>()
 const calls = new Map<string, CallRecord>()
 type Job = { id: string; personaId: string; mode: string; startedAt: string; status: "running" | "done" | "failed"; call?: CallRecord; note?: Record<string, unknown>; review?: unknown; error?: string }
 const jobs = new Map<string, Job>()
+const runs = new Map<string, RunReport>()
+for (const f of readdirSync(runsDir).filter((f) => f.endsWith(".json"))) {
+  try { const r = JSON.parse(readFileSync(new URL(f, runsDir), "utf8")) as RunReport; if (r.status === "running") { r.status = "failed"; r.error = "the service restarted during the run" } runs.set(r.id, r) } catch { /* a half-written file */ }
+}
+const saveRun = (r: RunReport) => writeFileSync(new URL(`${r.id}.json`, runsDir), JSON.stringify(r, null, 1))
 for (const f of readdirSync(callsDir).filter((f) => f.endsWith(".json"))) {
   const r = CallRecord.safeParse(JSON.parse(readFileSync(new URL(f, callsDir), "utf8")))
   if (r.success) calls.set(r.data.id, r.data)
@@ -183,6 +194,31 @@ createServer(async (req, res) => {
       } catch (e) { return json(res, 502, { error: (e as Error).message.slice(0, 400) }) }
     }
     if (parts[0] === "calls" && parts[1] === "jobs" && parts[2]) { const j = jobs.get(parts[2]); return j ? json(res, 200, { id: j.id, status: j.status, personaId: j.personaId, startedAt: j.startedAt, call: j.call ?? null, review: j.review ?? null, note: j.note ?? null, error: j.error ?? null }) : json(res, 404, { error: "no such job" }) }
+    if (parts[0] === "runs" && req.method === "POST" && !parts[1]) {
+      const input = JSON.parse((await body(req)) || "{}") as { ref?: string; twist?: string; mode?: string }
+      const id = input.ref ? byRef.get(input.ref) : null; if (!id || !input.ref) return json(res, 400, { error: "ref must be an order reference" })
+      const twist = Twist.safeParse(input.twist ?? "cooperative"); if (!twist.success) return json(res, 400, { error: `twist must be one of ${Twist.options.join(", ")}` })
+      const mode = RunMode.safeParse(input.mode ?? "TIMELINE"); if (!mode.success) return json(res, 400, { error: "mode must be TIMELINE or LIVE" })
+      if ([...runs.values()].some((r) => r.status === "running" && r.orderRef === input.ref)) return json(res, 409, { error: "a run is already in progress for this order" })
+      if (!process.env.OPENROUTER_API_KEY) return json(res, 503, { error: "OPENROUTER_API_KEY is not set: a run needs the model" })
+      const report = newRunReport(input.ref, mode.data, twist.data)
+      runs.set(report.id, report); saveRun(report)
+      const store = (call: CallRecord) => { calls.set(call.id, call); writeFileSync(new URL(`${call.id}.json`, callsDir), JSON.stringify(call, null, 1)) }
+      void runDelivery(ds, id, report, { twist: twist.data, mode: mode.data, store, onStep: saveRun }).then(async (done) => {
+        // speech for the run's calls, after the fact, so the run itself is not slowed by it
+        for (const step of done.steps) for (const placed of step.calls) { const c = calls.get(placed.callId); if (c) { const spoken = await renderCallAudio(c, audioDir); if (spoken.rendered) store(spoken.call) } }
+      }).catch((e) => { report.status = "failed"; report.error = (e as Error).message.slice(0, 500); saveRun(report) })
+      return json(res, 202, { runId: report.id, status: report.status, poll: `/runs/${report.id}` })
+    }
+    if (parts[0] === "runs" && parts[1] === "plan" && parts[2]) {
+      const id = byRef.get(parts[2]); if (!id) return json(res, 404, { error: `no order ${parts[2]}` })
+      return json(res, 200, { reference: parts[2], steps: planTimeline(ds, id).map((i) => ({ label: i.label, at: new Date(i.at).toISOString(), overlay: i.overlay, phone: i.phone ?? null })) })
+    }
+    if (parts[0] === "runs" && parts[1]) { const r = runs.get(parts[1]); return r ? json(res, 200, r) : json(res, 404, { error: "no such run" }) }
+    if (parts[0] === "runs") {
+      const ref = url.searchParams.get("ref")
+      return json(res, 200, [...runs.values()].filter((r) => !ref || r.orderRef === ref).sort((a, b) => b.startedAt.localeCompare(a.startedAt)).map((r) => ({ id: r.id, orderRef: r.orderRef, mode: r.mode, twist: r.twist, status: r.status, startedAt: r.startedAt, finishedAt: r.finishedAt, steps: r.steps.length, planned: r.plannedSteps.length, summary: r.summary, costUsd: r.costUsd, failures: r.failures.length })))
+    }
     if (parts[0] === "calls" && parts[1] && parts[2] === "audio" && parts[3]) {
       // A simulated call's turn, spoken (rendered with SIM_TTS=1).
       const c = calls.get(parts[1]); const turn = c?.turns.find((t) => String(t.seq) === parts[3])

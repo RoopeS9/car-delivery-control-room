@@ -144,12 +144,36 @@ export function positionCheckBrief(d: Dossier): CallBrief {
   })
 }
 
+/** Before the ferry's check-in cutoff: is the driver at the gate or will they be, anything in the way. */
+export function ferryCheckinBrief(d: Dossier): CallBrief {
+  const order = rec(d, "orders")[0]!
+  const drv = driverName(d); if (!drv) throw new Error("no active driver")
+  const ferry = items(d, "travel_reservations").find((i) => i.record.kind === "FERRY" && i.record.status === "BOOKED"); if (!ferry) throw new Error("no booked ferry")
+  const terminal = rec(d, "ferry_terminals").find((t) => t.id === ferry.record.origin_terminal_id)
+  const dAddr = rec(d, "addresses").find((a) => a.id === order.delivery_address_id)
+  const zone = "Europe/Berlin"
+  const mayState = [
+    `This is about your job ${spellRef(order.reference)}, the ${vehicleLine(d)} to ${dAddr?.city ?? "delivery"}.`,
+    `Your ferry is booked, reference ${ferry.record.booking_reference.split("").join(" ")}, ${ferry.record.route_label}${terminal ? `, from ${terminal.name}` : ""}.`,
+    ...(ferry.record.check_in_cutoff_at ? [`Check-in closes at ${sayTime(ferry.record.check_in_cutoff_at, zone)}; departure is ${sayTime(ferry.record.departure_at, zone)}.`] : [`Departure is ${sayTime(ferry.record.departure_at, zone)}.`]),
+    "If you cannot make the check-in, say so now: an operator rebooks, you do not need to decide anything.",
+  ]
+  return mk(d, "FERRY_CHECKIN", { kind: "DRIVER", driverId: drv.id, name: drv.name }, {
+    opening: `Hi ${drv.name.split(" ")[0]}, this is Mira from Bahn Road Desk, a quick check on your ferry.`,
+    mayState, ask: ["FERRY_CHECKED_IN", "CURRENT_LOCATION", "ETA", "ISSUE_REPORTED"],
+    mustNot: ["CUSTOMER_DETAILS", "PRICES", "MECHANICAL_ADVICE", "PROMISE_CHANGES", "CLEARANCE_TO_DRIVE"],
+    closing: `Thanks. An operator sees this now and will call you if the booking has to change. Drive safely.`,
+    maxDurationS: 90, basis: basisOf([...items(d, "work_assignments"), ferry]),
+  })
+}
+
 export function briefFor(d: Dossier, purpose: CallPurpose): CallBrief {
   switch (purpose) {
     case "PICKUP_READINESS": return pickupReadinessBrief(d)
     case "DRIVER_START_CHECK": return driverStartCheckBrief(d)
     case "DRIVER_INBOUND": return driverInboundBrief(d)
     case "POSITION_CHECK": return positionCheckBrief(d)
+    case "FERRY_CHECKIN": return ferryCheckinBrief(d)
     default: throw new Error(`no brief builder yet for ${purpose}`)
   }
 }

@@ -103,7 +103,8 @@ export function derive(d: Dossier): DerivedItem[] {
   if ((f.phase === "MOVING" || f.phase === "DELIVERY_DUE") && f.driver && f.assignment) {
     const lastAt = f.gps ? Date.parse(f.gps.at) : f.tracking?.at ? Date.parse(f.tracking.at) : null
     const quietFrom = d.live.phone?.state === "QUIET" && d.live.phone.quietFrom ? Date.parse(d.live.phone.quietFrom) : null
-    const since = quietFrom ?? lastAt
+    // the app saying the phone is live outranks an old stored observation; a quiet or absent phone falls back to the last position
+    const since = d.live.phone?.state === "LIVE" ? null : quietFrom ?? lastAt
     if (since != null && f.t - since >= THRESHOLDS.positionGapMin * MIN) {
       const minutes = Math.round((f.t - since) / MIN)
       const basis = [...(f.gps ? [`telemetry:${f.gps.id}`] : []), ...(f.tracking ? [ref("tracking_observations", f.tracking.record.id)] : []), ...(d.live.phone ? ["phone:app"] : [])]
