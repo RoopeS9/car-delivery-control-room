@@ -368,7 +368,7 @@ Checked / changed / rejected:
 - Still blocked: the real-model M1 trace. `OPENROUTER_API_KEY` is not visible
   in this session.
 
-## 2026-10-24 ~12:20 UTC · Claude Code (stream B, cloud instance 2) · out-of-date cards
+## 2026-10-24 ~12:12 UTC · Claude Code (stream B, cloud instance 2) · out-of-date cards
 
 Asked (by stream A's message, within PLAN 4.2b): show "Facts changed since
 this was drafted" on a waiting card and offer a refresh.
