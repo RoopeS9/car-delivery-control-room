@@ -29,3 +29,9 @@ This is a concept that will be iterated live with the owner; ship something visi
 - Data honesty on every label: simulated GPS says so; a quote is not a booking; an alert is a signal.
 - Never touch: Caddy, `/home/assistant/projects/duplex`, the GPU, mpv, niksa, ports other than 8797/8798.
 - Report `/home/assistant/workers/<your id>/report.md` in three parts (done+how verified, unverified, got wrong). **Interim report at 21:30 EEST** and a line whenever a new build is live. Include screenshots (headless Chromium via `node` + playwright is available under `~/olc/tools/playwright/`) in the worker dir.
+
+## Owner refinements (18:55 EEST, override anything above that conflicts)
+- You are free to overwrite anything Roope pushed, including agent/voice UI, if it streamlines the result. Keep his data layer (`lib/cr`, `lib/present` loaders, sim) as the source; replace presentation freely.
+- **Hover** on a car shows its whole route (track pickup -> terminals -> delivery) and the car's position on it; routes are not drawn for all cars at once, only on hover/selection.
+- **Click** opens the operator's view of that delivery's dossier: a neat **progress timeline** (phases and steps done / planned / unverified, calls made, agent checks, facts with source chips, deadlines) with everything one might need. **No chat box, no "ask the agent", no decision-card first.** If a decision is waiting, it is one item in the timeline, not a modal.
+- The left sidebar is **collapsed by default** (a thin rail with counts); it opens on demand and never shows more than the few things needing a person.
