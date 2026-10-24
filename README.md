@@ -57,7 +57,9 @@ the agent continues through the same approval gates.
 Scenario C demonstrates a routine keys question. Scenario D exercises site
 scoping. Scenario F leaves the driver silent: advance the clock beyond the
 reply deadlines to see one reminder and then a human handover. Operator pages
-poll the case timer endpoint; the demo panel drives simulated telemetry.
+poll telemetry and case timers, so the world keeps moving without the driver
+window or demo panel. Reset refuses active calls or in-flight work before
+clearing anything.
 
 Voice uses Chrome's speech recognition by default. `VOICE_PROVIDER=browser`
 uses browser speech synthesis instead of hosted speech. Hosted voice requires
@@ -77,7 +79,8 @@ approval alone does not establish customer agreement to a new promise.
 Executed effects overlay the unchanged dataset and retain their evidence.
 
 This is a local prototype with role selection, not a production identity or
-dispatch system. Travel decisions preserve the exact recorded quote, route,
+dispatch system. Its work coordination and booking locks assume one server
+process. Travel decisions preserve the exact recorded quote, route,
 sailing times, check-in cutoff, numeric cost and reservation being replaced.
 Only a confirmed simulated booking replaces the current reservation. An
 uncertain attempt keeps the old booking current until it is reconciled;

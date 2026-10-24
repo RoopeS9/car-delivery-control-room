@@ -1201,3 +1201,32 @@ A running log of how team Random used coding agents (Claude Code and others)
 to build this. Newest entries at the bottom. Format:
 
 ```
+
+## 2026-10-24 13:51 UTC · RoopeS + Codex · final combined verification
+
+Included the updated Stream B at `7bb0b4c` (with C and its operator fixes),
+and the agent branch's voice/main synchronization at `8a58a65`, while keeping
+all integration safeguards. The synchronization merge changed process history
+only; the verified application code stayed the same.
+
+- Full combined suite: **110 tests passed**, 17 suites, no failures or skips.
+  Production build and typecheck passed. The build retains the starter's
+  filesystem-tracing warnings; no build errors.
+- API smoke: all **100 orders** agree between board and record on attention;
+  both synthetic attachment formats download through the local object store.
+- Real Sonnet routine seed: **4 of 4 handled by the agent**, compared with the
+  earlier 1 of 4. Trace: `starter/traces/routine-2026-10-24T13-45-27/`.
+  Kept explicit permission-to-drive blocking; the classifier now receives
+  trusted fault/stop context so ordinary access instructions remain routine.
+- End-to-end runtime check on the production server and isolated DB:
+  wrong driver rejected; an active call blocks reset with 409 and no deletion;
+  text turn and hang-up produce a delivered call trigger, linked case and
+  visible transcript; a selected replacement ferry executes once, with the
+  exact quote and cutoff shown in the driver view. A subsequent clean reset
+  removes calls, cases and proposals and leaves all 100 source orders.
+- Existing app on localhost:3000 and isolated production app on :3100 both
+  return 200 for the queue, driver-call surface and order API. The :3100 app
+  uses no model key for deterministic API verification; :3000 retains the
+  user's original configuration.
+- Microphone capture, live browser speech recognition and hosted speech still
+  require a person to rehearse; API/text transcript plumbing is verified.
