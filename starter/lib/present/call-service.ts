@@ -64,3 +64,8 @@ export function strengthIndex(dossier: ServiceDossier | null): Map<string, Stren
   }
   return index
 }
+
+/** The brief a call would be given: who is called and what may be asked. */
+export function callBrief(reference: string, purpose: string): Promise<CallRecord["brief"]> {
+  return get<CallRecord["brief"]>(`/brief/${encodeURIComponent(reference)}/${encodeURIComponent(purpose)}`, 1500)
+}

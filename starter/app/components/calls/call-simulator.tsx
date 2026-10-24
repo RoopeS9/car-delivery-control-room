@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { readToolArgument, slotLabel, slotValue, type CallRecord, type CallScenario } from "@/lib/present/call-types"
 import { labelIn } from "@/lib/present/labels"
 import { fmtDateTime } from "@/lib/present/time"
@@ -13,12 +13,14 @@ const PURPOSE_WORDS: Record<string, string> = { PICKUP_READINESS: "Pickup readin
 const words = (map: Record<string, string>, code: string) => map[code] ?? labelIn(code)
 
 /** Pick a robo-call scenario, run it, and read what the call established and from which turn. */
-export function CallSimulator({ scenarios, stored, orderIds }: { scenarios: CallScenario[] | null; stored: Record<string, CallRecord[]>; orderIds: Record<string, string> }) {
+export function CallSimulator({ scenarios, stored, orderIds, callees }: { scenarios: CallScenario[] | null; stored: Record<string, CallRecord[]>; orderIds: Record<string, string>; callees: Record<string, string | null> }) {
   const [selected, setSelected] = useState<string | null>(scenarios?.[0]?.id ?? null)
   const [running, setRunning] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [calls, setCalls] = useState(stored)
   const [shown, setShown] = useState<Record<string, string>>({})
+  const [fresh, setFresh] = useState<string | null>(null)
+  const record = useRef<HTMLDivElement>(null)
   const scenario = scenarios?.find((item) => item.id === selected) ?? null
   const history = scenario ? calls[scenario.orderRef] ?? [] : []
   const call = scenario ? history.find((item) => item.id === shown[scenario.id]) ?? history[0] ?? null : null
@@ -32,12 +34,21 @@ export function CallSimulator({ scenarios, stored, orderIds }: { scenarios: Call
       if (!response.ok || "error" in body) throw new Error("error" in body ? body.error : "The call did not run.")
       setCalls((current) => ({ ...current, [item.orderRef]: [body, ...(current[item.orderRef] ?? []).filter((known) => known.id !== body.id)] }))
       setShown((current) => ({ ...current, [item.id]: body.id }))
+      setFresh(body.id)
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "The call did not run.")
     } finally {
       setRunning(null)
     }
   }
+
+  // A finished call is selected, scrolled into view and highlighted for a moment.
+  useEffect(() => {
+    if (!fresh) return
+    record.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    const timer = setTimeout(() => setFresh(null), 2400)
+    return () => clearTimeout(timer)
+  }, [fresh])
 
   return <main className="page calls-page">
     <header className="q-head">
@@ -67,21 +78,23 @@ export function CallSimulator({ scenarios, stored, orderIds }: { scenarios: Call
       {scenario && <section className="call-view" aria-label="Call">
         <div className="call-view-head">
           <div>
-            <h2>{words(PURPOSE_WORDS, scenario.purpose)} · {orderIds[scenario.orderRef] ? <Link className="ref-link" href={`/orders/${orderIds[scenario.orderRef]}`}>{scenario.orderRef}</Link> : <span className="mono">{scenario.orderRef}</span>}</h2>
+            <h2>{words(PURPOSE_WORDS, scenario.purpose)}{callees[scenario.id] ? ` with ${callees[scenario.id]}` : ""} · {orderIds[scenario.orderRef] ? <Link className="ref-link" href={`/orders/${orderIds[scenario.orderRef]}`}>{scenario.orderRef}</Link> : <span className="mono">{scenario.orderRef}</span>}</h2>
             <p>{scenario.inbound ? `${words(ROLE_WORDS, scenario.role)} calls Road Desk` : `Road Desk calls the ${words(ROLE_WORDS, scenario.role).toLowerCase()}`}, {labelIn(scenario.mood).toLowerCase()}.</p>
           </div>
-          <button type="button" className="btn primary" onClick={() => void run(scenario)} disabled={!!running}>
-            {running === scenario.id ? "Calling…" : call ? "Run again" : "Run the call"}
-          </button>
+          <div className="call-run">
+            <button type="button" className="btn primary" onClick={() => void run(scenario)} disabled={!!running} aria-busy={running === scenario.id}>
+              {running === scenario.id ? <><span className="spinner" aria-hidden="true" />Simulating…</> : "Simulate call"}
+            </button>
+            {running === scenario.id && <span className="call-running" aria-live="polite">Calling {callees[scenario.id] ?? "the other party"}</span>}
+            {error && <span className="call-error" role="alert">{error}</span>}
+          </div>
         </div>
-        {error && <p className="call-error" role="alert">{error}</p>}
-        {running === scenario.id && <p className="call-running" aria-live="polite">The call is running. Both sides are simulated, so this takes a little while.</p>}
         {history.length > 1 && <div className="call-history" aria-label="Stored calls">
           {history.map((item) => <button type="button" key={item.id} className={item.id === call?.id ? "active" : undefined} onClick={() => setShown((current) => ({ ...current, [scenario.id]: item.id }))}>
             {fmtDateTime(item.startedAt)} · {labelIn(item.outcome).toLowerCase()}
           </button>)}
         </div>}
-        {call ? <CallRecordView call={call} /> : running !== scenario.id && <p className="calls-quiet">No call stored for this order yet. Run it to see the transcript.</p>}
+        {call ? <div ref={record} className={`call-record-wrap${fresh === call.id ? " fresh-call" : ""}`}><CallRecordView call={call} /></div> : running !== scenario.id && <p className="calls-quiet">No call stored for this order yet. Simulate one to see the transcript.</p>}
       </section>}
     </div>}
   </main>
