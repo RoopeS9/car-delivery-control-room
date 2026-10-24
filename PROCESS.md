@@ -1230,3 +1230,66 @@ only; the verified application code stayed the same.
   user's original configuration.
 - Microphone capture, live browser speech recognition and hosted speech still
   require a person to rehearse; API/text transcript plumbing is verified.
+
+## 2026-10-24 ~20:40–23:30 UTC · RoopeS + Claude Code (cloud) · night run: every role, pickup to handover
+
+Asked: pull main into `roope`, run the scenarios and use cases end to end as operator, driver, pickup desk and
+customer, compare against the brief and the plan (above all the driver's and the customer's experience), fix what
+breaks, make the workflows show up on the platform, add data if needed. Customer as mock messages, no new screen;
+lifecycle actions if not too big. Budget under $10, DeepSeek models through OpenRouter preferred.
+
+How: a fresh container (Docker Hub rate-limited, so local Postgres 16 and an S3 mock instead of compose), the app
+on the DeepSeek v4 models (`AGENT_MODEL=deepseek/deepseek-v4-pro`, flash for the safety screen and the simulated
+driver), and a small harness that plays every role through the real routes: driver chat and photos, the site
+chat, operator decisions and logged outcomes, clock jumps. Every turn was read back from the case timeline and
+the agent runs, and the operator, driver and map screens were checked in headless Chromium. Each finding was
+reproduced first, fixed, then rerun with the real model; the logic fixes have tests (116 now, all passing).
+
+Got, by role (each line a defect seen in a run, then fixed):
+- Tests: the suite stopped at the first agent test (a `data:` URL the CommonJS loader read as a path) and hung on
+  an open pool; three tests asserted behaviour main had changed on purpose. The gate now checks an unknown booking
+  outcome before it reuses a repeated card.
+- Driver (A): DeepSeek spent the safety classifier's 400 tokens thinking and returned nothing, so a harmless
+  "the car cannot be driven further" became a "Clear the driver to drive on?" card and the driver read "An operator
+  has to confirm before you drive on". A reply split around a tool call reached the driver as "the car.". An
+  operator summary with prices and bold text reached the driver. Haiku 5.5 spent the photo's budget thinking, so
+  every photo was "could not be read". All fixed (thinking off for one-word and description calls; the gate joins
+  a continued sentence; hand_over tells the model to write the driver two plain sentences).
+- Driver (A, after the repair): one rejected bogus clearance blocked every later clearance, so the driver never
+  heard about his new ferry and nobody could clear the repaired car. A rejection now holds only until something new
+  happens on the case.
+- Driver (B): the driver-facing context had none of his open incident, so the agent asked a driver stopped for an
+  hour "what happened?". It now carries his open issues and earlier messages, with sources.
+- Driver (G): a held answer left the driver on the motorway with "Please stay where you are" and no answer to his
+  question; the held reply is now written again once without the clearance. "The car can keep going" slipped past
+  the patterns; car-as-subject phrasings are caught. The classifier was checked on 15 paraphrases (DeepSeek flash,
+  pro and Haiku all 15/15) before keeping the cheapest.
+- Pickup desk (D): "I'll let you know if that changes" (monitoring nobody does), and an answered question parked as
+  "waiting on the site's reply" that would have reached an operator empty. Site turns can close an answered case.
+- Customer (F, B): the owner's answer to a recovery email parked the case for two hours and nobody told the driver
+  to wait for their tow; customer drafts came with markdown. Fixed; plus a simulated customer email from the Demo
+  page on any order, which the agent answers only as a card for a person.
+- Operator: invented citations ("msg-latest") are refused at propose_action; card titles have a length limit; the
+  Needs-you list put a driver waiting for a clearance under two-day-old record items, so the agent's live decisions
+  now come first; post-decision turns retitle the case; a rebooked ferry and a repaired car change the simulated
+  world (the car resumes, waits for the new sailing); the agent and the driver see Road Desk bookings.
+- Lifecycle: nothing could move an order from booked to delivered, so a Demo delivery run left the order reading
+  "collects it tomorrow". The driver now reports the steps in the app (at the pickup, collected with keys, checked in
+  as a simulated gate scan, at the delivery address, handed over to a named receiver); they are stored as our own
+  events and laid over the snapshot for every reader, and a handover brings the customer's delivery confirmation as
+  a card. Scenario H walks it.
+- The sim clock restarted at SIM_NOW on every restart, behind the stored samples (a GPS fix "in 8 min"); it now
+  catches up once to the newest stored sample.
+
+Checked / changed / rejected:
+- Kept main's design choices where they were deliberate and adjusted tests instead (a dongle that never reported
+  does not outdate a card; a repeated card is reused), but moved the booking-outcome check ahead of the twin reuse,
+  because a reused card must not slip past reconciliation.
+- Rejected sending booking details as a clearance, and rejected widening the classifier to Haiku: the eval said the
+  cheaper model was enough once thinking was off.
+- Rejected moving the customer into a screen of their own (the brief's customer is reached only through approved
+  messages); their side is a simulated email in Demo and the replies are cards.
+- Not fixed: the journey bar's "km to go" uses the simulated route length (sea included) while the header shows the
+  order's distance; Demo delivery runs stamp calls ahead of the simulated clock (now labelled so); Node 24's dev
+  server reload-looped in this container (Node 22 dev and Node 24 tests were used).
+- Spend: about $2 of model calls for all of the above.

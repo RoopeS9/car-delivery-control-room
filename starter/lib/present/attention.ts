@@ -358,7 +358,9 @@ export function deriveAttention(bundle: Bundle): AttentionItem[] {
     // promise still open is a gap in the record, not an incident. An open or
     // owned tracking or promise alert already covers the same gap.
     const active = rows(bundle, "work_assignments").find((row) => str(row.details.status) === "IN_PROGRESS")
+    // A car collected in this app reports its (simulated) phone position from then on, like a live phone.
     const positioned = rows(bundle, "tracking_observations").some((row) => str(row.details.source) === "driver_app")
+      || bundle.events.some((event) => event.command === "vehicle.picked_up" && event.details.road_desk === true) || !!bundle.cr.gps
     const promise = chosenWindows(bundle).promise
     const promiseOpen = !!(promise?.end && snapshotAt && !isBefore(promise.end, snapshotAt))
     const covered = bundle.alerts.some((alert) =>
