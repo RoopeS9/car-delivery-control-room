@@ -89,7 +89,7 @@ export function QueuePage({ queue }: { queue: QueueView }) {
 
     {noMatches && <p className="q-empty q-empty-search">Nothing in the queue matches “{search}”. Quiet orders are on <Link href="/board" className="name-link">all orders</Link>.</p>}
 
-    <Group title="Needs your decision" note="Most urgent first" rows={decide} empty={query ? undefined : "Nothing needs your decision right now."}>
+    <Group title="Needs your decision" note="Earliest first" rows={decide} empty={query ? undefined : "Nothing needs your decision right now."}>
       {routine.length > 0 && <details className="q-routine" open={!!query}>
         <summary><Icon name="chevron" size={12} />{routine.length} more from the records with routine open items <span>(open conversations, unverified pickup details, owned work)</span></summary>
         <ul className="q-list">{routine.map((row) => <QueueItem key={row.orderId} row={row} />)}</ul>

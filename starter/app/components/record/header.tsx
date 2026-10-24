@@ -4,6 +4,7 @@ import Image from "next/image"
 import { attentionTone } from "@/lib/present/tone-rule"
 import Link from "next/link"
 import type { RecordView, Tile } from "@/lib/present/types"
+import { fmtDay } from "@/lib/present/time"
 import { Icon } from "../icons"
 
 export function RecordHero({ view, compact = false }: { view: RecordView; compact?: boolean }) {
@@ -24,7 +25,11 @@ export function RecordHero({ view, compact = false }: { view: RecordView; compac
       <Link className="chip-fact link" href={`/customers/${header.customer.id}`}><Icon name="people" size={13} />{header.customer.name}</Link>
       {header.tradeIn && <span className="chip-fact">Trade-in: {header.tradeIn.title}</span>}
     </div>
-    <p className="intro">{story.intro}</p>
+    <div className="chips chips-order" title={story.intro}>
+      <span className="chip-fact"><Icon name="pin" size={13} />{header.from.city} → {header.to.city}</span>
+      <span className="chip-fact"><Icon name="waiting" size={13} />Ordered {fmtDay(header.createdAt)}</span>
+      {header.routeKind === "IMPORT" && <span className="chip-fact"><Icon name="ferry" size={13} />Import</span>}
+    </div>
     <div className="story">
       <p className={`story-headline tone-${attentionTone(view.attention, story.tone)}`}>{story.headline}</p>
       {story.detail && <p className="story-detail">{story.detail}</p>}

@@ -134,7 +134,8 @@ export function ConversationsSection({ view }: { view: RecordView }) {
 
 function ThreadRow({ thread, view }: { thread: ThreadView; view: RecordView }) {
   // Opened when the map deep-links to this thread.
-  const [open, setOpen] = useState(() => typeof window !== "undefined" && window.location.hash === `#thread-${thread.id}`)
+  // Threads open by default: the conversation is what an operator comes here to read.
+  const [open, setOpen] = useState(true)
   const last = thread.messages[thread.messages.length - 1]
   const count = thread.messages.length
   return <article className="row" id={`thread-${thread.id}`}>
@@ -153,20 +154,28 @@ function ThreadRow({ thread, view }: { thread: ThreadView; view: RecordView }) {
   </article>
 }
 
+/**
+ * A thread as a chat: the other party (customer, site, driver) on the left, Road Desk (operator, agent) on the right,
+ * internal notes in the middle. Oldest first. Who speaks sits above the bubble, when it was said beneath it.
+ */
 export function ThreadMessages({ thread }: { thread: ThreadView }) {
-  return <div className="messages">{thread.messages.map((message) => <div className={`msg${message.internal ? " internal" : message.author.kind === "operator" || message.author.kind === "agent" ? " from-operator" : ""}`} key={message.id}>
-    <div className="msg-meta">
-      <b><ActorName actor={message.author} /></b>
-      <span className="role">{message.author.role}</span>
-      <span>to {message.recipient.name}</span>
-      <span>· {message.channelLabel}</span>
-      {message.internal && <span className="msg-tag internal">Internal</span>}
-      {message.author.kind === "agent" && <span className="msg-tag">Agent</span>}
-      {message.otherOrder && <span className="msg-tag">Filed on <OrderLink order={message.otherOrder} /></span>}
-      <time dateTime={message.at}>{fmtDateTime(message.at)}</time>
+  const ours = (kind: string) => kind === "operator" || kind === "agent"
+  return <div className="chat">{[...thread.messages].sort((a, b) => a.at.localeCompare(b.at)).map((message, index, all) => {
+    const side = message.internal ? "internal" : ours(message.author.kind) ? "ours" : "theirs"
+    const previous = all[index - 1]
+    const sameSpeaker = previous && previous.author.name === message.author.name && !previous.internal && !message.internal
+    return <div className={`chat-line chat-${side}${message.author.kind === "agent" ? " chat-agent" : ""}`} key={message.id}>
+      {!sameSpeaker && <div className="chat-who">
+        <b><ActorName actor={message.author} /></b>
+        <span>{message.author.role}{message.recipient.name && side !== "internal" ? ` · to ${message.recipient.name}` : ""}</span>
+        {message.internal && <span className="msg-tag internal">Internal</span>}
+        {message.author.kind === "agent" && <span className="msg-tag">Agent</span>}
+        {message.otherOrder && <span className="msg-tag">Filed on <OrderLink order={message.otherOrder} /></span>}
+      </div>}
+      <div className="chat-bubble"><p className="msg-body">{message.body}</p></div>
+      <time className="chat-when" dateTime={message.at}>{fmtDateTime(message.at)} · {message.channelLabel}</time>
     </div>
-    <p className="msg-body">{message.body}</p>
-  </div>)}</div>
+  })}</div>
 }
 
 /* ── Evidence ───────────────────────────────────────────────────────────── */

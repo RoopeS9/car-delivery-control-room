@@ -155,7 +155,9 @@ export function buildQueue(bundles: Bundle[], snapshotAt: string | null, now: st
     const timing = bundle ? changedTiming(bundle) : null
     if (timing) row.more = [row.more, timing].filter(Boolean).join(" · ")
   }
-  view.decide.sort(urgentFirst)
+  // Decisions read in the order they were raised, the earliest at the top (the team's call: a queue, not a ranking).
+  const earliestFirst = (a: QueueRow, b: QueueRow) => String(a.since ?? "~").localeCompare(String(b.since ?? "~")) || a.rank - b.rank
+  view.decide.sort(earliestFirst)
   view.routine.sort(urgentFirst)
   view.agentWorking.sort(newestFirst)
   view.waiting.sort(soonestCheck)
