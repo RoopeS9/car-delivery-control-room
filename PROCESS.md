@@ -510,7 +510,7 @@ Checked / changed / rejected:
   "Europe/Helsinki". The double-approval race test assumed the first click
   always wins; now either click may win, as long as exactly one executes.
 
-## 2026-10-24 ~13:05 UTC · Claude Code (stream B, cloud instance 2) · adopt contract v2
+## 2026-10-24 ~12:50 UTC · Claude Code (stream B, cloud instance 2) · adopt contract v2
 
 Asked: merge stream A's contract v2 (renamed columns, new card states,
 customer answers, effective promise, tick) and keep the control room working.
