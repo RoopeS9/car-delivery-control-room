@@ -244,7 +244,19 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
   }
   const open = view.attention.filter((item) => item.kind !== "case")
   const pressing = open.find((item) => item.tone === "danger" || item.tone === "warn")
-  if (!need && pressing) need = { title: pressing.title, ask: pressing.detail, since: pressing.at, sinceLabel: pressing.at ? t.at(pressing.at) : null, href: `/orders/${bundle.order.id}#${pressing.section}` }
+  // The path ends at the conversation: the case's call, the alert's thread, else the liveliest open thread.
+  const liveThread = [...view.threads].filter((thread) => thread.status !== "CLOSED" && thread.status !== "RESOLVED").sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0] ?? view.threads[0] ?? null
+  const threadAnchor = liveThread ? `#thread-${liveThread.id}` : "#timeline"
+  if (need) {
+    const kase = view.cases.find((item) => item.pending.some((card) => card.title === need?.title))
+    const call = kase ? view.calls.find((item) => item.caseId === kase.id) : null
+    need.href = `/orders/${bundle.order.id}${call ? `#call-${call.id}` : kase ? `#case-${kase.id}` : "#case"}`
+  }
+  if (!need && pressing) {
+    const alert = pressing.kind === "alert" || pressing.kind === "owned_alert" ? view.alerts.find((item) => item.id === pressing.recordId) : null
+    const anchor = pressing.kind === "conversation" || pressing.kind === "waiting" ? `#thread-${pressing.recordId}` : alert?.conversationId ? `#thread-${alert.conversationId}` : threadAnchor
+    need = { title: pressing.title, ask: pressing.detail, since: pressing.at, sinceLabel: pressing.at ? t.at(pressing.at) : null, href: `/orders/${bundle.order.id}${anchor}` }
+  }
 
   // ---- watching: deadlines at risk, conflicts, silent gaps, open reviews
   const gps = bundle.cr.gps
@@ -370,7 +382,7 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
     vehicle: header.vehicle?.title ?? "Vehicle not linked", make: primary?.vehicle.make ?? null,
     customer: bundle.customer.name, driver, from: header.from.city, to: header.to.city, laneLabel: header.laneLabel, zone, simNow: now,
     headline, tone: need ? "danger" : view.story.tone,
-    need, fault, strip, watching: shownWatching, recent: recentLines.slice(0, 3), ahead, behind, records, recordsFromService: !!typed,
+    need, fault, strip, watching: shownWatching, conversationHref: need?.href ?? `/orders/${bundle.order.id}${view.calls[0] ? `#call-${view.calls[0].id}` : threadAnchor}`, recent: recentLines.slice(0, 3), ahead, behind, records, recordsFromService: !!typed,
   }
 }
 

@@ -119,10 +119,11 @@ export function ConversationsSection({ view }: { view: RecordView }) {
 }
 
 function ThreadRow({ thread, view }: { thread: ThreadView; view: RecordView }) {
-  const [open, setOpen] = useState(false)
+  // Opened when the map deep-links to this thread.
+  const [open, setOpen] = useState(() => typeof window !== "undefined" && window.location.hash === `#thread-${thread.id}`)
   const last = thread.messages[thread.messages.length - 1]
   const count = thread.messages.length
-  return <article className="row">
+  return <article className="row" id={`thread-${thread.id}`}>
     <div className="row-main">
       <div className="row-title">{thread.categoryLabel} <Chip tone={thread.tone}>{thread.statusLabel}</Chip></div>
       <div className="row-sub">

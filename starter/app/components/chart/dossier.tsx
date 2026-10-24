@@ -60,7 +60,7 @@ export function Dossier({ node, onClose }: { node: ChartNode; onClose: () => voi
         <b>{view.need.title}</b>
         {view.need.ask && <p>{view.need.ask}</p>}
         <span className="ds-need-foot">
-          <Link href={view.need.href}>Decide on the order page<Icon name="arrow" size={12} /></Link>
+          <Link href={view.need.href}>Open the conversation<Icon name="arrow" size={12} /></Link>
           {view.need.sinceLabel && <span>since {view.need.sinceLabel}</span>}
         </span>
         {view.need.chain && view.need.chain.length > 0 && <details className="ds-fold-inline"><summary>How it got here</summary><ul>{view.need.chain.map((line) => <li key={line}>{line}</li>)}</ul></details>}
@@ -123,7 +123,7 @@ export function Dossier({ node, onClose }: { node: ChartNode; onClose: () => voi
     </div>}
 
     <footer className="ds-foot">
-      <Link className="ds-open" href={`/orders/${node.orderId}`}>Open the full order<Icon name="arrow" size={13} /></Link>
+      <Link className="ds-open" href={view?.conversationHref ?? `/orders/${node.orderId}`}>Open the full order<Icon name="arrow" size={13} /></Link>
     </footer>
   </aside>
 }

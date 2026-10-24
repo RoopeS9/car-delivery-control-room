@@ -188,7 +188,7 @@ function CaseBlock({ kase, view, onChange }: { kase: CaseView; view: RecordView;
       <b>Next:</b> {kase.nextStep}
       {(kase.waitingOn || kase.nextCheckLabel) && <span className={`decided-wait${kase.overdue ? " overdue" : ""}`}>{kase.waitingOn ? `Waiting on ${kase.waitingOn}` : "Waiting"}{kase.nextCheckLabel ? ` · ${kase.nextCheckLabel}` : ""}</span>}
     </div></div>}
-    {kase.pending.length === 0 && awaiting.length === 0 && open && <TellAgent caseId={kase.id} onSent={onChange} startOpen={kase.status === "NEEDS_DECISION" && kase.unknown.length === 0} />}
+    {kase.pending.length === 0 && awaiting.length === 0 && open && <TellAgent caseId={kase.id} onSent={onChange} startOpen={(kase.status === "NEEDS_DECISION" && kase.unknown.length === 0) || (typeof window !== "undefined" && window.location.hash === `#case-${kase.id}`)} />}
     {kase.decided.length > 0 && <div className="case-history">
       <h3>Decisions on this case</h3>
       {kase.decided.map((card) => <DecidedCard key={card.id} card={card} />)}

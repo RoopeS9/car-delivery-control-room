@@ -1034,3 +1034,6 @@ a.source:hover { border-color: var(--sand); color: var(--ink); }
 .app-rail:not(.rail-open) .nav-more { margin: 0 0 6px; }
 .app-rail:not(.rail-open) .nav-more summary { justify-content: center; padding: 6px; }
 .app-rail:not(.rail-open) .nav-more ul { display: none; }
+
+/* Where a deep link from the map landed: a brief ring. */
+.landed { box-shadow: 0 0 0 3px var(--teal) !important; border-radius: 12px; transition: box-shadow 0.6s ease; scroll-margin-top: 20px; }

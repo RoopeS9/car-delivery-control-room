@@ -44,9 +44,23 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
     if (detail) document.title = `${detail.view.header.reference} · ${detail.view.header.vehicle?.title ?? "Order"} · Road Desk`
   }, [detail])
 
+  // A deep link from the map (#thread-…, #call-…, #case-…) lands on that conversation once it has rendered.
+  const landed = useRef(false)
+  useEffect(() => {
+    if (!detail || landed.current || !window.location.hash) return
+    landed.current = true
+    requestAnimationFrame(() => {
+      const target = document.getElementById(decodeURIComponent(window.location.hash.slice(1)))
+      if (!target) return
+      target.scrollIntoView({ behavior: "smooth", block: "start" })
+      target.classList.add("landed")
+      setTimeout(() => target.classList.remove("landed"), 2600)
+    })
+  }, [detail])
+
   const refresh = useCallback(() => { void load().catch(() => {}) }, [load])
 
-  return <AppFrame section="queue" snapshotAt={detail?.view.snapshotAt ?? null}><main className="page">
+  return <AppFrame section="map" snapshotAt={detail?.view.snapshotAt ?? null}><main className="page">
     <nav className="crumbs" aria-label="Breadcrumb"><Link href="/">Map</Link><span>/</span><span>{detail?.view.header.reference ?? "Record"}</span></nav>
     {error && !detail && <div className="record-state" role="alert"><h1>{error}</h1><p>The record could not be opened. <Link href="/">Back to the map</Link></p></div>}
     {!error && !detail && <div className="record-state" aria-busy="true"><div className="cover skeleton-cover" /><p>Loading order…</p></div>}

@@ -59,6 +59,8 @@ export type DossierView = {
   /** The car's dongle reports a lamp or trouble codes (simulated); null when there is no fault. */
   fault: { lamp: string | null; codes: { code: string; title: string | null; severity: string | null; tone: Tone }[]; freezeSpeed: string | null; atPickup: string; when: string | null } | null
   strip: StripPoint[]
+  /** Where "Open the full order" lands: the conversation that matters. */
+  conversationHref: string
   /** At most three. */
   watching: WatchItem[]
   /** The last three things a person did or said, newest first. */
