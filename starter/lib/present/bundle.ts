@@ -1,8 +1,20 @@
 // One order with everything the projections read, in a shape both the board and
 // the record view can share. The routes build bundles from the database rows.
 
+import type { CaseRow, EventRow as CrEventRow, ProposalRow } from "@/lib/cr/queries"
 import type { Directory } from "./actors"
 import type { Row } from "./types"
+
+/** Our cr_ rows for one order (on the board: open cases and waiting cards). Empty when the cr_ tables are missing. */
+export type CrSlice = {
+  cases: CaseRow[]
+  proposals: ProposalRow[]
+  events: CrEventRow[]
+  /** The simulated clock when the slice was loaded, as ISO. */
+  now: string
+}
+
+export const emptyCr = (now: string): CrSlice => ({ cases: [], proposals: [], events: [], now })
 
 export type AlertRow = {
   id: string; status: string; severity: string; signal: string; summary: string; triggeredAt: string; details: Row
@@ -43,6 +55,8 @@ export type Bundle = {
   /** Support inbox threads whose candidate or linked orders include this order. */
   inboxThreads: RelatedRow[]
   bundleOrderRefs: Record<string, string>
+  /** Team Random's cases, decision cards and live timeline for this order. */
+  cr: CrSlice
 }
 
 export function rows(bundle: Bundle, collection: string): RelatedRow[] {

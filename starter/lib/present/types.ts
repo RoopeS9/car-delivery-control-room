@@ -33,6 +33,10 @@ export type Place = {
 export type AttentionKind =
   | "alert" | "owned_alert" | "work" | "incident" | "waiting" | "conversation" | "proposal"
   | "claim" | "custody" | "check" | "inbox"
+  /** A decision card from our road agent, waiting on a person. */
+  | "decision"
+  /** One of our cases that is open but has no card waiting (agent working, or waiting on someone outside). */
+  | "case"
 
 export type AttentionItem = {
   kind: AttentionKind
@@ -63,7 +67,7 @@ export type KeyDate = {
   note: string | null
 }
 
-export type WorkLine = { icon: "driver" | "offer" | "alert" | "work" | "waiting" | "proposal" | "incident" | "note"; text: string; tone: Tone }
+export type WorkLine = { icon: "driver" | "offer" | "alert" | "work" | "waiting" | "proposal" | "incident" | "note" | "bot"; text: string; tone: Tone }
 
 export type BoardCard = {
   id: string
@@ -552,6 +556,12 @@ export type RecordView = {
   inboxHints: { id: string; state: string; stateLabel: string; category: string; channel: string; owner: string | null; waitingOn: string | null; basis: string | null; confirmed: boolean; candidates: OrderRef[]; linked: OrderRef[] }[]
   otherRecords: { collection: string; label: string; count: number }[]
   sections: { id: string; label: string; count: number | null }[]
+  /** Our cases on this order, newest first, each with its decision cards. */
+  cases: CaseView[]
+  /** Dataset messages and events merged with our case timeline, oldest first. */
+  timeline: TimelineEntry[]
+  /** The simulated clock when the view was built. Live "x min ago" is measured from here. */
+  simNow: string
 }
 
 export type EntityKind = "driver" | "customer" | "site"
@@ -612,3 +622,136 @@ export type InboxView = { snapshotAt: string | null; threads: InboxThreadView[];
 
 export type EntityListItem = { id: string; title: string; subtitle: string | null; count: number; href: string }
 export type EntityList = { kind: EntityKind; kindLabel: string; items: EntityListItem[] }
+
+// ---------------------------------------------------------------- cases (team Random)
+
+/** Where one fact came from, printed as a chip: "Driver, app chat · 08:22". */
+export type SourceChip = { kind: string; id: string; label: string; at: string | null; href?: string | null }
+
+export type DraftView = {
+  toName: string
+  /** "customer", "pickup site", "driver". */
+  toRole: string
+  isCustomer: boolean
+  channelLabel: string
+  subject: string | null
+  body: string
+}
+
+export type DecisionCardView = {
+  id: string
+  caseId: string
+  actionType: string
+  actionLabel: string
+  title: string
+  rationale: string
+  status: string
+  statusLabel: string
+  tone: Tone
+  pending: boolean
+  whatHappened: string | null
+  facts: { text: string; sources: SourceChip[] }[]
+  agentDid: string[]
+  unknowns: string[]
+  recommendation: string | null
+  alternatives: string[]
+  changes: { label: string; before: string | null; after: string }[]
+  draft: DraftView | null
+  /** The operator's version, when they edited the draft before approving. */
+  editedDraft: DraftView | null
+  options: { id: string; label: string; description: string | null; recommended: boolean }[]
+  evidence: SourceChip[]
+  nextIfApproved: string
+  nextIfRejected: string
+  createdAt: string
+  createdBy: string
+  /** Why this needs a person: the autonomy rule that applies to the action type. */
+  approvalRule: string
+  decision: { by: string; at: string | null; note: string | null; option: string | null; nextStep: string | null; executedAt: string | null } | null
+}
+
+export type CaseView = {
+  id: string
+  kind: string
+  kindLabel: string
+  status: string
+  statusLabel: string
+  tone: Tone
+  urgency: string
+  urgencyLabel: string
+  title: string
+  summary: string
+  channelLabel: string
+  openedAt: string
+  updatedAt: string
+  resolvedAt: string | null
+  owner: string | null
+  waitingOn: string | null
+  nextStep: string | null
+  sources: SourceChip[]
+  pending: DecisionCardView[]
+  decided: DecisionCardView[]
+}
+
+export type TimelineEntry = {
+  id: string
+  at: string
+  actorName: string
+  actorRole: string | null
+  actorKind: string
+  /** message, voice, photo, safety, lookup, proposal, decision, effect, telemetry, event, note */
+  kind: string
+  text: string
+  /** "App chat to Hamburg Prestige Cars", "Voice call", "OBD dongle (simulated)". */
+  channelLabel: string | null
+  /** Where the line comes from, so a reader can tell a record from a live event. */
+  source: SourceChip
+  tone: Tone
+  /** `record` for the dataset snapshot, `live` for events after it. */
+  origin: "record" | "live"
+  internal: boolean
+  caseId: string | null
+}
+
+// ---------------------------------------------------------------- queue (home)
+
+export type QueueRow = {
+  orderId: string
+  reference: string
+  vehicle: string
+  vehicleMake: string | null
+  route: string
+  customer: string
+  caseId: string | null
+  /** One line: what happened. */
+  headline: string
+  /** The decision waiting, or what the case waits on. */
+  ask: string | null
+  tone: Tone
+  urgency: string | null
+  urgencyLabel: string | null
+  statusLabel: string
+  /** "Road agent", a desk title, or "No one yet". */
+  who: string
+  whoKind: "agent" | "person" | "nobody"
+  /** The moment the age is measured from. */
+  since: string | null
+  sinceLabel: string
+  /** Other open items on the order, in a few words. */
+  more: string | null
+}
+
+export type QueueView = {
+  snapshotAt: string | null
+  simNow: string
+  decide: QueueRow[]
+  agentWorking: QueueRow[]
+  waiting: QueueRow[]
+  /** Records in the snapshot that a person should look at and no case covers yet. */
+  records: QueueRow[]
+  handled: QueueRow[]
+  /** Orders with only routine open items (owned threads, waiting conversations). */
+  routineCount: number
+  quietCount: number
+  total: number
+}

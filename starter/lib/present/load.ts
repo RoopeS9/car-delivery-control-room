@@ -7,8 +7,10 @@ import {
   addresses, alerts, conversations, customers, datasetMetadata, drivers, messages, operationalEvents, orderItems, orders,
   relatedRecords, sites, vehicles,
 } from "@/lib/schema"
+import { simNowIso } from "@/lib/cr/clock"
+import { listCases, listEvents, listProposals } from "@/lib/cr/queries"
 import { Directory, snapshotNames } from "./actors"
-import type { Bundle, PlaceRow, RelatedRow, SiteRow } from "./bundle"
+import { type Bundle, type CrSlice, emptyCr, type PlaceRow, type RelatedRow, type SiteRow } from "./bundle"
 import type { Row } from "./types"
 
 type OrderRow = typeof orders.$inferSelect
@@ -65,6 +67,40 @@ export async function loadShared() {
 
 type Shared = Awaited<ReturnType<typeof loadShared>>
 
+/** How far back "handled by the agent" reaches on the queue, in simulated time. */
+const HANDLED_WINDOW_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Our cr_ rows, grouped by order. For the board: open cases, waiting cards and
+ * recently handled cases. For one order: everything, with its live timeline.
+ * If the cr_ tables have not been pushed yet, the starter keeps working.
+ */
+async function loadCr(orderId?: string): Promise<{ now: string; byOrder: Map<string, CrSlice> }> {
+  const now = simNowIso()
+  const byOrder = new Map<string, CrSlice>()
+  const slice = (id: string) => {
+    let entry = byOrder.get(id)
+    if (!entry) { entry = emptyCr(now); byOrder.set(id, entry) }
+    return entry
+  }
+  try {
+    const [cases, proposals, events] = orderId
+      ? await Promise.all([listCases({ orderId }), listProposals({ orderId }), listEvents({ orderId })])
+      : await Promise.all([listCases(), listProposals({ statuses: ["PENDING"] }), Promise.resolve([])])
+    const since = Date.parse(now) - HANDLED_WINDOW_MS
+    for (const row of cases) {
+      const closed = row.status === "HANDLED_BY_AGENT" || row.status === "RESOLVED"
+      if (!orderId && closed && (row.resolvedAt ?? row.updatedAt).getTime() < since) continue
+      slice(row.orderId).cases.push(row)
+    }
+    for (const row of proposals) slice(row.orderId).proposals.push(row)
+    for (const row of events) slice(row.orderId).events.push(row)
+  } catch (error) {
+    console.warn("Control room tables could not be read; showing the snapshot only.", error instanceof Error ? error.message : error)
+  }
+  return { now, byOrder }
+}
+
 function inboxFor(shared: Shared, orderId: string): RelatedRow[] {
   return shared.inbox.filter((thread) => {
     const candidates = Array.isArray(thread.details.candidate_order_ids) ? thread.details.candidate_order_ids : []
@@ -85,6 +121,7 @@ export function makeBundle(input: {
   events: (typeof operationalEvents.$inferSelect)[]
   related: Record<string, RelatedRow[] | undefined>
   bundleOrderRefs: Record<string, string>
+  cr: CrSlice
 }): Bundle {
   const { shared, order } = input
   return {
@@ -125,20 +162,22 @@ export function makeBundle(input: {
     dir: input.dir,
     inboxThreads: inboxFor(shared, order.id),
     bundleOrderRefs: input.bundleOrderRefs,
+    cr: input.cr,
   }
 }
 
 /** Every order with the records the board reads, in one pass over the database. */
-export async function loadBoardBundles(): Promise<{ snapshotAt: string | null; bundles: Bundle[] }> {
+export async function loadBoardBundles(): Promise<{ snapshotAt: string | null; simNow: string; bundles: Bundle[] }> {
   const shared = await loadShared()
   const dir = shared.makeDirectory()
-  const [orderRows, itemRows, alertRows, threadRows, relatedRows, eventRows] = await Promise.all([
+  const [orderRows, itemRows, alertRows, threadRows, relatedRows, eventRows, cr] = await Promise.all([
     db.select().from(orders).orderBy(desc(orders.updatedAt), asc(orders.reference)),
     db.select({ item: orderItems, vehicle: vehicles }).from(orderItems).innerJoin(vehicles, eq(orderItems.vehicleId, vehicles.id)),
     db.select().from(alerts),
     db.select().from(conversations),
     db.select().from(relatedRecords).where(inArray(relatedRecords.collection, BOARD_COLLECTIONS)),
     db.select().from(operationalEvents).where(inArray(operationalEvents.command, ["vehicle.picked_up", "vehicle.delivered"])),
+    loadCr(),
   ])
   const group = <T extends { orderId: string | null }>(items: T[]) => {
     const map = new Map<string, T[]>()
@@ -184,8 +223,9 @@ export async function loadBoardBundles(): Promise<{ snapshotAt: string | null; b
     events: eventsByOrder.get(order.id) ?? [],
     related: relatedByOrder.get(order.id) ?? {},
     bundleOrderRefs: {},
+    cr: cr.byOrder.get(order.id) ?? emptyCr(cr.now),
   }))
-  return { snapshotAt: shared.snapshotAt, bundles }
+  return { snapshotAt: shared.snapshotAt, simNow: cr.now, bundles }
 }
 
 export type OrderLoad = {
@@ -290,9 +330,10 @@ export async function loadOrder(id: string): Promise<OrderLoad | null> {
   const relatedRows: Record<string, RelatedRow[] | undefined> = Object.fromEntries(
     Object.entries(related).map(([collection, rows]) => [collection, (rows ?? []).map((row) => ({ id: row.id, details: row.details }))]),
   )
+  const cr = await loadCr(order.id)
   const bundle = makeBundle({
     shared, dir, order, customer, items, alerts: orderAlerts, conversations: threads, messages: orderMessages,
-    events: visibleEvents, related: relatedRows, bundleOrderRefs,
+    events: visibleEvents, related: relatedRows, bundleOrderRefs, cr: cr.byOrder.get(order.id) ?? emptyCr(cr.now),
   })
   return {
     order, customer, pickup, delivery, pickupSite: pickupSite ?? null, deliverySite: deliverySite ?? null, items,

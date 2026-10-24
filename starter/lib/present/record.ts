@@ -5,6 +5,7 @@ import { chosenWindows, deriveAttention, deriveKeyDates, latestTracking, stronge
 import {
   type Bundle, type RelatedRow, activePoints, bool, journeyPlan, list, num, obj, recordedAt, refCount, rows, str, strings,
 } from "./bundle"
+import { caseViews, mergedTimeline } from "./cases"
 import { describeEvent } from "./events"
 import { humanize, label, labelIn, laneLabel } from "./labels"
 import { dayKey, fmtDateTime, fmtDay, fmtDayHeading, fmtMoney, fmtRange, fmtWeekday, isBefore, relativeTo } from "./time"
@@ -687,10 +688,13 @@ export function buildRecordView(bundle: Bundle): RecordView {
     summary: `${summaryParts.join(" · ")}.`,
   }
 
+  const cases = caseViews(bundle)
+  const timeline = mergedTimeline(bundle)
   const story = buildStory(bundle, keyDates, assignments, offers, journey, attention)
   const tiles = buildTiles(bundle, keyDates, assignments, offers, decisive)
 
   const sections = [
+    { id: "case", label: "Case", count: cases.length },
     { id: "attention", label: "Needs a person", count: attention.length },
     { id: "journey", label: "Journey", count: null },
     { id: "conversations", label: "Conversations", count: threads.length },
@@ -709,6 +713,7 @@ export function buildRecordView(bundle: Bundle): RecordView {
     snapshotAt, story, tiles, header, attention, journey, alerts, workItems, incidents, threads, proofs, documents, custody, siteVisits, notes,
     proposals, notifications, offers, assignments, reservations, options, confirmations, terminalEvents, expenses,
     history, historyTotal: bundle.events.length, inboxHints, otherRecords, sections,
+    cases, timeline, simNow: bundle.cr.now,
   }
 }
 
