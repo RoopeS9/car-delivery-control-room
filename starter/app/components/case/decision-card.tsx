@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { decisionPath, type DecisionRequest, type DecisionResponse } from "@/lib/cr/types"
+import { decisionPath, refreshPath, type CaseActionResponse, type DecisionRequest, type DecisionResponse } from "@/lib/cr/types"
 import type { DecisionCardView, SourceChip } from "@/lib/present/types"
 import { Icon } from "../icons"
 import { When } from "../ui"
@@ -66,6 +66,22 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
     }
   }
 
+  async function redraft() {
+    setBusy(true)
+    setError("")
+    try {
+      const response = await fetch(refreshPath(card.caseId, card.id), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ by: OPERATOR.id }) })
+      const data = await response.json().catch(() => null) as CaseActionResponse | null
+      if (!response.ok) throw new Error(data?.error ?? "Could not reach the agent service. The card is unchanged.")
+      setDone(data?.next_step ?? "The agent drafts a fresh card from the new facts.")
+      onDecided()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not ask for a new draft.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   if (done) return <div className="decided-line" role="status"><Icon name="check" size={16} /><div><b>Recorded.</b> {done}</div></div>
 
   return <article className="dcard" data-tone={card.tone} aria-labelledby={`card-${card.id}`}>
@@ -73,6 +89,11 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
       <span className="dcard-eyebrow"><Icon name="proposal" size={13} />The agent recommends · {card.actionLabel}</span>
       <span className="dcard-rule" title={card.approvalRule}>{customer ? <><Icon name="key" size={12} />Customer contact · needs a person</> : "Needs your yes"}</span>
     </header>
+    {card.factsChanged && <div className="dcard-changed" role="note">
+      <Icon name="alert" size={14} />
+      <span><b>Facts changed since this was drafted:</b> {card.factsChanged.what} at <When at={card.factsChanged.at} withZone={false} />. Check the timeline, or ask for a fresh card.</span>
+      <button type="button" className="btn" disabled={busy} onClick={redraft}>Ask the agent to redraft</button>
+    </div>}
     <h2 className="dcard-title" id={`card-${card.id}`}>{card.title}</h2>
     {card.whatHappened && <p className="dcard-what">{card.whatHappened}</p>}
     {card.recommendation && card.recommendation !== card.title && <p className="dcard-rec">{card.recommendation}</p>}
@@ -167,6 +188,7 @@ export function DecidedCard({ card }: { card: DecisionCardView }) {
   if (!d) return null
   const verb = d.mode === "operator" ? "said they would handle it"
     : d.mode === "instruction" ? "told the agent what to do instead"
+    : d.mode === "refresh" ? "set it aside because facts changed"
     : card.status === "REJECTED" ? "rejected it"
     : card.status === "EDITED_AND_APPROVED" ? "approved it with changes"
     : card.status === "FAILED" ? "approved it, but it failed"

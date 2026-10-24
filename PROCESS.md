@@ -367,3 +367,23 @@ Checked / changed / rejected:
   silently discard a card.
 - Still blocked: the real-model M1 trace. `OPENROUTER_API_KEY` is not visible
   in this session.
+
+## 2026-10-24 ~12:20 UTC · Claude Code (stream B, cloud instance 2) · out-of-date cards
+
+Asked (by stream A's message, within PLAN 4.2b): show "Facts changed since
+this was drafted" on a waiting card and offer a refresh.
+
+Got: a banner on the card naming what came in and when ("a message from the
+driver at 09:01"), with "Ask the agent to redraft" posting to A's refresh
+route; a set-aside card then reads "set it aside because facts changed".
+
+Checked / changed / rejected:
+- The order view already holds the case's events, so the check runs there
+  with the same rule as A's `proposalsWithChangedFacts` (only the driver,
+  site, customer or car count as news) instead of a second query per poll.
+- The first browser test showed no banner. Cause: each test script starts its
+  own simulated clock at 09:00, so the "newer" message was stamped earlier
+  than the card. The app runs one clock per server, so the test now sets the
+  message time explicitly.
+- Noted for later: PLAN 4.6 now asks B for a call transcript block on the case
+  page once voice's `cr_calls` tables exist.

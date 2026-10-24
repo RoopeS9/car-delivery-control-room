@@ -210,7 +210,7 @@ export function decisionCardView(bundle: Bundle, proposal: ProposalRow): Decisio
   const button = typeof decisionEvent?.data?.decision === "string" ? decisionEvent.data.decision : null
   // "I'll handle it" leaves the card approved and not yet carried out until the outcome is logged.
   const awaitingOutcome = (proposal.status === "APPROVED" || proposal.status === "EDITED_AND_APPROVED") && !proposal.executedAt
-  const mode = button === "handle" || awaitingOutcome || outcome ? "operator" : button === "instruct" ? "instruction" : null
+  const mode = button === "handle" || awaitingOutcome || outcome ? "operator" : button === "instruct" ? "instruction" : button === "refresh" ? "refresh" : null
   return {
     id: proposal.id, caseId: proposal.caseId, actionType: proposal.actionType,
     actionLabel: ACTION_LABELS[proposal.actionType] ?? label(proposal.actionType),
@@ -235,7 +235,22 @@ export function decisionCardView(bundle: Bundle, proposal: ProposalRow): Decisio
       option: chosen?.label ?? null, nextStep: plainText(bundle, proposal.nextStep), executedAt: iso(proposal.executedAt), mode, outcome,
     } : null,
     awaitingOutcome,
+    factsChanged: decided ? null : factsChangedSince(bundle, proposal),
   }
+}
+
+/** Who counts as news for a waiting card; the agent's own notes and operator actions do not (as in lib/cr/queries.ts). */
+const OUTSIDE_ACTORS = new Set(["driver", "site", "customer", "obd", "phone"])
+const NEWS_FROM: Record<string, string> = { driver: "the driver", site: "the site", customer: "the customer", obd: "the car", phone: "the driver's phone" }
+
+/** The newest outside fact on the card's case that arrived after the card was drafted. */
+function factsChangedSince(bundle: Bundle, proposal: ProposalRow): DecisionCardView["factsChanged"] {
+  const newer = bundle.cr.events
+    .filter((event) => event.caseId === proposal.caseId && OUTSIDE_ACTORS.has(event.actorType) && event.at > proposal.createdAt)
+    .sort((a, b) => b.at.getTime() - a.at.getTime())[0]
+  if (!newer) return null
+  const what = newer.kind === "photo" ? "a photo" : newer.kind === "dtc" || newer.kind === "telemetry_snapshot" ? "new readings" : "a message"
+  return { at: newer.at.toISOString(), what: `${what} from ${NEWS_FROM[newer.actorType] ?? "outside"}` }
 }
 
 /** Cases on this order, open ones first, newest first within each group. */

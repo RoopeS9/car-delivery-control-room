@@ -664,6 +664,10 @@ a.source:hover { border-color: var(--sand); color: var(--ink); }
 .dcard-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; font-size: 12.5px; }
 .dcard-eyebrow { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--teal-ink); }
 .dcard-rule { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
+.dcard-changed { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; padding: 10px 12px; border-radius: var(--radius); background: var(--orange-bg); color: var(--orange-ink); font-size: 13.5px; }
+.dcard-changed span { flex: 1 1 320px; }
+.dcard-changed b { font-weight: 600; }
+.dcard-changed .btn { height: 32px; }
 .dcard-title { margin-top: 10px; font-size: 21px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.25; }
 .dcard-what { margin-top: 6px; font-size: 14.5px; color: var(--brown); max-width: 72ch; }
 .dcard-rec { margin-top: 8px; font-size: 14.5px; color: var(--ink); max-width: 72ch; }

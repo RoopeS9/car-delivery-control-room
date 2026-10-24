@@ -680,6 +680,8 @@ export type DecisionCardView = {
   } | null
   /** A person said "I'll handle it" and has not logged what happened yet. */
   awaitingOutcome: boolean
+  /** Something new came in from outside (driver, site, customer, car) after this card was drafted. */
+  factsChanged: { at: string; what: string } | null
 }
 
 export type CaseView = {
