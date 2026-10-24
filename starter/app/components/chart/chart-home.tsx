@@ -152,7 +152,10 @@ export function ChartHome({ initial }: { initial: ChartView }) {
       const saved = recall<{ center: [number, number]; zoom: number; selectedId: string | null }>("map:view")
       if (saved?.center) m.setView(saved.center, saved.zoom, { animate: false })
       else m.fitBounds([[47.5, 4.5], [64.5, 27.5]], { paddingTopLeft: [80, 60], paddingBottomRight: [40, 30] })
-      if (saved?.selectedId) { framed.current = saved.selectedId; setSelectedId(saved.selectedId) }
+      // A link with ?order=<id> (from the Demo page's delivery run) opens that order's panel; otherwise the saved selection.
+      const asked = new URLSearchParams(window.location.search).get("order")
+      if (asked) { framed.current = asked; setSelectedId(asked) }
+      else if (saved?.selectedId) { framed.current = saved.selectedId; setSelectedId(saved.selectedId) }
       m.on("moveend", () => { const c = m.getCenter(); const prev = recall<{ selectedId: string | null }>("map:view"); remember("map:view", { center: [c.lat, c.lng], zoom: m.getZoom(), selectedId: prev?.selectedId ?? null }) })
       leaflet.control.zoom({ position: "bottomright" }).addTo(m)
       m.createPane("trails").style.zIndex = "420"

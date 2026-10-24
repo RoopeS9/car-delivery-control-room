@@ -1,0 +1,42 @@
+/* Simulate a delivery: controls, stored runs, and the run's steps as a timeline. */
+.drun { margin-bottom: 36px; }
+.drun-head h2 { font-size: 18px; font-weight: 600; }
+.drun-head p { margin-top: 4px; font-size: 13.5px; color: var(--muted); max-width: 760px; }
+.drun-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 14px; }
+.drun-controls label { display: grid; gap: 3px; font-size: 12px; color: var(--subtle); }
+.drun-controls select { min-width: 280px; padding: 7px 10px; border: 1px solid var(--hair); border-radius: 8px; background: var(--birch); color: var(--ink); font: inherit; font-size: 13px; }
+.drun-twists { display: inline-flex; padding: 2px; border-radius: 999px; background: var(--hair-soft); }
+.drun-twists button { border: 0; background: none; padding: 5px 11px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.drun-twists button[aria-pressed="true"] { background: var(--birch); color: var(--ink); box-shadow: 0 1px 2px var(--shadow-lift); }
+.drun-history { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.drun-history button { padding: 4px 10px; border: 1px solid var(--hair); border-radius: 999px; background: var(--birch); font-size: 12px; color: var(--brown); }
+.drun-history button.active { border-color: var(--ink); color: var(--ink); }
+.drun-report { margin-top: 16px; padding: 16px 18px; border-radius: 12px; background: var(--birch); box-shadow: var(--shadow-card); }
+.drun-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.drun-steps { display: grid; gap: 14px; margin-top: 14px; padding-left: 18px; border-left: 2px solid var(--hair); }
+.drun-steps > li { position: relative; display: grid; gap: 6px; }
+.drun-steps > li::before { content: ""; position: absolute; left: -24px; top: 6px; width: 10px; height: 10px; border-radius: 50%; background: var(--sand); box-shadow: 0 0 0 2px var(--birch); }
+.drun-steps > li.woken::before { background: var(--teal); }
+.drun-steps > li.pending { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.drun-step-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.drun-step-head b { font-size: 14px; font-weight: 600; text-transform: capitalize; }
+.drun-derived, .drun-calls, .drun-watching { display: grid; gap: 4px; font-size: 13px; }
+.drun-derived li, .drun-calls li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.drun-derived .icon, .drun-calls .icon { color: var(--subtle); }
+.drun-derived li.dk-conflict .icon, .drun-derived li.dk-deadline_at_risk .icon { color: var(--orange-ink); }
+.drun-reasoned { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; background: var(--canvas); }
+.drun-headline { font-size: 14px; font-weight: 500; line-height: 1.4; }
+.drun-need { font-size: 13px; color: var(--red-ink); }
+.drun-need b { font-weight: 600; }
+.drun-watching li { font-size: 12.5px; color: var(--brown); }
+.chip-s.ds-due, .chip-s.ds-overdue { background: var(--red-bg); color: var(--red-ink); }
+.chip-s.ds-retry { background: var(--orange-bg); color: var(--orange-ink); }
+.chip-s.ds-done, .chip-s.s-ok, .chip-s.v-pass { background: var(--green-bg); color: var(--green-ink); }
+.chip-s.ds-blocked, .chip-s.v-partial { background: var(--hair-soft); color: var(--brown); }
+.chip-s.v-fail { background: var(--red-bg); color: var(--red-ink); }
+.drun-failures { margin-top: 14px; padding: 10px 12px; border-radius: 10px; background: var(--red-bg); color: var(--red-ink); font-size: 13px; }
+.drun-failures h3 { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.drun-failures ul { display: grid; gap: 3px; }
+.drun-call { flex-basis: 100%; display: grid; gap: 10px; margin-top: 6px; }
+.drun-call .call-side { position: static; }
+.drun-call .transcript li { max-width: 88%; }
