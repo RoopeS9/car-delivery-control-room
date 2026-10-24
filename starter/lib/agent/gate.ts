@@ -677,9 +677,11 @@ async function decideProposalUnlocked(caseId: string, proposalId: string, reques
     if (!facts) throw new DecisionError(404, "Order not found")
     await verifyBookingSelection(caseId, facts, proposal.actionType, proposal.bookingSelection, true)
   }
+  // Approving goes with the recommendation unless another option is picked. "I'll handle it" records
+  // no option by default: the operator is taking the matter on, not choosing (or booking) the recommendation.
   const option = request.option_id
     ? proposal.options.find((entry) => entry.id === request.option_id)
-    : proposal.options.find((entry) => entry.recommended) ?? null
+    : request.decision === "handle" ? null : proposal.options.find((entry) => entry.recommended) ?? null
   if (request.option_id && !option) throw new DecisionError(400, "That option is not on this card.")
   const edited = request.edited_draft_message ?? null
   if (edited && proposal.draftMessage && (edited.to_type !== proposal.draftMessage.to_type || edited.to_id !== proposal.draftMessage.to_id)) {

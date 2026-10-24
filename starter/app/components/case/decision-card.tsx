@@ -41,6 +41,9 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
   const recommended = card.options.find((option) => option.recommended) ?? card.options[0] ?? null
   const [mode, setMode] = useState<Mode>("idle")
   const [optionId, setOptionId] = useState<string | null>(recommended?.id ?? null)
+  // "I'll handle it" records no option unless the operator picked one: the pre-selected
+  // recommendation is not a choice they made, and a phone call is not approval to book.
+  const [optionTouched, setOptionTouched] = useState(false)
   const [draft, setDraft] = useState(card.draft?.body ?? "")
   const [note, setNote] = useState("")
   const [busy, setBusy] = useState(false)
@@ -64,7 +67,7 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
     try {
       const edited = mode === "edit" && card.draft && draft.trim() !== card.draft.body.trim()
       const result = await send(card, {
-        decision, decided_by: OPERATOR.id, note: note.trim() || null, option_id: optionId,
+        decision, decided_by: OPERATOR.id, note: note.trim() || null, option_id: decision === "handle" && !optionTouched ? null : optionId,
         edited_draft_message: edited && card.draft ? { ...card.draft.original, body: draft.trim() } : null,
       })
       setDone(result.next_step || (decision === "reject" ? card.nextIfRejected : card.nextIfApproved))
@@ -149,7 +152,7 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
     {card.actionType !== "BOOK_TRAVEL" && (card.options.length > 1 || card.choiceOnly) && <fieldset className="dcard-sec dcard-options">
       <legend>Choose</legend>
       {card.options.map((option) => <label key={option.id} className={`dcard-option${optionId === option.id ? " on" : ""}`}>
-        <input type="radio" name={`opt-${card.id}`} checked={optionId === option.id} onChange={() => setOptionId(option.id)} />
+        <input type="radio" name={`opt-${card.id}`} checked={optionId === option.id} onChange={() => { setOptionId(option.id); setOptionTouched(true) }} />
         <span><b>{option.label}</b>{option.recommended && <em> · recommended</em>}{option.description && <small>{option.description}</small>}</span>
       </label>)}
     </fieldset>}
@@ -188,6 +191,8 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
     <div className="dcard-actions">
       {mode === "idle" && card.choiceOnly && <>
         <button type="button" className="btn primary" disabled={busy || !chosen} onClick={() => decide("approve")}>{chosen ? chosen.label : "Choose an option"}</button>
+        {/* The options are often things a person does outside the system (call the driver). PLAN 4.2b / scenario F: "I'll handle it", then log what happened. */}
+        <button type="button" className="btn" disabled={busy} onClick={() => decide("handle")}>I&apos;ll handle it</button>
         <span className="dcard-spacer" />
         <button type="button" className="btn quiet" disabled={busy} onClick={() => { setMode("instruct"); setError("") }}>Tell the agent instead</button>
       </>}
@@ -236,7 +241,7 @@ export function DecidedCard({ card }: { card: DecisionCardView }) {
     : d.mode === "refresh" ? "set it aside because facts changed"
     : card.outdated ? "approved it, but it went out of date before it ran"
     : card.status === "REJECTED" ? "rejected it"
-    : card.status === "EDITED_AND_APPROVED" ? "approved it with changes"
+    : card.editedDraft || card.status === "EDITED_AND_APPROVED" ? "approved it with changes"
     : card.status === "FAILED" ? "approved it, but it failed"
     : "approved it"
   return <div className="decided" data-tone={card.tone}>
@@ -248,6 +253,11 @@ export function DecidedCard({ card }: { card: DecisionCardView }) {
     {d.note && <p className="decided-note">“{d.note}”</p>}
     {d.outcome && <p>What happened: {d.outcome}</p>}
     {d.nextStep && !d.outcome && <p className="decided-next"><b>Next:</b> {d.nextStep}</p>}
+    {/* What went out is the operator's version, not the agent's draft: keep both findable. */}
+    {card.editedDraft && <details className="more">
+      <summary><Icon name="chevron" size={12} />{card.draft?.channelLabel === "Phone call" ? "The talking points as edited" : "The message as edited"}</summary>
+      <blockquote className="dcard-draft">{card.editedDraft.subject && <b>{card.editedDraft.subject}</b>}{card.editedDraft.body}</blockquote>
+    </details>}
   </div>
 }
 

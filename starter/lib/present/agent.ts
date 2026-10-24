@@ -9,7 +9,8 @@ import { crDb } from "@/lib/cr/db"
 import { listAutonomy, listRuns } from "@/lib/cr/queries"
 import { crEvents } from "@/lib/cr/schema"
 import { orders } from "@/lib/schema"
-import { ACTION_LABELS, CHANNEL_LABELS } from "./cases"
+import { ACTION_LABELS, CHANNEL_LABELS, plainTokens } from "./cases"
+import { oneLine } from "./text"
 import { label } from "./labels"
 import type { ActivityView, AgentPageView, AutonomyView, InlineRun, PlaybookBlock, PlaybookView } from "./types"
 
@@ -105,7 +106,7 @@ async function loadActivity(): Promise<ActivityView[]> {
   const byId = new Map(refs.map((row) => [row.id, row.reference]))
   return rows.map((row) => ({
     id: row.id, at: row.at.toISOString(), orderId: row.orderId, reference: byId.get(row.orderId) ?? row.orderId,
-    text: row.body, kind: row.channel === "safety" ? "safety" : row.kind,
+    text: oneLine(plainTokens(row.body)), kind: row.channel === "safety" ? "safety" : row.kind,
     channelLabel: row.channel === "internal" || row.channel === "safety" ? null : CHANNEL_LABELS[row.channel] ?? label(row.channel),
   }))
 }

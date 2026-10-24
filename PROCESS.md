@@ -4,6 +4,7 @@ A running log of how team Random used coding agents (Claude Code and others)
 to build this. Newest entries at the bottom. Format:
 
 ```
+
 ## <time UTC> · <who / which agent> · <stream>
 Asked: ...
 Got: ...
@@ -281,8 +282,12 @@ full run). `npm run typecheck` and `npm run build` pass.
 Lesson: the scripted checks tested what we had thought of. Reading the
 transcript as a person found the petrol smell. Both findings are now
 assertions.
+
 ## 2026-10-24 ~11:45 UTC · Claude Code (stream A agent) · M0 foundation
+
 ## 2026-10-24 ~12:15 UTC · Claude Code (stream A agent) · M0 foundation
+
+## 2026-10-24 ~11:45 UTC · Claude Code (stream A agent) · M0 foundation
 
 Asked: do M0 (shared contract) since `lib/cr/` did not exist, then move on to
 the agent.
@@ -346,6 +351,7 @@ Checked / changed / rejected:
   the snapshot instead of breaking the starter.
 
 ## 2026-10-24 ~12:00 UTC · Claude Code (stream A agent) · agent core + channel routes
+
 ## 2026-10-24 ~13:30 UTC · Claude Code (stream A agent) · agent core + channel routes
 
 Asked: build the agent (loop, tools, gates) toward M1; mid-way, pull the
@@ -473,6 +479,7 @@ Checked / changed / rejected:
 - Rulebook inline code (`request_photo`, `STOP_NOW`) renders as plain words
   for operators instead of code.
 - Smoke still reports agreement on all 100 orders; build passes.
+
 ## 2026-10-24 ~12:45 UTC · Claude Code (stream C) · driver app shell, wired to the agent
 
 Asked: the driver app shell, against the 4.2c channel contract; then connect
@@ -506,35 +513,6 @@ Checked / changed / rejected:
   confirmed yet" rather than implying the driver is booked onto the ship.
 - The Call button appears only once `/driver/voice` exists (voice stream).
 
-## 2026-10-24 · RoopeS + Claude Code (local) · voice design
-
-Asked: the best approach for voice. Requirements from us: a reliable
-transcript for later use, an interview that asks the right things with low
-latency, the agent works through the transcript afterwards, and the first
-question decides whether it is urgent. Mentioned Moshi as an option. Also
-pasted another LLM's suggestion (ElevenLabs through OpenRouter for speech
-out, Chrome for speech in).
-
-Got: before deciding, the agent measured instead of guessing:
-- OpenRouter's model list: there is no Moshi or other full-duplex model.
-  There are 36 speech models and 28 transcription models.
-- A round trip: ElevenLabs Flash speech in 0.63 s; four transcription models
-  in about 1.1 s each, all accurate.
-- First words: Haiku 5.5 0.75 s, Sonnet 5.5 0.84 s, Opus 5.5 5.9 s.
-
-Checked / changed / rejected:
-- Rejected the full Opus agent inside the live call: 5.9 s per turn is too
-  slow. Split instead into a fast interviewer (Sonnet, preloaded context,
-  slot-filling) and an Opus analyst that works on the transcript.
-- Kept Chrome speech recognition only for live speed. The transcript of record
-  comes from recording each utterance and transcribing it on the server,
-  because Chrome keeps no audio and is unreliable in a noisy hall.
-- Rejected speech-to-speech models (no explicit transcript, harder rule
-  control), but kept the VoiceProvider swap point.
-- Added the echo problem (laptop speakers + mic): half-duplex for the demo.
-- Noticed Sonnet volunteered mechanical detail ("cylinder 2, catalytic
-  converter") in the latency test: the interviewer prompt must hold to
-  safety-only advice.
 ## 2026-10-24 ~14:15 UTC · Claude Code (stream A agent) · M1 acceptance tests
 
 Asked: prove in code that customer contact cannot happen without approval
@@ -585,36 +563,6 @@ Checked / changed / rejected:
   silently discard a card.
 - Still blocked: the real-model M1 trace. `OPENROUTER_API_KEY` is not visible
   in this session.
-
-## 2026-10-24 · RoopeS + Claude Code (local) · second plan review
-
-Asked: assess a plan review from another LLM (nine holes) and fold in the good
-parts.
-
-Got: Claude agreed with eight of the nine points and partly agreed with
-point 9. It also owned one mistake of its own: the scenario scripts stated
-conclusions the evidence didn't yet support ("the 26 Oct delivery is at risk"
-before any recovery estimate; "he has not started" where the data only shows
-no recorded start).
-
-Checked / changed / rejected:
-- Reversed our earlier "road cases only" queue decision: one queue for every
-  order needing a person, in three sections (needs your decision / agent
-  working / waiting). The judges score the control room, not a support module.
-- Added follow-up state (next action, waiting on, next check), a follow-up
-  trigger, a watchdog and failure handling; a new failure scenario F (driver
-  goes silent on CD-420537, whose app had really stopped reporting at 08:02).
-- Separated operator approval from customer agreement (promise states), and
-  made approvals bound to a revision, rechecked before execution and executed
-  once, with an "outcome unknown" reconciliation state.
-- Added channel boundaries: per-audience context, server-side identity
-  check, a drivability screen on outbound driver messages, template-only
-  safety instructions.
-- One reading layer over the dataset plus executed changes, and links from
-  cases to imported work items so they don't duplicate.
-- Cut: about 15 trouble codes instead of 40, only decision-relevant OBD
-  signals, simulated driver for the video only. Kept the map and voice.
-- Reserved 40 s of the video for the process story.
 
 ## 2026-10-24 ~13:30 UTC · Claude Code (stream C) · scenarios B–F, site chat, plan update
 
@@ -722,35 +670,6 @@ Checked / changed / rejected:
   with the simulator (the stop label, the reconnect place), so the driver
   never names a different service area than the GPS shows. The model path is
   not yet run: no key in this session; the scripted path covers the same facts.
-
-## 2026-10-24 ~11:45 UTC · Claude Code (stream A agent) · M0 foundation
-
-Asked: do M0 (shared contract) since `lib/cr/` did not exist, then move on to
-the agent.
-
-Got: `starter/lib/cr/` with `types.ts` (enums, `SourceRef`, `HandoverPacket`,
-OBD/GPS shapes), `schema.ts` (six `cr_` tables, no foreign keys into starter
-tables), `queries.ts` (store/fetch only; gates stay in `lib/agent`),
-`clock.ts` (simulated clock from `SIM_NOW`) and `db.ts`. Drizzle config now
-pushes both schemas; agent env vars added to `.env.example`.
-
-Checked / changed / rejected:
-- Read `scripts/seed.ts` first: it truncates only starter tables, so `cr_`
-  rows survive a reseed. Verified by reseeding with the new tables present.
-- `lib/db.ts` imports `server-only`, which throws under `tsx`. Rather than
-  edit the starter file, `lib/cr/db.ts` opens its own client so tests and
-  scripts can share the same queries as the app.
-- Added fields the plan's table list lacked but the UI and gates need:
-  `channel` and recipient on events (to audit "never contacted a customer"
-  and to render the driver thread), `waiting_on` / `next_step` on cases,
-  and `transitionProposal()` that only updates from an expected status so a
-  double click cannot execute a proposal twice.
-- Customer contact is pinned to ASK_FIRST in two places: `setAutonomy`
-  refuses it, and `getAutonomy` ignores any stored row for it.
-- No Docker daemon in the cloud machine: ran the system Postgres 16 on port
-  5438 instead. Node 22 (not 24) here; seed, typecheck and smoke all pass.
-- Left the dark-mode token skeleton (also M0) to stream B, since
-  `globals.css` is theirs.
 
 ## 2026-10-24 ~12:00 UTC · Claude Code (stream A agent) · agent core + channel routes
 
@@ -1190,3 +1109,88 @@ Checked / changed / rejected:
 - Read the unresolved routine-seed note instead of assuming passed branch tests
   proved scenario C. Assigned a context-aware drivability fix and real-model
   recheck; completion evidence is recorded below after final verification.
+
+## 2026-10-24 ~13:40 UTC · Claude Code (stream B, cloud instance 2) · testing B against the real agent
+
+Asked: continue stream B and test the implementation. A model key reached this
+session for the first time, so every earlier check of B (its own fixtures,
+scripted tests, "hands to a person" stub mode) could finally be replaced by
+the real thing.
+
+Got: merged stream C's branch (scenarios B–F, driver app, site chat) into B's,
+set up Postgres and the app, and ran all five scenarios through the browser
+with the real agent: queue, case page, every decision button, the Ask box, map
+and agent page, in light and dark mode and at 390 px. Typecheck, 65 tests
+(11 new in B's folders, 1 new gate test), production build and smoke pass.
+Eight problems found, all fixed and shown in the browser:
+
+- **The control room showed a frozen world.** The simulator moves only when
+  something calls `/api/sim/tick`; only the driver app and /demo did. With just
+  the control room open, one card said "car stopped, engine off" next to
+  "Speed 111 km/h", and scenario F's overheating code (written by the sync)
+  never opened a case while the operator sat on the queue. Operator pages now
+  tick the simulator before the case timers, and the order and map loaders sync
+  before reading telemetry. Verified: with only the queue open, F's card
+  appeared after 96 s (the simulated 90 s plus polling).
+- **"I'll handle it" recorded a choice nobody made.** The card pre-selects the
+  recommended option and sent it with every button, and the gate fell back to
+  the recommendation. A phone call to the owner was written down as "Chosen:
+  We book tow to Birkenhain", against the rule that approval to ask is not
+  approval to book. B now sends an option with "I'll handle it" only if the
+  operator picked one, and the gate records none by default (two lines in A's
+  `gate.ts`, flagged in the commit). The new gate test fails on the old gate.
+- **Code names reached operators** ("STOP_NOW", "a CONTACT_CUSTOMER
+  proposal"). `plainText` now rewrites them and runs over every agent-written
+  card field and the activity log.
+- **Scenario F had no way through.** Choice-only "Your call" cards hid "I'll
+  handle it", so "Call the driver now" was approved as if the system had made
+  the call, the case read "Agent working, waiting on the agent", and nobody was
+  asked to log the call. The plan's F script is "I'll handle it, then log the
+  outcome"; the button is back and the whole chain works (the next card cites
+  "Shift lead, internal" as the source of the outcome).
+- **A stale summary contradicted the card.** After the operator logged that the
+  driver was stopped, the page still said "moving on the motorway, waiting for
+  his reply". A waiting card now speaks for the case; the summary shows only
+  when there is no card.
+- **An edit was invisible after approval.** The sent message used the
+  operator's edit (checked in the database), but the card only said "approved
+  it". It now says "approved it with changes" and keeps the sent text in a fold.
+- **The Ask box and agent notes showed raw markup** (`**bold**`, `- `) and a
+  raw `CHANGE_PROMISE`; the activity log was a 1,000-character wall. They are
+  rendered as formatted text (React elements, never injected HTML), and the log
+  keeps one skimmable line per step.
+- Not a bug, checked: the Ask box refused "book the ferry and message the
+  customer", explained why, and created no proposal, effect or customer message.
+
+Checked / changed / rejected:
+- Every claim above was reproduced first and verified after in the browser;
+  the two logic fixes have tests that fail on the old behaviour (including a
+  test that caught an offset bug in my own first version of `plainText`).
+- The typecheck cache hid nothing this time, but `--incremental false` still
+  found three entry builders my new field had missed.
+- My own mistake: `pkill -f "next dev"` matched the shell running it and
+  killed the dev server and the command. Stopped by listing processes instead.
+- Rejected editing A's agent prompt to fix the F dead-end at its root (see
+  below): it is A's, and B's button closes the demo path.
+- Cost: the real agent runs behind this testing cost well under $2 on Sonnet 5.5.
+
+Found, not B's, for stream A (all reproduced with the real model):
+- **Scenario C (protected core) still fails.** The drivability screen holds the
+  agent's routine key answer and turns it into a "Clear the driver to drive
+  on?" card, so the case goes to a person instead of closing. Stream C
+  reported this at ~15:15; it is still open on this branch. The agent itself
+  calls the held card "a screening artefact" in the second card. "Handled by
+  the agent" is empty in the live queue because of it.
+- Approving an `OPERATOR_DECISION` option is treated as "carried out
+  (simulated)". For options a person must do (phone the driver) the agent then
+  waits on itself. Suggest: say that the option is the operator's to do, and
+  wait on the operator for the outcome.
+- Case titles go stale: F stays "Bentley moving on motorway" after the logged
+  call says it stopped near Bremen. The agent needs a way to retitle.
+- F's second follow-up chose to wait another 5 minutes instead of escalating
+  (the first run escalated at once). The plan says one reminder, then escalate.
+- F's card says "Delivery on 22 Oct is at risk" before any recovery estimate;
+  PLAN 3 asks for wording only as far as the evidence goes.
+
+Still open in B: the call-transcript block (PLAN 4.6) waits for voice's
+`cr_calls` tables, which have not landed.

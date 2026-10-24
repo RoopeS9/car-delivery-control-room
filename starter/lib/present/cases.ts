@@ -14,6 +14,7 @@ import {
 import { describeEvent } from "./events"
 import { type Bundle, str } from "./bundle"
 import { label } from "./labels"
+import { plainTokens } from "./text"
 import { fmtClock, fmtDateTime, fmtRange, minutesBetween, relativeTo } from "./time"
 import type { AttentionItem, CallTranscriptView, CaseView, DecisionCardView, DraftView, PromiseView, SourceChip, TelemetryStripView, TimelineEntry, Tone } from "./types"
 
@@ -220,15 +221,18 @@ export function caseAttention(bundle: Bundle): AttentionItem[] {
 }
 
 /** Free text from the agent or the gate may carry a desk id ("ops-shift"); operators read the desk's title. */
+export { plainTokens }
+
 export function plainText(bundle: Bundle, text: string): string
 export function plainText(bundle: Bundle, text: string | null): string | null
 export function plainText(bundle: Bundle, text: string | null): string | null {
   if (!text) return text
-  return text
+  const words = plainTokens(text)
+  return words
     .replace(/\bops-[a-z]+\b/g, (id, offset: number) => {
       const title = bundle.dir.title(id) ?? id
       // "Shift lead does this…" at the start; "waiting on the shift lead" mid-sentence.
-      return offset === 0 || /[.!?]\s*$/.test(text.slice(0, offset)) ? title : `the ${title.toLowerCase()}`
+      return offset === 0 || /[.!?]\s*$/.test(words.slice(0, offset)) ? title : `the ${title.toLowerCase()}`
     })
     .replace(/\broad-agent\b/g, AGENT_NAME)
 }
@@ -277,14 +281,14 @@ export function decisionCardView(bundle: Bundle, proposal: ProposalRow): Decisio
   return {
     id: proposal.id, caseId: proposal.caseId, actionType: proposal.actionType,
     actionLabel: ACTION_LABELS[proposal.actionType] ?? label(proposal.actionType),
-    title: proposal.title, rationale: proposal.rationale, status: proposal.status, statusLabel: status.label, tone: status.tone,
+    title: plainText(bundle, proposal.title), rationale: plainText(bundle, proposal.rationale), status: proposal.status, statusLabel: status.label, tone: status.tone,
     pending: !decided,
-    whatHappened: handover?.what_happened ?? null,
-    facts: (handover?.facts ?? []).map((fact) => ({ text: fact.text, sources: fact.sources.map(sourceChip) })),
-    agentDid: handover?.agent_did ?? [],
-    unknowns: handover?.unknowns ?? [],
-    recommendation: handover?.recommendation ?? null,
-    alternatives: handover?.alternatives ?? [],
+    whatHappened: plainText(bundle, handover?.what_happened ?? null),
+    facts: (handover?.facts ?? []).map((fact) => ({ text: plainText(bundle, fact.text), sources: fact.sources.map(sourceChip) })),
+    agentDid: (handover?.agent_did ?? []).map((line) => plainText(bundle, line)),
+    unknowns: (handover?.unknowns ?? []).map((line) => plainText(bundle, line)),
+    recommendation: plainText(bundle, handover?.recommendation ?? null),
+    alternatives: (handover?.alternatives ?? []).map((line) => plainText(bundle, line)),
     changes: proposal.changes,
     booking: selected ? {
       kind: label(selected.kind), provider: selected.provider, from: selected.from, to: selected.to,
@@ -295,9 +299,9 @@ export function decisionCardView(bundle: Bundle, proposal: ProposalRow): Decisio
     } : null,
     draft: draftView(proposal.draftMessage),
     editedDraft: proposal.editedDraftMessage ? draftView(proposal.editedDraftMessage) : null,
-    options: proposal.options.map((option) => ({ id: option.id, label: option.label, description: option.description ?? null, recommended: !!option.recommended })),
+    options: proposal.options.map((option) => ({ id: option.id, label: plainText(bundle, option.label), description: plainText(bundle, option.description ?? null), recommended: !!option.recommended })),
     evidence: proposal.evidenceRefs.map(sourceChip),
-    nextIfApproved: proposal.nextStepIfApproved, nextIfRejected: proposal.nextStepIfRejected,
+    nextIfApproved: plainText(bundle, proposal.nextStepIfApproved), nextIfRejected: plainText(bundle, proposal.nextStepIfRejected),
     createdAt: iso(proposal.createdAt) ?? "", createdBy: ownerName(bundle, proposal.createdBy) ?? AGENT_NAME,
     approvalRule: approvalRule(proposal.actionType),
     decision: decided ? {
@@ -452,7 +456,7 @@ export function mergedTimeline(bundle: Bundle): TimelineEntry[] {
     const internal = str(d.visibility) === "INTERNAL" || channel === "internal_note"
     const channelLabel = label(channel)
     entries.push({
-      id: message.id, at: message.authoredAt, actorName: author.name, actorRole: author.role, actorKind: author.kind,
+      id: message.id, at: message.authoredAt, actorName: author.name, actorRole: author.role, actorKind: author.kind, rich: false,
       kind: "message", text: message.body,
       channelLabel: internal ? "Internal note" : recipient ? `${channelLabel} to ${recipient.name}` : channelLabel,
       source: { kind: "messages", id: message.id, label: `${channelLabel.toLowerCase()} message`, at: message.authoredAt },
@@ -462,7 +466,7 @@ export function mergedTimeline(bundle: Bundle): TimelineEntry[] {
 
   for (const alert of bundle.alerts) {
     entries.push({
-      id: alert.id, at: alert.triggeredAt, actorName: "Journey monitor", actorRole: "alert", actorKind: "system",
+      id: alert.id, at: alert.triggeredAt, actorName: "Journey monitor", actorRole: "alert", actorKind: "system", rich: false,
       kind: "alert", text: `Alert raised: ${label(alert.signal)}. ${alert.summary}`, channelLabel: `Alert, ${label(alert.status).toLowerCase()}`,
       source: { kind: "alerts", id: alert.id, label: "alert", at: alert.triggeredAt },
       tone: alert.status === "OPEN" ? (alert.severity === "critical" || alert.severity === "high" ? "danger" : "warn") : "neutral",
@@ -473,7 +477,7 @@ export function mergedTimeline(bundle: Bundle): TimelineEntry[] {
   for (const event of bundle.events) {
     const described = describeEvent(event, bundle)
     entries.push({
-      id: event.id, at: event.recordedAt, actorName: described.actor ?? "System", actorRole: null, actorKind: "system",
+      id: event.id, at: event.recordedAt, actorName: described.actor ?? "System", actorRole: null, actorKind: "system", rich: false,
       kind: "event", text: described.detail ? `${described.text}. ${described.detail}` : described.text, channelLabel: "Event log",
       source: { kind: "operational_events", id: event.id, label: "event log", at: event.recordedAt },
       tone: "neutral", origin: "record", internal: true, caseId: null, photo: null,
@@ -491,6 +495,7 @@ export function mergedTimeline(bundle: Bundle): TimelineEntry[] {
       channelLabel: to ? `${channel} to ${to}` : channel,
       source: { kind: "cr_events", id: event.id, label: event.actorType === "obd" || event.actorType === "phone" ? "simulated sensor" : "case log", at },
       tone: liveTone(event), origin: "live", internal: event.channel === "internal" || event.kind === "lookup" || event.kind === "tool_call",
+      rich: event.actorType === "agent" && (event.kind === "note" || event.channel === "operator_chat"),
       caseId: event.caseId, photo: photoOf(bundle, event),
     })
   }

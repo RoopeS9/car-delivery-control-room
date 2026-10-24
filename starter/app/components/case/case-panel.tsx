@@ -7,6 +7,7 @@ import {
 } from "@/lib/cr/types"
 import type { CaseView, PromiseView, RecordView } from "@/lib/present/types"
 import { Icon } from "../icons"
+import { RichText } from "../rich-text"
 import { When } from "../ui"
 import { DecidedCard, DecisionCard, OutdatedNotice, Sources, UnknownOutcomeNotice } from "./decision-card"
 import { OPERATOR } from "./operator"
@@ -149,7 +150,7 @@ function AskAgent({ caseId, orderRef }: { caseId: string | null; orderRef: strin
   }
   return <section className="sec ask" aria-label="Ask the agent">
     <div className="sec-head"><h2>Ask the agent</h2><span className="note">Answers with sources. It never changes anything from here.</span></div>
-    {answer && <div className="ask-answer"><p className="ask-q">{answer.q}</p><p className="ask-a">{answer.a}</p></div>}
+    {answer && <div className="ask-answer"><p className="ask-q">{answer.q}</p><RichText className="ask-a" text={answer.a} /></div>}
     <form className="ask-form" onSubmit={(event) => { event.preventDefault(); void ask() }}>
       <input value={text} onChange={(event) => setText(event.target.value)} placeholder="Has the driver sent the photo? What is the promise and who set it?" aria-label="Question for the agent" />
       <button type="submit" className="btn" disabled={busy || !text.trim()}>{busy ? "Asking…" : "Ask"}</button>
@@ -174,7 +175,8 @@ function CaseBlock({ kase, view, onChange }: { kase: CaseView; view: RecordView;
       <span className="case-opened">Opened <When at={kase.openedAt} snapshotAt={view.simNow} relative withZone={false} /> · {kase.channelLabel}{kase.owner ? ` · ${kase.owner}` : ""}</span>
     </header>
     <h2 className="case-title">{kase.title}</h2>
-    {kase.summary && <p className="case-summary">{kase.summary}</p>}
+    {/* A waiting card opens with its own, newer "what happened". The summary was written when the case opened and can contradict it. */}
+    {kase.summary && kase.pending.length === 0 && <p className="case-summary">{kase.summary}</p>}
     {kase.sources.length > 0 && <p className="case-sources">Builds on: <Sources sources={kase.sources} /></p>}
     {open && view.telemetry && VEHICLE_KINDS.has(kase.kind) && <TelemetryStrip telemetry={view.telemetry} />}
 

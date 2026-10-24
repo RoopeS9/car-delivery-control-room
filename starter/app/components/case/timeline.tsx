@@ -4,6 +4,7 @@ import { useState } from "react"
 import { fmtClock, fmtDayHeading, fmtLong } from "@/lib/present/time"
 import type { TimelineEntry } from "@/lib/present/types"
 import { Icon } from "../icons"
+import { RichText } from "../rich-text"
 
 const KIND_ICON: Record<string, string> = {
   message: "message", voice: "message", photo: "photo", safety: "alert", telemetry: "car", lookup: "search",
@@ -21,7 +22,9 @@ function Entry({ entry }: { entry: TimelineEntry }) {
         {entry.channelLabel && <span className="tl-channel">{entry.channelLabel}</span>}
         {entry.kind === "safety" && <span className="tl-flag">Safety instruction, sent at once</span>}
       </div>
-      <p className="tl-text">{entry.text}</p>
+      {entry.rich
+        ? <RichText className="tl-text rich" text={entry.text} />
+        : <p className="tl-text">{entry.text}</p>}
       {entry.photo && <a className="tl-photo" href={entry.photo.src} target="_blank" rel="noreferrer" title="Open the photo">
         {/* eslint-disable-next-line @next/next/no-img-element -- a stored upload, not a static asset */}
         <img src={entry.photo.src} alt={entry.photo.subject ? `Photo: ${entry.photo.subject}` : "Photo from the driver"} loading="lazy" />
