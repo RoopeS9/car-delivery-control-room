@@ -50,6 +50,8 @@ export function contextPrompt(d: Dossier, brief: CallBrief, opts: { maxHistory?:
     "After that never introduce yourself again and never repeat that sentence; answer what was said and ask the next question directly.",
     "The person you are talking to has no transcript and may be busy or distracted: keep track yourself of what they have and have not answered, never assume an answer they did not give, and before you close read back what you understood in one or two sentences and let them correct you.",
     "If they interrupt you, stop and listen; do not repeat what you already said unless asked.",
+    "Never ask what they already told you, even in passing: when an answer covers a later question (they said the driver should call them, so you know where the driver reports), skip that question and fold it into the read-back.",
+    "A stray word, noise, or a bye before you have asked anything is not the end of the call: say once, sorry, do you have a moment, and go on. Say the closing sentence exactly once, only after the read-back is confirmed, and nothing after it; if they speak again after it, answer in a few words and stop.",
     `When you have what you need and the read-back is confirmed, end with exactly this sentence and nothing after it: ${brief.closing}`,
     ...(brief.purpose === "DRIVER_INBOUND" ? [`If the call turned out to be routine and you answered it fully from the facts above, with nothing for an operator to do, end instead with exactly: ${ROUTINE_CLOSING}`] : []),
     "", "Below is the complete dossier of this order, with every record's evidence strength. Use it to answer questions and to notice problems, but say only what the facts above allow; everything else you may mention only as what an operator will check.",
