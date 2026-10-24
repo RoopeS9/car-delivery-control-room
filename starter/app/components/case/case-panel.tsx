@@ -173,7 +173,8 @@ function CaseBlock({ kase, view, onChange }: { kase: CaseView; view: RecordView;
       <span className="case-opened">Opened <When at={kase.openedAt} snapshotAt={view.simNow} relative withZone={false} /> · {kase.channelLabel}{kase.owner ? ` · ${kase.owner}` : ""}</span>
     </header>
     <h2 className="case-title">{kase.title}</h2>
-    {kase.summary && <p className="case-summary">{kase.summary}</p>}
+    {/* A waiting card opens with its own, newer "what happened". The summary was written when the case opened and can contradict it. */}
+    {kase.summary && kase.pending.length === 0 && <p className="case-summary">{kase.summary}</p>}
     {kase.sources.length > 0 && <p className="case-sources">Builds on: <Sources sources={kase.sources} /></p>}
     {open && view.telemetry && VEHICLE_KINDS.has(kase.kind) && <TelemetryStrip telemetry={view.telemetry} />}
 
