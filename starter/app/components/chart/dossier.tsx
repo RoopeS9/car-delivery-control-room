@@ -141,6 +141,9 @@ function Item({ item, at }: { item: DossierItem; at: (iso: string | null) => str
     <div className="ti-main">
       <p className="ti-title">{item.title}</p>
       {open && item.detail && <p className="ti-detail">{item.detail}</p>}
+      {item.violations && item.violations.length > 0 && <ul className="ti-violations" aria-label="Forbidden lines">{item.violations.map((line, index) => <li key={index}>
+        <b>{line.kind}</b>, turn {line.turn}: <q>{line.text}</q>
+      </li>)}</ul>}
       {open && item.escalated && <p className="ti-escalated"><Icon name="alert" size={12} />Handed to an operator: {item.escalated}</p>}
       {open && item.slots && item.slots.length > 0 && <ul className="ti-slots">{item.slots.map((slot) => <li key={`${slot.label}-${slot.turn}`}>
         <b>{slot.label}: {slot.value}</b> <q>{slot.quote}</q> <span>turn {slot.turn}</span>

@@ -9,6 +9,7 @@ import { Icon } from "../icons"
 import { CallOverlay, type CallTarget } from "../line/call-screen"
 import { recall, remember } from "../role-memory"
 import "./calls.css"
+import { ClaimsList, MUST_NOT_WORDS, Scorecard } from "./review-parts"
 
 
 
@@ -186,35 +187,6 @@ export function CallSimulator({ scenarios, stored, orderIds, callees, drivers, o
   </section>
 }
 
-const VERDICT_TONE: Record<CallReview["verdict"], string> = { PASS: "ok", PARTIAL: "warn", FAIL: "danger" }
-const MUST_NOT_WORDS: Record<string, string> = {
-  CUSTOMER_DETAILS: "Customer details", PRICES: "Prices", OTHER_ORDERS: "Other orders", MECHANICAL_ADVICE: "Mechanical advice", PROMISE_CHANGES: "Promise changes", CLEARANCE_TO_DRIVE: "Clearance to drive",
-}
-
-/** The review of an outbound call, above its transcript: verdict, coverage, forbidden lines, numbers not in the card, closings, turns. */
-function Scorecard({ review }: { review: CallReview }) {
-  return <section className={`scorecard sc-${VERDICT_TONE[review.verdict]}`} aria-label="Review of the call">
-    <header>
-      <span className="sc-verdict">{review.verdict}</span>
-      <p>{review.summary.replace(/\b[A-Z][A-Z_]{3,}\b/g, (code) => slotLabel(code).toLowerCase())}</p>
-    </header>
-    <dl className="sc-grid">
-      <div><dt>Coverage</dt><dd><b>{review.coverage.answered.length}/{review.coverage.asked.length}</b> asks answered
-        {review.coverage.missing.length > 0 && <small>Missing: {review.coverage.missing.map(slotLabel).join(", ")}</small>}</dd></div>
-      <div><dt>Forbidden lines</dt><dd><b>{review.violations.length}</b>{review.violations.length === 0 && <small>None said</small>}</dd></div>
-      <div><dt>Numbers not in the card</dt><dd><b>{review.unsupportedNumbers.length}</b>{review.unsupportedNumbers.length === 0 && <small>None</small>}</dd></div>
-      <div><dt>Closings</dt><dd><b>{review.closingCount}</b><small>{review.closingCount === 1 ? "Closed once" : review.closingCount === 0 ? "Never closed" : "Closed more than once"}</small></dd></div>
-      <div><dt>Turns</dt><dd><b>{review.callerTurns + review.calleeTurns}</b><small>Mira {review.callerTurns} · desk {review.calleeTurns} · {Math.round(review.durationS)} s</small></dd></div>
-    </dl>
-    {review.violations.length > 0 && <ul className="sc-lines">{review.violations.map((item, index) => <li key={index}>
-      <span className="chip-s s-missed">{MUST_NOT_WORDS[item.kind] ?? labelIn(item.kind)}</span> <a href={`#turn-${item.turnSeq}`}>turn {item.turnSeq}</a>: <q>{item.text}</q>
-    </li>)}</ul>}
-    {review.unsupportedNumbers.length > 0 && <ul className="sc-lines">{review.unsupportedNumbers.map((item, index) => <li key={index}>
-      <span className="chip-s s-unverified">“{item.value}” not in the card</span> <a href={`#turn-${item.turnSeq}`}>turn {item.turnSeq}</a>: <q>{item.text}</q>
-    </li>)}</ul>}
-  </section>
-}
-
 /** The card Mira was given, to read beside what she said. */
 function CardColumn({ brief }: { brief: NonNullable<CallRecord["brief"]> }) {
   return <aside className="call-card-col" aria-label="The card Mira was given">
@@ -261,26 +233,7 @@ function CallRecordView({ call, review }: { call: CallRecord; review: CallReview
       </ol>
 
       <aside className="call-side">
-        <h3>What the call established</h3>
-        {call.slots.length === 0 ? <p className="calls-quiet">Nothing was established.</p> : <ul className="slot-list">
-          {call.slots.map((slot) => <li key={`${slot.value.slot}-${slot.turnSeq}`}>
-            <b>{slotLabel(slot.value.slot)}</b><span className="slot-value">{slotValue(slot.value.value)}</span>
-            <a href={`#turn-${slot.turnSeq}`} className="slot-cite"><span className="chip-s s-claim">Claim</span> turn {slot.turnSeq}: <q>{slot.quote}</q></a>
-          </li>)}
-        </ul>}
-        {missing.length > 0 && <>
-          <h3>Not established</h3>
-          <ul className="slot-missing">{missing.map((slot) => <li key={slot}>{slotLabel(slot)}</li>)}</ul>
-        </>}
-        {call.retryAfter && <p className="call-retry"><Icon name="waiting" size={13} />Tries again {fmtDateTime(call.retryAfter)}</p>}
-        {call.toolCalls.length > 0 && <>
-          <h3>Actions the caller took</h3>
-          <ul className="slot-list">{call.toolCalls.map((tool, index) => <li key={index} className={tool.name === "ESCALATE_TO_OPERATOR" ? "escalate" : undefined}>
-            <b>{tool.name === "ESCALATE_TO_OPERATOR" ? "Handed to an operator" : labelIn(String(tool.name ?? "tool"))}</b>
-            {tool.argument ? <span className="slot-value">{readToolArgument(tool.argument)}</span> : null}
-            {typeof tool.turnSeq === "number" && <a href={`#turn-${tool.turnSeq}`} className="slot-cite">turn {tool.turnSeq}</a>}
-          </li>)}</ul>
-        </>}
+        <ClaimsList call={call} />
         {call.brief && call.direction !== "OUTBOUND" && <details className="call-brief">
           <summary>The brief the caller was given{call.engine === "SIMULATED_LLM" ? " (composed by the model)" : ""}</summary>
           {call.brief.mayState?.length ? <><h4>May say</h4><ul>{call.brief.mayState.map((line) => <li key={line}>{line}</li>)}</ul></> : null}

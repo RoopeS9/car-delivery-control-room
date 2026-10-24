@@ -223,7 +223,9 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
     behind.push(item)
     recent.push({ id: item.id, at: call.startedAt, text: `${call.driverName} on a call: ${call.directionLabel.toLowerCase()}${call.urgencyLabel ? `, ${call.urgencyLabel.toLowerCase()}` : ""}` })
   }
-  // Live calls on the VoiceChat line, linked by the in-app call screen with the phone's transcript.
+  // Live calls on the VoiceChat line, linked by the in-app call screen with the phone's transcript. When the call
+  // service read the transcript, the line shows its claims and review; that record is not listed twice.
+  const ingestedIds = new Set<string>()
   for (const event of bundle.cr.events) {
     const data = event.data as Record<string, unknown>
     if (typeof data.line_call_id !== "string") continue
@@ -233,15 +235,24 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
     const seconds = typeof data.duration_s === "number" ? data.duration_s : null
     const inbound = data.purpose === "DRIVER_INBOUND"
     const title = `${inbound ? "Driver called Road Desk" : `Live call: ${labelIn(String(data.purpose ?? "call")).toLowerCase()}`} on the VoiceChat line${seconds != null ? `, ${Math.max(1, Math.round(seconds / 60))} min` : ""}`
+    const ingested = typeof data.ingested_call_id === "string" ? robo.find((call) => call.id === data.ingested_call_id) ?? null : null
+    if (typeof data.ingested_call_id === "string") ingestedIds.add(data.ingested_call_id)
+    const review = data.review as { verdict?: "PASS" | "PARTIAL" | "FAIL"; violations?: { kind: string; turnSeq: number; text: string }[] } | null
+    const violations = (review?.violations ?? []).map((item) => ({ kind: labelIn(item.kind), turn: item.turnSeq, text: item.text }))
+    const base: DossierItem = ingested ? { ...roboCallItem(ingested), id: `line-${event.id}`, at } : {
+      id: `line-${event.id}`, at, kind: "call", title, detail: lines.length ? null : "The phone recorded no words.", strength: "recorded", source: "", tone: "neutral",
+      turns: lines.map((line) => ({ speaker: line.role === "model" ? (inbound ? "Road Desk" : "Mira from Bahn") : inbound ? "Driver" : "Desk", text: line.text, at })),
+    }
     behind.push({
-      id: `line-${event.id}`, at, kind: "call", title, detail: lines.length ? null : "The phone recorded no words.",
-      strength: "recorded", source: "VoiceChat line, transcript of the phone's recording", tone: "neutral",
-      turns: lines.map((line) => ({ speaker: line.role === "model" ? (inbound ? "Road Desk" : "Mira from Bahn") : inbound ? "Driver" : who.startsWith("Mira") ? "Desk" : "You", text: line.text, at })),
+      ...base, title: review?.verdict ? `${title} · review ${review.verdict.toLowerCase()}` : title,
+      source: "VoiceChat line, transcript of the phone's recording", tone: violations.length ? "danger" : base.tone,
+      violations, verdict: review?.verdict ?? null,
     })
-    recent.push({ id: `line-${event.id}`, at, text: title })
+    recent.push({ id: `line-${event.id}`, at, text: violations.length ? `${title}: ${violations.length} forbidden line${violations.length === 1 ? "" : "s"}` : title })
   }
 
   for (const call of robo) {
+    if (ingestedIds.has(call.id)) continue
     const item = roboCallItem(call)
     // The call service stamps calls with its own wall clock, which can be ahead of the simulated one.
     if (item.at && !isBefore(item.at, now)) item.detail = [item.detail, "Timed by the call service's own clock, not the simulated clock."].filter(Boolean).join(" ")

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Icon } from "../icons"
+import { ClaimsList, Scorecard } from "../calls/review-parts"
+import type { CallRecord, CallReview } from "@/lib/present/call-types"
 import "./call-screen.css"
 
 // A live call on the VoiceChat line, inside Road Desk. Only the voice backend
@@ -37,7 +39,13 @@ function clock(seconds: number): string {
 }
 
 /** The call card: name and purpose, timer, live captions, Mute, Hang up; after hang-up the phone's transcript, linked to the order. */
-export function CallScreen({ target, onClose, autoStart = false }: { target: CallTarget; onClose: () => void; autoStart?: boolean }) {
+export type LiveResult = { call: CallRecord; review: CallReview | null }
+
+export function CallScreen({ target, onClose, autoStart = false, onResult }: {
+  target: CallTarget; onClose: () => void; autoStart?: boolean
+  /** Told the extracted claims and review once the call service has read the transcript. */
+  onResult?: (result: LiveResult | null) => void
+}) {
   const [phase, setPhase] = useState<Phase>("idle")
   const [status, setStatus] = useState("")
   const [captions, setCaptions] = useState<Caption[]>([])
@@ -47,6 +55,9 @@ export function CallScreen({ target, onClose, autoStart = false }: { target: Cal
   const [, setTick] = useState(0)
   const [transcript, setTranscript] = useState<Line[] | null>(null)
   const [linked, setLinked] = useState<string | null>(null)
+  const [result, setResult] = useState<LiveResult | null>(null)
+  const [extracting, setExtracting] = useState(false)
+  const [extractError, setExtractError] = useState<string | null>(null)
   const call = useRef<{
     id: string; ws: WebSocket | null; wsPath: string; ctx: AudioContext; stream: MediaStream | null; node: AudioWorkletNode | null
     nextT: number; sources: AudioBufferSourceNode[]; lastMsg: number; reconnected: boolean; heartbeat: number; ended: boolean
@@ -130,7 +141,7 @@ export function CallScreen({ target, onClose, autoStart = false }: { target: Cal
     setPhase("ending")
     setStatus("Fetching the phone's record of the call…")
     // The phone finalises the call (audio and transcript) shortly after hang-up.
-    let record: { ended?: number | null; duration?: number; transcript?: Line[] } | null = null
+    let record: { started?: number; ended?: number | null; duration?: number; transcript?: Line[] } | null = null
     for (let attempt = 0; attempt < 20; attempt++) {
       try {
         const response = await fetch(`${LINE}/calls/${encodeURIComponent(current.id)}`, { cache: "no-store" })
@@ -141,13 +152,21 @@ export function CallScreen({ target, onClose, autoStart = false }: { target: Cal
     setTranscript(record?.transcript ?? [])
     setPhase("ended")
     setStatus(record?.ended ? `Call ended, ${clock(record.duration ?? 0)}` : "Call ended. The phone has not finished its record yet.")
+    // The call service reads the transcript for claims (and a review for outbound calls); then the call is linked to the order.
+    setExtracting(true)
     try {
       const response = await fetch("/api/line/link", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ orderRef: target.orderRef, callId: current.id, purpose: target.purpose, who: target.calleeName, duration: record?.duration ?? null, transcript: record?.transcript ?? [] }),
+        body: JSON.stringify({ orderRef: target.orderRef, callId: current.id, purpose: target.purpose, who: target.calleeName, duration: record?.duration ?? null,
+          started: record?.started ?? null, ended: record?.ended ?? null, transcript: record?.transcript ?? [] }),
       })
+      const linkedBody = (await response.json().catch(() => null)) as { ingested?: LiveResult | null; ingestError?: string | null } | null
       if (response.ok) setLinked(target.orderRef)
+      setResult(linkedBody?.ingested ?? null)
+      setExtractError(linkedBody?.ingestError ?? null)
+      onResult?.(linkedBody?.ingested ?? null)
     } catch { /* the call is still on the phone line */ }
+    setExtracting(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target])
 
@@ -304,6 +323,10 @@ export function CallScreen({ target, onClose, autoStart = false }: { target: Cal
 
     {phase === "ended" && <div className="cs-transcript">
       <p className="cs-done">{status}{linked ? <> · added to <span className="mono">{linked}</span> on the map</> : null}</p>
+      {extracting && <p className="cs-hint">Reading the transcript for claims…</p>}
+      {result?.review && <Scorecard review={result.review} compact />}
+      {result && <div className="cs-claims"><ClaimsList call={result.call} /></div>}
+      {!extracting && !result && extractError && <p className="cs-fine">Claims could not be extracted: {extractError}</p>}
       {transcript && transcript.length > 0 ? <ol>{transcript.map((line, index) => <li key={index} className={`cs-${line.role === "model" ? "model" : "user"}`}>
         <small>{clock(line.t)}</small><span>{line.text}</span>
       </li>)}</ol> : <p className="cs-hint">The phone recorded no words for this call.</p>}

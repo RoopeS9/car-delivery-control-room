@@ -30,6 +30,9 @@ export type DossierItem = {
   slots?: { label: string; value: string; quote: string; turn: number }[]
   missing?: string[]
   escalated?: string | null
+  /** Forbidden lines the review found (shown in red). */
+  violations?: { kind: string; turn: number; text: string }[]
+  verdict?: "PASS" | "PARTIAL" | "FAIL" | null
   href?: string
 }
 

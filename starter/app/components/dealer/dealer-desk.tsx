@@ -3,7 +3,8 @@
 import { useState } from "react"
 import { slotLabel } from "@/lib/present/call-types"
 import type { DealerCollection, DealerView } from "@/lib/present/dealer"
-import { CallScreen, type CallTarget } from "../line/call-screen"
+import { CallScreen, type CallTarget, type LiveResult } from "../line/call-screen"
+import { ClaimsList, Scorecard } from "../calls/review-parts"
 
 /** The desk's view of its booked collections, and the phone where Mira from Bahn calls about one of them. */
 export function DealerDesk({ site, collections, asks, callable }: {
@@ -12,14 +13,15 @@ export function DealerDesk({ site, collections, asks, callable }: {
   callable: Record<string, { may: boolean; reason: string | null }>
 }) {
   const [call, setCall] = useState<{ target: CallTarget; reference: string } | null>(null)
-  const ringing = (item: DealerCollection) => setCall({
+  const [result, setResult] = useState<LiveResult | null>(null)
+  const ringing = (item: DealerCollection) => { setResult(null); setCall({
     reference: item.reference,
     target: {
       orderRef: item.reference, purpose: "PICKUP_READINESS", calleeName: "Mira from Bahn", purposeLabel: "Pickup readiness",
       cardUrl: `http://127.0.0.1:8799/card/${item.reference}/PICKUP_READINESS?by=model`,
       youAre: `You are the desk at ${site.name}. Mira from Bahn is calling about the ${item.vehicle}${item.slot ? ` collected ${item.slot}` : ""}. Answer as the desk would.`,
     },
-  })
+  }) }
   const asked = call ? asks[call.reference] ?? null : null
   return <>
     <section className="dealer-desk" aria-label={`${site.name} desk`} data-keep-scroll="desk">
@@ -42,13 +44,17 @@ export function DealerDesk({ site, collections, asks, callable }: {
     </section>
     <section className="dealer-phone" aria-label="The desk phone">
       <div className="dealer-phone-frame">
-        {call ? <CallScreen key={call.reference} target={call.target} onClose={() => setCall(null)} />
+        {call ? <CallScreen key={call.reference} target={call.target} onClose={() => { setCall(null); setResult(null) }} onResult={setResult} />
           : <div className="dealer-idle"><b>The desk phone</b><p>Pick a collection and press Simulate outbound call: Mira from Bahn calls you about it, with a brief the model composed from the order. You answer as the desk.</p></div>}
       </div>
-      {call && asked && <div className="dealer-asks">
+      {call && result && <div className="dealer-result">
+        {result.review && <Scorecard review={result.review} />}
+        <div className="call-side"><ClaimsList call={result.call} /></div>
+      </div>}
+      {call && !result && asked && <div className="dealer-asks">
         <h3>What Mira sets out to find</h3>
         <ul>{asked.map((slot) => <li key={slot}>{slotLabel(slot)}</li>)}</ul>
-        <p className="dc-quiet">Answers from a live call are claims in the transcript. They are not extracted into fields yet; the call is linked to the order&apos;s panel on the map.</p>
+        <p className="dc-quiet">After the call, the call service reads the transcript: each answer becomes a claim citing its turn, with a review of the call. The call lands on the order&apos;s panel on the map.</p>
       </div>}
     </section>
   </>

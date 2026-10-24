@@ -30,4 +30,6 @@
 .dealer-asks { align-self: stretch; padding: 0 8px; }
 .dealer-asks ul { display: grid; gap: 3px; font-size: 13px; color: var(--brown); }
 .dealer-empty { padding: 40px; color: var(--muted); }
+.dealer-result { align-self: stretch; display: grid; gap: 10px; }
+.dealer-result .call-side { position: static; }
 @media (max-width: 1300px) { .dealer-panel { grid-template-columns: 260px 1fr; height: auto; } .dealer-phone { grid-column: 1 / -1; } }

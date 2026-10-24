@@ -116,3 +116,13 @@
 .studio-right .call-columns.with-card { grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); }
 .studio-right .call-columns.with-card .call-side { grid-column: 1 / -1; }
 @media (max-width: 1300px) { .call-columns.with-card { grid-template-columns: 1fr; } .call-card-col { position: static; } }
+
+/* Forbidden lines are always red, on simulated and live calls alike. */
+.sc-violations li { padding: 6px 10px; border-radius: 8px; background: var(--red-bg); color: var(--red-ink); border-left: 3px solid var(--tone-need); }
+.sc-violations q { color: var(--red-ink); font-weight: 500; }
+.sc-violations a { color: var(--red-ink) !important; }
+.sc-bad dt, .sc-bad b { color: var(--red-ink); }
+.sc-compact { padding: 10px 12px; gap: 8px; }
+.sc-compact .sc-grid { grid-template-columns: repeat(2, 1fr); }
+.sc-compact .sc-verdict { font-size: 16px; }
+.sc-compact header p { font-size: 12.5px; }

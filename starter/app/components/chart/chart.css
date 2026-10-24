@@ -293,6 +293,10 @@
 .ti-missing { margin-top: 6px; font-size: 12.5px; color: var(--orange-ink); }
 .ti-escalated { display: flex; gap: 6px; align-items: flex-start; margin-top: 6px; padding: 7px 9px; border-radius: 8px; background: var(--red-bg); color: var(--red-ink); font-size: 12.5px; }
 .ti-escalated .icon { margin-top: 2px; }
+/* Forbidden lines a call's review found: always red, always visible. */
+.ti-violations { display: grid; gap: 4px; margin-top: 6px; }
+.ti-violations li { padding: 6px 9px; border-radius: 8px; background: var(--red-bg); color: var(--red-ink); border-left: 3px solid var(--tone-need); font-size: 12.5px; }
+.ti-violations q { font-weight: 500; }
 
 /* Marks appear and leave softly; the wrapper's transform is Leaflet's position, so the child animates. */
 .node-wrap > * { transform-origin: center; }
