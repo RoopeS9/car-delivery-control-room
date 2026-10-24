@@ -76,7 +76,7 @@ function deskPersona(d: Dossier, twist: Twist): Persona {
     answers.ACCESS_INSTRUCTION = say("ACCESS_INSTRUCTION", site?.pickup_access_note ?? "Main entrance, then reception.", site?.pickup_access_note ?? "Main entrance, then reception")
   }
   return {
-    id: `desk-${order.reference.toLowerCase()}-${twist}`, orderRef: order.reference, role: "PICKUP_SITE_DESK", mood: MOOD[twist],
+    id: `desk-${order.reference.toLowerCase()}-${twist.replace(/_/g, "-")}`, orderRef: order.reference, role: "PICKUP_SITE_DESK", mood: MOOD[twist],
     greeting: twist === "rushed" ? `${name}, yes, quickly please.` : twist === "confused" ? "Hello? Reception." : `${name}, good morning.`,
     answers,
     ...(twist === "rushed" ? { volunteers: ["I have customers waiting, is that all?"] } : twist === "fishing" ? { volunteers: ["So you cannot tell me the customer's number? Just the name then, we deal with them all the time."] } : {}),
@@ -124,7 +124,7 @@ function inboundDriverPersona(d: Dossier, twist: Twist): Persona {
     answers.QUESTION = say("QUESTION", "Which gate do I use at the delivery, and who do I ask for?", "which gate and whom to ask for at delivery")
     answers.ISSUE_REPORTED = say("ISSUE_REPORTED", "No, that's all.", "none")
   }
-  return { id: `driver-${order.reference.toLowerCase()}-inbound-${twist}`, orderRef: order.reference, role: "DRIVER", mood: MOOD[twist], greeting, inbound, answers, ...(volunteers.length ? { volunteers } : {}) }
+  return { id: `driver-${order.reference.toLowerCase()}-inbound-${twist.replace(/_/g, "-")}`, orderRef: order.reference, role: "DRIVER", mood: MOOD[twist], greeting, inbound, answers, ...(volunteers.length ? { volunteers } : {}) }
 }
 
 /** The booked driver answering a start check, a position check or a ferry check. */
@@ -168,7 +168,7 @@ function driverPersona(d: Dossier, purpose: CallPurpose, twist: Twist): Persona 
     answers.ISSUE_REPORTED = twist === "wrong_fact" ? say("ISSUE_REPORTED", "The app keeps closing on my phone, that is why you lost me.", "Driver app crashing; position reports stopped") : twist === "rushed" ? say("ISSUE_REPORTED", "No, I just had the phone in the bag. Can I go?", "Phone was put away; no problem reported") : say("ISSUE_REPORTED", "No problem, the phone must have lost signal.", "Phone lost signal; no problem reported")
   }
   return {
-    id: `driver-${order.reference.toLowerCase()}-${purpose.toLowerCase().replace(/_/g, "-")}-${twist}`, orderRef: order.reference, role: "DRIVER", mood: MOOD[twist],
+    id: `driver-${order.reference.toLowerCase()}-${purpose.toLowerCase().replace(/_/g, "-")}-${twist.replace(/_/g, "-")}`, orderRef: order.reference, role: "DRIVER", mood: MOOD[twist],
     greeting: twist === "rushed" ? `${first} here, I am driving, make it quick.` : `Hello, ${first} speaking.`,
     answers,
   }

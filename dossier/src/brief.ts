@@ -116,7 +116,8 @@ export function driverInboundBrief(d: Dossier): CallBrief {
     opening: `Road Desk here. First: are you safe, and is this urgent?`,
     mayState, ask: ["DRIVER_SAFE", "CURRENT_LOCATION", "ISSUE_REPORTED"],
     mustNot: ["CUSTOMER_DETAILS", "PRICES", "OTHER_ORDERS", "MECHANICAL_ADVICE", "PROMISE_CHANGES", "CLEARANCE_TO_DRIVE"],
-    closing: `An operator has this now. Stay with the car and keep your phone on; we will call you back within fifteen minutes.`,
+    // Not every inbound caller is at a car (a sick driver calls from home), so the closing does not place them.
+    closing: `An operator has this now and will call you back within fifteen minutes. Keep your phone on.`,
     maxDurationS: 180, basis: basisOf([...items(d, "work_assignments"), ...(ferry ? [ferry] : []), ...(promise ? [promise] : [])]),
   })
 }

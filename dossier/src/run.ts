@@ -16,7 +16,7 @@ import { CallPurpose, CallRecord, Callee, emptyLive, type Live } from "./live"
 import { pullLive } from "./livepull"
 import { items } from "./brief"
 import { runLlmCall } from "./llm-call"
-import { reason, ReasonOutput } from "./reason"
+import { callableNames, reason, ReasonOutput } from "./reason"
 import { reviewCall } from "./review"
 import { personaFor, Twist } from "./sim/persona-from-dossier"
 import { IsoDateTime, Text } from "./primitives"
@@ -182,16 +182,6 @@ export async function runDelivery(ds: Dataset, orderId: string, report: RunRepor
 }
 
 /** Names the agent may call on this order: the booked driver, and a pickup desk that is not the customer. */
-function callableNames(d: Dossier): string[] {
-  const order = items(d, "orders")[0]?.record
-  const a = items(d, "work_assignments").map((i) => i.record).find((x) => x.status === "IN_PROGRESS" || x.status === "ASSIGNED")
-  const drv = a ? items(d, "drivers").map((i) => i.record).find((x) => x.id === a.driver_id) : undefined
-  const site = order ? items(d, "sites").map((i) => i.record).find((x) => x.id === order.pickup_site_id) : undefined
-  const out: string[] = ["driver", "the driver"]
-  if (drv) out.push(drv.display_name, drv.display_name.split(" ")[0]!)
-  if (site && order && site.customer_id !== order.customer_id) out.push(site.name, "pickup desk", "the pickup desk", "pickup site")
-  return out
-}
 import type { Dossier } from "./dossier"
 
 export function newRunReport(orderRef: string, mode: RunMode, twist: Twist): RunReport {

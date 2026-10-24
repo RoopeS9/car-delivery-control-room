@@ -6,7 +6,14 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs" || !process.env.DATABASE_URL) return
   try {
     const { catchUpSimClock } = await import("@/lib/cr/clock-catchup")
-    const moved = await catchUpSimClock()
+    // The database may still be starting (it runs in a container next to this process): try for up to three minutes.
+    let moved: number | null = null
+    for (let attempt = 0; attempt < 36 && moved === null; attempt++) {
+      try { moved = await catchUpSimClock() } catch (error) {
+        if (attempt === 35) throw error
+        await new Promise((ok) => setTimeout(ok, 5000))
+      }
+    }
     if (moved) console.log(`Road Desk: simulated clock moved up ${moved} min to the newest stored record`)
   } catch (error) {
     console.error("Road Desk: clock catch-up skipped", error instanceof Error ? error.message : error)
