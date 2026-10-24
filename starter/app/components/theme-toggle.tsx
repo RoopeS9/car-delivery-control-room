@@ -2,15 +2,12 @@
 
 import { useEffect, useState } from "react"
 import { Icon } from "./icons"
+import { THEME_KEY as KEY } from "./theme"
 
 type Choice = "system" | "light" | "dark"
 
-const KEY = "cr-theme"
 const NEXT: Record<Choice, Choice> = { system: "dark", dark: "light", light: "system" }
 const LABEL: Record<Choice, string> = { system: "Theme: system", dark: "Theme: dark", light: "Theme: light" }
-
-/** Runs before first paint (inlined in the layout) so a saved choice never flashes the other theme. */
-export const THEME_SCRIPT = `try{var t=localStorage.getItem("${KEY}");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}`
 
 function apply(choice: Choice) {
   const root = document.documentElement

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next"
-import { THEME_SCRIPT } from "./components/theme-toggle"
+import Script from "next/script"
+import { THEME_SCRIPT } from "./components/theme"
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -20,8 +21,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Applies a saved light or dark choice before first paint. */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        {/* Applies a saved light or dark choice before the app loads. */}
+        <Script id="theme" strategy="beforeInteractive">{THEME_SCRIPT}</Script>
         {/* Brand fallback faces: Unbounded for titles, Poppins for reading, Reddit Mono for identifiers.
             Loaded from Google Fonts; without a network the stack falls back to Arial. */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />

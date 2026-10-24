@@ -765,3 +765,42 @@ export type QueueView = {
   otherReasons: string[]
   total: number
 }
+
+// ---------------------------------------------------------------- map
+
+export type MapMarkerState = "decide" | "agent" | "waiting" | "fine"
+
+export type MapMarker = {
+  orderId: string
+  reference: string
+  vehicle: string
+  vehicleMake: string | null
+  route: string
+  customer: string
+  driver: string | null
+  lat: number
+  lng: number
+  /** When the simulated phone reported this position. */
+  at: string
+  ageLabel: string
+  /** No position for a while: drawn hollow with "last seen". */
+  stale: boolean
+  state: MapMarkerState
+  stateLabel: string
+  tone: Tone
+  caseId: string | null
+  caseTitle: string | null
+  ask: string | null
+  speedKmh: number | null
+  placeLabel: string | null
+  /** Always true in this prototype; shown on every position. */
+  simulated: boolean
+}
+
+export type MapView = {
+  simNow: string
+  markers: MapMarker[]
+  /** Moving orders without any simulated position yet. */
+  unplaced: { orderId: string; reference: string; vehicle: string; route: string }[]
+  staleAfterMinutes: number
+}

@@ -8,7 +8,7 @@ import {
   relatedRecords, sites, vehicles,
 } from "@/lib/schema"
 import { simNowIso } from "@/lib/cr/clock"
-import { listCases, listEvents, listProposals } from "@/lib/cr/queries"
+import { latestPositions, listCases, listEvents, listProposals, type TelemetryRow } from "@/lib/cr/queries"
 import { Directory, snapshotNames } from "./actors"
 import { type Bundle, type CrSlice, emptyCr, type PlaceRow, type RelatedRow, type SiteRow } from "./bundle"
 import type { Row } from "./types"
@@ -347,4 +347,14 @@ export async function orderRefs(ids: Iterable<string>): Promise<Record<string, s
   if (!unique.length) return {}
   const rows = await db.select({ id: orders.id, reference: orders.reference }).from(orders).where(inArray(orders.id, unique))
   return Object.fromEntries(rows.map((row) => [row.id, row.reference]))
+}
+
+/** The latest simulated phone position per order, for the map. Empty if the cr_ tables are missing. */
+export async function loadPositions(): Promise<TelemetryRow[]> {
+  try {
+    return await latestPositions()
+  } catch (error) {
+    console.warn("Simulated positions could not be read.", error instanceof Error ? error.message : error)
+    return []
+  }
 }
