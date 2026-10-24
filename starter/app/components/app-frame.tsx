@@ -8,9 +8,9 @@ export type Section = "queue" | "board" | "map" | "agent" | "inbox" | "customers
 
 const GROUPS: { label: string; links: { section: Section; href: string; label: string; icon: string }[] }[] = [
   { label: "Work", links: [
-    { section: "queue", href: "/", label: "Needs you", icon: "queue" },
+    { section: "queue", href: "/queue", label: "Needs you", icon: "queue" },
     { section: "board", href: "/board", label: "All orders", icon: "board" },
-    { section: "map", href: "/map", label: "Map", icon: "map" },
+    { section: "map", href: "/", label: "Map", icon: "map" },
     { section: "inbox", href: "/inbox", label: "Inbox", icon: "inbox" },
   ] },
   { label: "Agent", links: [
