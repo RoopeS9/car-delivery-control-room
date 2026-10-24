@@ -44,7 +44,12 @@ decision card where every fact shows its source.*
 | Map | Simulated phone GPS for moving orders, every position labelled "simulated" with its age. |
 | Drivability | Agent may give **safety-only** advice immediately ("stop the car now", "stay safe off the road"). Any "you can keep driving" needs an operator yes. The car owner (customer) decides recovery. |
 | Codebase | Extend `starter/` (Next.js 16, Postgres, Drizzle). Keep the old board at `/board`. |
-| Model | Claude via the official `@anthropic-ai/sdk`. Default `claude-opus-5-5`; model and effort come from env vars so we can tune for latency. |
+| Model access | Claude **through OpenRouter** (our event credits), using the official `@anthropic-ai/sdk` pointed at OpenRouter's Anthropic-compatible endpoint. Opus 5.5 for the demo; cheaper models while developing. See 4.2. |
+| Product name | **Road Desk**. |
+| Queue scope | The "Needs you" queue shows **only our road and driver cases** (`cr_cases`). Other dataset orders that need a person stay on the old board, reached by one quiet link with a count. |
+| After a decision | When an action needs a human outside the system (e.g. "call the dealer"), the **operator does it and logs the outcome** in one line; the agent picks the case up from there. The operator can also give the agent a free-text instruction instead of approving. |
+| Demo device | Driver app runs in a **second browser window on the same laptop** (localhost, so the mic works without HTTPS). |
+| Language | Demo in English. Agent replies in the driver's language if they write in another; operator summaries are always English. |
 
 ---
 
@@ -56,7 +61,11 @@ These are enforced **in code** (the tool executor), not only in the prompt.
    pays Bahn (`orders.customer_id`). A pickup or delivery site whose
    `sites.customer_id` equals the order's customer counts as the customer.
    Messages to a customer are always a proposal that a person approves; this
-   can never be set to automatic.
+   can never be set to automatic. **Replies count too:** when a customer writes
+   in, the agent drafts the reply and a person approves it.
+   In this dataset the delivery site belongs to the customer on 63 orders
+   (including all our scenario orders), while the pickup site does on only 4.
+   So pickup desks are normally fine to contact, but receiving dealers are not.
 2. **Approval before change.** Bookings, dates and promises, costs, driver
    reassignment, "continue driving" clearance and customer messages all go
    through a proposal. Looking things up and asking drivers or sites questions
@@ -83,34 +92,55 @@ Build towards these scenarios first; everything else is secondary.
 
 **A. Fresh warning light (headline).** CD-420584, Bentley Continental GT
 (petrol), Cologne → Helsinki, moving, no open signals in the dataset.
-1. The OBD stream shows a flashing check-engine light, misfire code(s) and
-   reduced power. The driver calls in by voice.
+Facts from the data (verified): driver **Leo Quellford** (`drv-042`), picked
+up 07:00 UTC in Cologne; last app observation 08:37, about 165 km done, 1,992
+km left; **ferry booked** West Baltic Vehicle Terminal → South Finland Vehicle
+Terminal, **check-in cutoff 15:30 UTC, departs 17:30**, booking ref
+WBV-FERRY-00584, check-in unconfirmed; customer promise **26 Oct 08:00–14:00
+UTC**, app ETA already 12:50. This gives the chain the brief describes:
+fault → recovery decision → ferry cutoff at risk → next sailing (a quote,
+not a booking) → promise at risk.
+1. Around 09:05 sim time the OBD stream shows a flashing check-engine light,
+   misfire codes and reduced power. **The agent reaches out to the driver
+   first** (proactive trigger), and the driver answers by voice.
 2. The agent: asks if they are safe → tells them to stop now (safety tier) →
    asks for the exact location and a dashboard photo → reads the photo with
-   vision → looks up the codes → checks the order (owner, promise, ferry
-   leg) → finds mocked nearby help.
-3. The operator sees one card: *"Car stopped, driver safe at <place>. Misfire
-   codes P0300/P0302, not safe to drive on. Call the dealer: their own roadside
-   assistance or our tow? Helsinki delivery on <date> will likely be late."*
-   Options: approve "call dealer" (with a drafted message), edit, or reject.
-4. The operator approves. The timeline shows what happens next and the case
-   moves to "Waiting on dealer".
+   vision → looks up the codes → checks the order (owner, promise, **ferry
+   cutoff**) → finds mocked nearby help → checks later sailings (quotes).
+3. The operator sees one card: *"Car stopped, driver safe at <service area>.
+   Misfire codes P0300/P0302, not safe to drive on. Call the dealer: their own
+   roadside assistance or our tow? Today's 15:30 ferry check-in is at risk;
+   next sailing is a quote only. The 26 Oct delivery is at risk."* Options:
+   "I'll call the dealer" (with talking points), edit, reject, or instruct the
+   agent.
+4. The operator calls (off-screen) and logs "Dealer sends their own roadside
+   help, ETA 11:00". The agent tells the driver, drafts a proposal for the
+   ferry change and a customer update, and the case moves to "Waiting on
+   roadside help". The timeline shows each step with its source.
 
-**B. Catch-up on an existing case.** CD-420322, Bentley, Munich → Hamburg. The
-dataset already has the safe stop and an open recovery decision. The agent
-reads the history, asks the driver for the OBD readout, and turns the open
-work item into a decision card. This shows that the agent respects existing
-records and sources.
+**B. Catch-up on an existing case.** CD-420322, Bentley, Munich → Hamburg,
+driver Kasper Kovelund (`drv-319`). The dataset already has the safe stop
+(08:04–08:58) and an open recovery decision. The customer promise is **today,
+21 Oct 10:00–14:00 UTC**, so the card must say it is about to be missed. The
+agent reads the history, asks the driver for the OBD readout, and turns the
+open work item into a decision card. This shows that the agent respects
+existing records and sources.
 
-**C. Routine driver question, no human needed.** E.g. CD-420145 (Porsche 911,
-Lahti → Helsinki): "Where do I leave the keys?" or "Can I claim this parking
-receipt?" The agent answers from the order and site records, or files the
-expense as a proposal, and closes the case. In the queue it shows as
-"handled by agent".
+**C. Routine driver question, no human needed.** CD-420145 (Porsche 911,
+Lahti → Helsinki, driver Kasper Carvell `drv-130`, promise today 08:00–13:00
+UTC): "Where do I leave the keys?" or "Can I claim this parking receipt?" The
+agent answers from the order and site records, or files the expense as a
+proposal, and closes the case. In the queue it shows as "handled by agent".
 
-**D. Pickup site asks for an ETA.** A site contact writes "When is the driver
-here?" The agent answers only about that order, from the simulated GPS and
-plan, saying where the estimate comes from.
+**D. Pickup site asks about the driver.** CD-420442, pickup at Orvendin Cars
+Stockholm (not the customer), site desk **Uma Aldermere** (contact confirmed
+from the site profile), selected pickup slot **22 Oct from 08:00 UTC**, driver
+Kasper Darevik, assignment status `ASSIGNED`. Uma writes "Is your driver still
+coming tomorrow morning?" The agent answers only about this order, from the
+assignment and slot records, and says what it does not know: "Kasper Darevik
+is booked for your slot tomorrow from 08:00 UTC. He has not started the
+journey yet, so there is no live position; we will message you if anything
+changes." No customer, price or other-order details.
 
 **E. Overview.** Map and queue with ~100 orders: only a handful need a person.
 
@@ -188,9 +218,42 @@ pending `cr_proposals` count as "needs a person". Keep `npm run smoke` passing.
 ### 4.2 Agent (`lib/agent/`)
 
 Read the `claude-api` skill or the live Anthropic docs before writing this
-code. Do not guess SDK names. Key points for the current API:
+code. Do not guess SDK names.
 
-- `@anthropic-ai/sdk`, model from `AGENT_MODEL` (default `claude-opus-5-5`).
+**Model access via OpenRouter** (verified 24 Oct with a real tool call on
+`anthropic/claude-opus-5.5`: tool use, `strict` tool schemas and
+`output_config.effort` all work):
+
+```ts
+import Anthropic from "@anthropic-ai/sdk"
+const client = new Anthropic({
+  baseURL: "https://openrouter.ai/api",        // no /v1: the SDK adds it
+  apiKey: null,
+  authToken: process.env.OPENROUTER_API_KEY,   // sent as Authorization: Bearer
+})
+// model ids use OpenRouter names: "anthropic/claude-opus-5.5",
+// "anthropic/claude-sonnet-5.5", "anthropic/claude-haiku-5.5"
+```
+
+- Put all of this in one module (`lib/agent/client.ts`) so nothing else knows
+  about OpenRouter.
+- Not available through OpenRouter: token counting (`count_tokens`); do not
+  rely on Anthropic beta-only parameters such as server-side refusal
+  `fallbacks`. Handle `stop_reason: "refusal"` by handing the case to a person.
+- Each response's `usage.cost` reports dollars spent. Log it in `cr_agent_runs`
+  and show the running total on `/demo`.
+- **Budget:** $60 in total (three $20 keys). The keys stop working a day after
+  the event. A short Opus 5.5 tool call cost $0.003; expect roughly $0.05–0.15
+  per agent turn with full order context. Use prompt caching (stable system
+  prompt + rulebook first), develop on `anthropic/claude-sonnet-5.5` or
+  `-haiku-5.5`, and switch to Opus 5.5 for the demo and video. The simulated
+  driver always uses Haiku 5.5.
+- **Never commit a key.** Keys live in `starter/.env` (gitignored) or the
+  cloud instance's environment settings.
+
+Key points for the current API:
+
+- Model from `AGENT_MODEL` (default `anthropic/claude-opus-5.5`).
 - Opus 5.5 thinking cannot be disabled; control depth with
   `output_config.effort`. Use `AGENT_EFFORT_FAST` (default `low`) for driver
   chat and voice turns, `AGENT_EFFORT_DEEP` (default `medium`) for case
@@ -201,7 +264,6 @@ code. Do not guess SDK names. Key points for the current API:
   passes through our gate and is logged** to `cr_agent_runs` and `cr_events`.
 - Stream for long turns. Cache the system prompt + rulebook (stable prefix
   first, volatile content last).
-- Include the server-side refusal `fallbacks` option, as the skill recommends.
 
 **One agent, three audiences.** The same loop runs with a different role
 preamble and tool subset depending on who it is talking to:
@@ -261,6 +323,84 @@ judgement about safety beyond the safety tier, or when facts conflict. Never
 retry an external action whose outcome is unknown (see CD-420299 in the
 dataset).
 
+**Triggers: when the agent runs.**
+
+| Trigger | Source | What the agent does |
+|---|---|---|
+| Driver or site message | `POST /api/channels/{driver,site}/messages` | Conversational turn; opens a case if none is open for that order and topic. |
+| Telemetry fault | Simulator writes a `dtc` or warning event | **Proactive**: opens a case and contacts the driver first ("Are you safe?") before any human sees it. |
+| Operator decision | Approve / edit / reject / log outcome / instruct | Continues the case: executes the approved effect, informs the driver, proposes the next step. |
+| Operator question | "Ask the agent" box | Read-only answer with sources; never changes anything from this box. |
+
+**One run at a time per case.** Runs are serialised per case (a simple lock
+row or in-process queue). A message that arrives mid-run is stored as an event
+and included in the next turn. A run has a step limit (e.g. 12 tool calls) and
+ends by handing over if it reaches it.
+
+### 4.2b Decisions and what happens next
+
+Every decision card offers:
+
+- **Approve**, or **Edit and approve** (the operator changes the drafted
+  message or the values).
+- **Reject**, with a one-line reason that goes back to the agent.
+- **I'll handle it**, for actions a person does outside the system, such as
+  a phone call. The case then asks for the outcome ("Log what happened"), and
+  the operator writes one line, e.g. "Dealer sends their own roadside help,
+  ETA 11:00".
+- **Tell the agent instead**: a free-text instruction ("Book the tow
+  ourselves and ask the driver to wait in the café"). It goes into the next
+  agent turn as an operator instruction.
+
+What "execute" means per action type (all simulated, all logged as an
+`effect` event with "simulated" shown in the UI):
+
+| Action | Effect |
+|---|---|
+| `CONTACT_CUSTOMER` | Message marked sent on the chosen channel; case goes to `WAITING_EXTERNAL` with a next check time. |
+| `UPDATE_ETA` / `CHANGE_PROMISE` | New ETA or promise stored as our own record, shown beside the original dataset window (the dataset is never changed). |
+| `BOOK_RECOVERY` / `BOOK_TRAVEL` | Mock booking with a fictional reference; the earlier quote stays a quote. |
+| `APPROVE_EXPENSE` | Expense marked approved (not paid). |
+| `CLEAR_TO_CONTINUE` | Driver gets the operator-approved instruction, attributed to the operator. |
+| `REASSIGN_DRIVER` | Out of scope for the demo; show as "handed to dispatch". |
+
+After every decision the card is replaced by one line in plain words: **what
+happens next, who does it, and when we check again.**
+
+If the order changes while a proposal waits (new message, new telemetry that
+contradicts it), the card shows "Facts changed since this was drafted" and
+offers a refresh. This is nice to have.
+
+### 4.2c Contracts between streams (agreed; change only after telling the team)
+
+**Driver and site channel (used by chat UI, voice and the simulated driver):**
+
+```
+POST /api/channels/driver/messages
+  body: { orderRef: "CD-420584", driverId: "drv-042", text: string,
+          mode: "chat" | "voice", photoIds?: string[] }
+  response: text/event-stream
+    event: text_delta  data: { text }
+    event: done        data: { caseId, replyEventId }
+    event: error       data: { message }
+
+POST /api/channels/site/messages       same shape with siteContactId instead of driverId
+POST /api/channels/photos              multipart upload -> { photoId } (stored via lib/object-store.ts)
+GET  /api/channels/driver/:driverId/feed?since=ISO   -> agent-initiated messages for the driver app
+```
+
+- `mode: "voice"` makes the agent answer in 1–2 short spoken sentences, with
+  no lists or markdown.
+- The voice code only owns the browser side: capturing speech, transcribing
+  it, POSTing the text, and speaking the streamed reply. It never calls
+  Claude directly.
+- Agent-initiated messages (the proactive trigger) reach the driver app by
+  polling `feed` every 2 s. In voice mode, an incoming agent message rings the
+  call screen.
+
+**Live updates:** operator pages poll `GET /api/cases?since=` and
+`GET /api/cases/:id?since=` every 2–3 s. Only agent replies stream.
+
 ### 4.3 Rulebook (`rulebook/*.md`)
 
 One playbook per situation. Each has: *when it applies, facts to collect (in
@@ -298,10 +438,13 @@ petrol cars.
 
 ### 4.5 Simulation (`lib/sim/`)
 
-- **GPS:** for every `IN_TRANSIT` order, interpolate a position between
-  pickup and delivery city coordinates (via ferry terminals when the plan has a
-  ferry segment), driven by the last tracking observation's progress and the
-  sim clock. Stored in `cr_telemetry` with `simulated: true`. Some orders go
+- **GPS:** for every `IN_TRANSIT` order, place the car along its route
+  (pickup city → origin ferry terminal → destination terminal → delivery city
+  when there is a ferry), driven by the last tracking observation's
+  `progress_fraction` and the sim clock. Never draw a straight line across the
+  sea. Road shapes can be fetched once from a public routing service at build
+  time and committed as JSON in `knowledge/routes/`; a polyline through
+  terminals is the fallback. Stored in `cr_telemetry` with `simulated: true`. Some orders go
   stale on purpose to show the "last seen 47 min ago" state.
 - **OBD:** per-vehicle baseline signals with noise, ticking every few seconds
   for scenario orders (and cheaply for others). Fault injection changes the
@@ -315,6 +458,14 @@ petrol cars.
   knows the scenario facts (location, what they saw, mood) and answers the
   agent in the driver channel, so one person can run the demo. A human using
   `/driver` always overrides it.
+- **Dashboard photo:** a fictional dashboard image for scenario A (flashing
+  check-engine light, reduced-power message), drawn as SVG and rendered to PNG,
+  or generated. Stored in `public/sim/`. The driver app's "send photo" can pick
+  it in demo mode. It must be readable by Claude's vision; test it.
+- **Background "handled by agent" cases:** `npm run sim:seed-routine` runs the
+  real agent on 4–6 scripted routine driver questions on quiet moving orders
+  and keeps the results. The queue's "Handled by the agent" section then holds
+  genuine traces, not fake rows. Reset keeps or drops them by flag.
 
 ### 4.6 Voice
 
@@ -332,6 +483,10 @@ petrol cars.
   happens next ("An operator is calling the dealer now. Stay with the car.").
 - Fallback for the demo: the chat path must work alone. Record video in a
   quiet room.
+- The live demo runs the driver app in a second window on the same laptop
+  (`localhost` counts as a secure context, so the mic works). A phone over
+  the local network would need HTTPS, which we are not doing.
+- Voice uses the channel contract in 4.2c and nothing else.
 
 ### 4.7 Control room UI
 
@@ -344,13 +499,16 @@ palette and the starter fonts. All colours are CSS tokens with a dark theme
 - **Needs you (home).** A short list of cases with status `NEEDS_DECISION`
   (then `AGENT_WORKING`, then `WAITING_EXTERNAL`). Each row: car + reference,
   one-line "what happened", the decision waiting, urgency, age, who's on it
-  (agent or person). Below: "Handled by the agent today (n)" collapsed, and
-  "n orders quiet" as a count with a link to the board. Search stays.
+  (agent or person). Below: "Handled by the agent today (n)" collapsed. The
+  queue holds only our road and driver cases. One quiet line at the bottom
+  says "n other orders need a person (readiness, dispatch, documents)" and
+  links to the board. Search stays.
 - **Case / order page.** At the top, the decision card: title, recommendation,
   "what changes if you approve" (before → after), drafted message (editable),
-  source chips, buttons **Approve / Edit / Reject** (reject asks for a short
-  reason, which goes back to the agent). After deciding: a "what happens next"
-  line and the timeline updates. Then: the timeline (merged, labelled by
+  source chips, and the decision buttons from section 4.2b: Approve, Edit and
+  approve, Reject, I'll handle it (then log the outcome), and Tell the agent
+  instead. After deciding: a "what happens next" line and the timeline
+  updates. Then: the timeline (merged, labelled by
   actor and source), telemetry strip (key OBD values + codes), photos, and an
   **"Ask the agent"** box for operator questions ("Has the driver sent the
   photo?", "What is the promise and who set it?"). The starter's record
@@ -380,7 +538,7 @@ Local (and any cloud machine with Docker), from the repo root:
 
 ```sh
 cd starter
-cp .env.example .env          # add ANTHROPIC_API_KEY
+cp .env.example .env          # add OPENROUTER_API_KEY
 npm ci
 docker compose up -d --wait
 npm run db:push
@@ -397,13 +555,16 @@ optional for agent work; skip `attachments:seed` and the app still runs
 Env vars to add to `starter/.env.example`:
 
 ```
-ANTHROPIC_API_KEY=
-AGENT_MODEL=claude-opus-5-5
+OPENROUTER_API_KEY=
+AGENT_MODEL=anthropic/claude-sonnet-5.5     # switch to anthropic/claude-opus-5.5 for the demo
+SIM_DRIVER_MODEL=anthropic/claude-haiku-5.5
 AGENT_EFFORT_FAST=low
 AGENT_EFFORT_DEEP=medium
 SIM_NOW=2026-10-21T09:00:00Z
 SIM_DRIVER_ENABLED=true
 ```
+
+Remove the unused `ANTHROPIC_API_KEY` line from `.env.example`.
 
 Read `starter/AGENTS.md`: this Next.js version differs from what models
 remember. Check `node_modules/next/dist/docs/` before writing routes or
@@ -422,9 +583,18 @@ that contract. Changes to it are announced to the team.
 
 | Stream | Owner | Folders | Delivers |
 |---|---|---|---|
-| A. Agent | TBD | `lib/agent/`, `rulebook/`, `knowledge/`, `app/api/agent/`, `app/api/cases/` | Loop, tools, gates, prompts, playbooks, DTC base, traces, gating tests |
-| B. Control room | TBD | `app/page.tsx`, `app/orders/`, `app/map/`, `app/agent/`, `app/components/`, `globals.css`, `lib/present/` | Queue, decision card, timeline, ask-the-agent box, map, agent page, dark mode |
-| C. Driver, sim, voice | TBD | `app/driver/`, `app/site/`, `app/demo/`, `lib/sim/`, `app/api/sim/`, `app/api/channels/` | Driver app, site chat, OBD/GPS sim, scenarios, simulated driver, voice; video + write-up |
+| A. Agent | Cloud instance 1 | `lib/agent/`, `rulebook/`, `knowledge/` (except `routes/`), `app/api/agent/`, `app/api/cases/`, `app/api/channels/` (server side of 4.2c) | M0 contract, loop, tools, gates, triggers, decisions, prompts, playbooks, DTC base, traces, gating tests |
+| B. Control room | Cloud instance 2 | `app/page.tsx`, `app/orders/`, `app/map/`, `app/agent/`, `app/components/`, `globals.css`, `lib/present/` | Queue, decision card, timeline, ask-the-agent box, map, agent page, dark mode |
+| C. Driver app and simulation | Cloud instance 3 | `app/driver/` (except `voice/`), `app/site/`, `app/demo/`, `lib/sim/`, `app/api/sim/`, `knowledge/routes/`, `public/sim/` | Driver app shell, site chat, OBD/GPS sim, scenarios, simulated driver, dashboard photo, routine seed |
+| V. Voice | Teammate | `app/driver/voice/`, `lib/voice/` | Call screen, speech-to-text, text-to-speech, `VoiceProvider`, against the 4.2c contract only |
+| Plan and integration | RoopeS + local Claude Code | `PLAN.md`, `PROCESS.md`, `README.md` | Plan, contract changes, review and integration, demo script, video, write-up |
+
+Start order: instance 1 pushes the M0 contract (`lib/cr/`) and the channel
+route stubs (4.2c, returning a canned reply) **first**. Instances 2 and 3 and
+voice build against the stubs, so nobody waits for the real agent. Until the
+contract lands, instance 2 can do work that does not need it (tokens, dark
+mode, queue and map layout with placeholder data), and instance 3 likewise
+(GPS/OBD generators, route shapes, dashboard photo).
 
 Git: branch per stream (`agent/*`, `ui/*`, `sim/*`), small PRs into `main`,
 pull often. Do not commit `.env`.
@@ -440,9 +610,10 @@ types committed; tokens and dark mode skeleton; `PROCESS.md` started.
 *Done when:* app runs, `cr_` tables exist, smoke passes.
 
 **M1 Vertical slice, chat only (Sat evening).** Scenario A end to end with no
-polish: trigger warning light → driver chats → agent asks, looks up, gives
-the safety instruction, proposes "call dealer" → operator approves on the
-order page → timeline shows decision and next step.
+polish: trigger warning light → agent contacts the driver first → driver
+chats → agent asks, looks up, gives the safety instruction, proposes "call
+dealer" → operator picks "I'll handle it" and logs the outcome → agent
+continues → timeline shows each decision and the next step.
 *Done when:* a run is saved in `traces/` and a test proves that a
 `CONTACT_CUSTOMER` action cannot execute without approval.
 
@@ -459,6 +630,13 @@ photos → autonomy editing (show it read-only instead) → hosted voice.
 **Freeze 09:00 UTC Sun.** Then only bug fixes, README, video (record by
 11:00), write-up on prompthack, submit before 13:00.
 
+**Live judging, 13:10–15:15 UTC Sun.** Partners meet each team for a 5–10
+minute demo and discussion, on our laptop. Needs: `/demo` reset that brings
+the app back to a clean start in one click; a written run sheet (who clicks,
+who talks, who plays the driver); two full rehearsals before 12:30; the chat
+path ready if the mic or room noise fails; the video ready to play as the last
+fallback.
+
 ---
 
 ## 8. Deliverables checklist
@@ -473,6 +651,7 @@ photos → autonomy editing (show it read-only instead) → hosted voice.
 - [ ] 2–3 min video: problem → demo A → glimpse of C/D/map → process.
 - [ ] Prompthack write-up (name, tagline, story, cover screenshot, links) and
       marked as submitted.
+- [ ] Live demo run sheet, rehearsed twice.
 
 ---
 
