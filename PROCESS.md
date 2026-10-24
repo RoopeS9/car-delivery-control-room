@@ -100,3 +100,91 @@ Checked / changed / rejected:
 - Noticed Sonnet volunteered mechanical detail ("cylinder 2, catalytic
   converter") in the latency test: the interviewer prompt must hold to
   safety-only advice.
+
+## 2026-10-24 12:50 UTC · local Claude Code agent (worktree, branch voice/core) · V voice
+
+Asked: build stream V from PLAN.md 4.6: interviewer, transcript tables,
+voice routes, `<CallScreen>`, a test page and a text harness. Mid-task the
+coordinator added four rules: template-only safety lines, a drivability
+screen on every utterance, honest goodbyes (a time only when stored as
+`next_check_at`), and a reply deadline ending in `no_response`.
+
+Got:
+- `lib/voice/`: the urgency-first interviewer (Sonnet 5.5, effort low,
+  context preloaded through `lib/present/load.ts`). It streams the spoken
+  reply sentence by sentence, then a strict `record_call_state` tool call
+  with urgency and quote, situation, and slots
+  `{ value, turn_id, quote, confidence }`. Server-side phases cover the
+  checklist, read-back and closing. Also: safety templates with ids, the
+  `screenDriverUtterance` screen, a TTS cache (memory plus disk), STT, and
+  `VoiceProvider` (OpenRouter, plus a browser fallback).
+- Tables `cr_calls` and `cr_call_turns`, pushed with `db:push` (the plan
+  showed only `CREATE` statements). The drizzle schema is now
+  `["./lib/schema.ts", "./lib/*/schema.ts"]`.
+- Routes `/api/voice/calls`, `/turns` (server-sent events), `/end`,
+  `GET /calls/:id`, `/api/voice/speak`, plus one extra route,
+  `GET /calls/:id/audio/:turnId`, for the case page's play button.
+- `app/driver/voice/call-screen.tsx` (hands-free VAD, push-to-talk,
+  half-duplex, captions, urgency badge, mute, filler, speechSynthesis
+  fallback) and the test page `/driver/voice/test`.
+- `npm run voice:test` (four scripted calls plus screen cases, saved to
+  `traces/voice-*.json`) and `npm run voice:prerender`.
+
+Checked by running it:
+- Real requests before choosing formats: `/audio/transcriptions` accepts
+  `format: "webm"` from Chrome's MediaRecorder (also ogg, wav, m4a). A webm
+  clip labelled as mp3 returns a 400.
+- Haiku 5.5 thinks by default and spent all 700 output tokens on thinking,
+  so no text came back. It accepts `thinking: {type: "disabled"}`; Sonnet
+  5.5 refuses that ("reasoning is mandatory") and takes `effort` instead.
+- Streamed responses through OpenRouter carry no `usage.cost`; non-streamed
+  ones do. Spend is estimated from tokens. Measured rates: Haiku $1/$5 and
+  Sonnet $2/$10 per million tokens, ElevenLabs about $0.04 per 1,000
+  characters.
+- The harness passes all checks on Sonnet: urgency right for each script,
+  urgency question first, slots filled with quotes from their own turn,
+  read-back confirmed, emergency templates first, `call_urgent`/`call_ended`
+  recorded, `next_check_at` stored, and no mechanical, drivability, meta or
+  free-worded safety text spoken. Median latency: model first text
+  0.9–1.2 s, first screened sentence 1.9–2.3 s.
+- An HTTP smoke run on port 3001 with a real webm clip: STT text of record
+  stored beside the live text, clips in the object store, every route answering.
+
+Changed / rejected:
+- Rejected Haiku 5.5 as the interviewer, even for the harness. With
+  thinking off it spoke its instructions aloud ("This is URGENT…", "Answer
+  from the facts: … then ask the first missing item"). The harness uses
+  Sonnet as the interviewer; Haiku only runs the screen classifier.
+- The first screen prompt blocked a correct read-back as DRIVABILITY and our
+  own "your case is at the top of our list" as PROMISE. Rewrote it with
+  allow examples and kept both sentences as regression cases. An empty or
+  unclear classifier answer once counted as ALLOW; now it fails closed for
+  driving-related sentences.
+- My free-text-to-template safety mapping replaced a whole read-back with
+  "Please switch the engine off." because it mentioned "engine off". It now
+  only maps instructions (imperatives or "you should").
+- A safety template is not repeated within two turns (the emergency run said
+  "behind the barrier" three times).
+- After a read-back, the fixed "Thanks, that's noted." plays at once, then
+  the fixed closing, instead of the model's acknowledgement, which tended to
+  repeat the next step.
+- Added beyond the plan's columns: `cr_calls.state` jsonb (phase, context
+  facts with sources, urgency quote, triggers, spend), `cr_calls.next_check_at`,
+  and `cr_call_turns.flags` jsonb (safety templates used, screen results,
+  raw model text, timing, silence).
+- Audio: per-turn clips go to the object store (`voice/calls/<id>/…`), with a
+  local-disk fallback (`.voice-cache/clips`). TTS cache is in
+  `starter/.voice-cache/tts` (gitignored). No whole-call recording, so
+  `recording_key` stays null.
+- Stream A has no call trigger route yet. Voice POSTs
+  `{ trigger, callId, orderRef, urgency }` to `VOICE_AGENT_TRIGGER_PATH`
+  (default `/api/agent/call`). It gets a 404 today and records the trigger
+  on the call (TODO in `lib/voice/triggers.ts`).
+- Scripts import `lib/db.ts`, which imports `server-only` (not an installed
+  package). `scripts/voice-register.mjs` resolves it to an empty module for
+  tsx. Shared files touched: `drizzle.config.ts`, `package.json` (two
+  scripts plus `@anthropic-ai/sdk`), `.gitignore` (`.voice-cache/`), and
+  `.env.example` (VOICE_ lines).
+- Not verified: a live microphone call in Chrome. The browser extension
+  was not connected in this session, so the call screen is only typechecked,
+  built and rendered on the server.
