@@ -99,3 +99,46 @@ Checked / changed / rejected:
   5438 instead. Node 22 (not 24) here; seed, typecheck and smoke all pass.
 - Left the dark-mode token skeleton (also M0) to stream B, since
   `globals.css` is theirs.
+
+## 2026-10-24 ~13:30 UTC · Claude Code (stream A agent) · agent core + channel routes
+
+Asked: build the agent (loop, tools, gates) toward M1; mid-way, pull the
+updated plan (OpenRouter, channel contract 4.2c, decision options 4.2b,
+triggers) and follow it.
+
+Got: `lib/agent/` (OpenRouter client, context loader, tools, approval gate,
+prompts, loop, triggers) and the routes other streams build against:
+`/api/channels/{driver,site}/messages` (SSE), `/api/channels/photos`,
+driver and site feeds, `/api/cases` (list, detail, decide, outcome,
+instruct), `/api/agent/{ask,telemetry,runs}`. Without a key every route
+works in stub mode: a fixed reply, and the case goes to a person.
+
+Checked / changed / rejected:
+- Read the `claude-api` skill and the bundled Next 16 route docs first.
+  The skill's defaults (server-side refusal `fallbacks`, beta client,
+  `eager_input_streaming`) were dropped: OpenRouter does not support the
+  beta parameters, and eager streaming would turn off the schema check that
+  `strict: true` gives us. Refusals hand the case to a person instead.
+- Rules live in code, not just the prompt: per-audience tool allowlists,
+  order scoping for drivers and sites, `ask_site` refused for a site the
+  customer owns, customer drafts forced to ASK_FIRST whatever the autonomy
+  table says, and `executeProposal` refuses anything not approved.
+- "Never tell the driver to keep driving" is checked on every message to a
+  driver, including the streamed reply: the stream is released one sentence
+  at a time and stops before a sentence that clears driving ("you can
+  continue"), while negations and conditions ("not safe to drive", "until an
+  operator confirms you can drive") pass.
+- A reply to a site the customer owns is never streamed: it becomes a
+  CONTACT_SITE_AS_CUSTOMER draft (plan: "replies count too").
+- Driver and site turns stay fast and cannot propose; they call `hand_over`,
+  and a separate deeper "prepare a decision" turn builds the card. This keeps
+  voice replies quick and puts the careful work where the decision is made.
+- Each turn starts fresh from a stable cached system prompt (principles +
+  whole rulebook) plus case notes, and is append-only within the turn, so
+  thinking blocks are never edited or replayed across turns.
+- Deviation: photos are stored in Postgres (a `photo` event) instead of the
+  S3 object store, which needs Docker; this machine has none.
+- Telemetry stub reply first said "Thanks, we have your message" to a driver
+  who had not written; replaced with a fixed safety-first line.
+- Not yet run against the model: `OPENROUTER_API_KEY` is not visible in this
+  session.

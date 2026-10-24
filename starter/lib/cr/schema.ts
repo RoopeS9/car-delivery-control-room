@@ -34,6 +34,8 @@ export const crCases = pgTable("cr_cases", {
   waitingOn: text("waiting_on"),
   /** What happens next, in words, after the latest decision. */
   nextStep: text("next_step"),
+  /** When we look at this case again (simulated clock), e.g. after contacting the customer. */
+  nextCheckAt: at("next_check_at"),
   /** Existing dataset records this case builds on (alerts, work items, incidents). */
   sourceRefs: jsonb("source_refs").$type<SourceRef[]>().notNull().default([]),
 }, (table) => [
