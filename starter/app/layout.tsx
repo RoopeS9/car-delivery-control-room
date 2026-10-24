@@ -3,7 +3,7 @@ import { THEME_SCRIPT } from "./components/theme-toggle"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "Road Desk · Control Room",
+  title: "Road Desk",
   description: "Car delivery control room: the orders that need a person, with the agent's legwork already done. Fictional data.",
 }
 

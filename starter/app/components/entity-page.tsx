@@ -27,7 +27,7 @@ export function EntityPage({ kind, params }: { kind: EntityKind; params: Promise
       .catch((cause: unknown) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load record") })
     return () => controller.abort()
   }, [kind, id])
-  useEffect(() => { if (view) document.title = `${view.title} · Control Room` }, [view])
+  useEffect(() => { if (view) document.title = `${view.title} · Road Desk` }, [view])
   const index = INDEX[kind]
   return <AppFrame section={SECTION[kind]} snapshotAt={view?.snapshotAt ?? null}><main className="page">
     <nav className="crumbs" aria-label="Breadcrumb"><Link href={index.href}>{index.label}</Link><span>/</span><span>{view?.title ?? "Record"}</span></nav>

@@ -81,7 +81,7 @@ const PROPOSAL_STATUS: Record<string, { label: string; tone: Tone }> = {
 
 export const CHANNEL_LABELS: Record<string, string> = {
   driver_chat: "Driver app chat", driver_voice: "Voice call", site_chat: "Site chat", operator_chat: "Ask the agent",
-  customer_email: "Email to customer", internal: "Internal note", telemetry: "OBD dongle, simulated", system: "Control room",
+  customer_email: "Email to customer", internal: "Internal note", telemetry: "Telemetry, simulated", system: "Control room",
   safety: "Safety instruction",
 }
 
@@ -170,7 +170,7 @@ export function ownerName(bundle: Bundle, owner: string | null | undefined): str
 function draftView(draft: DraftMessage | null | undefined, bodyOverride?: string | null): DraftView | null {
   if (!draft) return null
   return {
-    toName: draft.to_name, toRole: DRAFT_ROLES[draft.to_type] ?? draft.to_type, isCustomer: draft.to_type === "customer",
+    original: draft, toName: draft.to_name, toRole: DRAFT_ROLES[draft.to_type] ?? draft.to_type, isCustomer: draft.to_type === "customer",
     channelLabel: DRAFT_CHANNELS[draft.channel] ?? label(draft.channel), subject: draft.subject ?? null,
     body: bodyOverride ?? draft.body,
   }
@@ -186,6 +186,9 @@ export function decisionCardView(bundle: Bundle, proposal: ProposalRow): Decisio
   const handover = proposal.handover
   const chosen = proposal.chosenOptionId ? proposal.options.find((option) => option.id === proposal.chosenOptionId) : null
   const decided = proposal.status !== "PENDING"
+  const execution = proposal.execution ?? {}
+  const mode = typeof execution.mode === "string" ? execution.mode : null
+  const outcome = typeof execution.outcome === "string" && execution.outcome ? execution.outcome : null
   return {
     id: proposal.id, caseId: proposal.caseId, actionType: proposal.actionType,
     actionLabel: ACTION_LABELS[proposal.actionType] ?? label(proposal.actionType),
@@ -207,8 +210,9 @@ export function decisionCardView(bundle: Bundle, proposal: ProposalRow): Decisio
     approvalRule: approvalRule(proposal.actionType),
     decision: decided ? {
       by: deciderName(bundle, proposal.decidedBy), at: iso(proposal.decidedAt), note: proposal.decisionNote,
-      option: chosen?.label ?? null, nextStep: proposal.nextStep, executedAt: iso(proposal.executedAt),
+      option: chosen?.label ?? null, nextStep: proposal.nextStep, executedAt: iso(proposal.executedAt), mode, outcome,
     } : null,
+    awaitingOutcome: decided && mode === "operator" && !outcome,
   }
 }
 
@@ -237,6 +241,11 @@ export function caseViews(bundle: Bundle): CaseView[] {
 
 // ---------------------------------------------------------------- timeline
 
+/** What an internal line is, since "internal note" alone says little. */
+const INTERNAL_LABELS: Record<string, string> = {
+  lookup: "Looked up", tool_call: "Tool", proposal: "Decision card", decision: "Decision", effect: "Done, simulated", note: "Note",
+}
+
 const LIVE_KIND: Record<string, string> = {
   message: "message", voice_turn: "voice", photo: "photo", telemetry_snapshot: "telemetry", dtc: "telemetry",
   lookup: "lookup", tool_call: "lookup", proposal: "proposal", decision: "decision", effect: "effect", note: "note",
@@ -245,8 +254,8 @@ const LIVE_KIND: Record<string, string> = {
 function liveActor(bundle: Bundle, event: CrEventRow): { name: string; role: string | null } {
   switch (event.actorType) {
     case "agent": return { name: AGENT_NAME, role: "agent" }
-    case "obd": return { name: "OBD dongle", role: "simulated" }
-    case "phone": return { name: "Driver's phone", role: "simulated" }
+    case "obd": return { name: "OBD dongle", role: null }
+    case "phone": return { name: "Driver's phone", role: null }
     case "system": return { name: "Control room", role: null }
     case "site": {
       const site = bundle.dir.siteName(event.actorId)
@@ -299,7 +308,7 @@ export function mergedTimeline(bundle: Bundle): TimelineEntry[] {
       id: message.id, at: message.authoredAt, actorName: author.name, actorRole: author.role, actorKind: author.kind,
       kind: "message", text: message.body,
       channelLabel: internal ? "Internal note" : recipient ? `${channelLabel} to ${recipient.name}` : channelLabel,
-      source: { kind: "messages", id: message.id, label: `${channelLabel}, recorded`, at: message.authoredAt },
+      source: { kind: "messages", id: message.id, label: `${channelLabel.toLowerCase()} message`, at: message.authoredAt },
       tone: "neutral", origin: "record", internal, caseId: null,
     })
   }
@@ -308,7 +317,7 @@ export function mergedTimeline(bundle: Bundle): TimelineEntry[] {
     entries.push({
       id: alert.id, at: alert.triggeredAt, actorName: "Journey monitor", actorRole: "alert", actorKind: "system",
       kind: "alert", text: `Alert raised: ${label(alert.signal)}. ${alert.summary}`, channelLabel: `Alert, ${label(alert.status).toLowerCase()}`,
-      source: { kind: "alerts", id: alert.id, label: "Alert record", at: alert.triggeredAt },
+      source: { kind: "alerts", id: alert.id, label: "alert", at: alert.triggeredAt },
       tone: alert.status === "OPEN" ? (alert.severity === "critical" || alert.severity === "high" ? "danger" : "warn") : "neutral",
       origin: "record", internal: true, caseId: null,
     })
@@ -319,7 +328,7 @@ export function mergedTimeline(bundle: Bundle): TimelineEntry[] {
     entries.push({
       id: event.id, at: event.recordedAt, actorName: described.actor ?? "System", actorRole: null, actorKind: "system",
       kind: "event", text: described.detail ? `${described.text}. ${described.detail}` : described.text, channelLabel: "Event log",
-      source: { kind: "operational_events", id: event.id, label: "Event log", at: event.recordedAt },
+      source: { kind: "operational_events", id: event.id, label: "event log", at: event.recordedAt },
       tone: "neutral", origin: "record", internal: true, caseId: null,
     })
   }
@@ -327,13 +336,13 @@ export function mergedTimeline(bundle: Bundle): TimelineEntry[] {
   for (const event of bundle.cr.events) {
     const actor = liveActor(bundle, event)
     const to = recipientName(bundle, event.recipientType, event.recipientId)
-    const channel = CHANNEL_LABELS[event.channel] ?? label(event.channel)
+    const channel = event.channel === "internal" ? INTERNAL_LABELS[event.kind] ?? "Internal note" : CHANNEL_LABELS[event.channel] ?? label(event.channel)
     const at = iso(event.at) ?? ""
     entries.push({
       id: event.id, at, actorName: actor.name, actorRole: actor.role, actorKind: event.actorType,
       kind: event.channel === "safety" ? "safety" : LIVE_KIND[event.kind] ?? "note", text: event.body,
       channelLabel: to ? `${channel} to ${to}` : channel,
-      source: { kind: "cr_events", id: event.id, label: event.actorType === "obd" || event.actorType === "phone" ? `${channel}` : "Live case log", at },
+      source: { kind: "cr_events", id: event.id, label: event.actorType === "obd" || event.actorType === "phone" ? "simulated sensor" : "case log", at },
       tone: liveTone(event), origin: "live", internal: event.channel === "internal" || event.kind === "lookup" || event.kind === "tool_call",
       caseId: event.caseId,
     })

@@ -26,7 +26,7 @@ const GROUPS: { label: string; links: { section: Section; href: string; label: s
 export function AppFrame({ children, section, snapshotAt, board = false }: { children: ReactNode; section: Section; snapshotAt?: string | null; board?: boolean }) {
   return <div className={`app${board ? " app-board" : ""}`}>
     <aside className="sidebar">
-      <Link href="/" className="wordmark" aria-label="Control Room home">Control Room</Link>
+      <Link href="/" className="wordmark" aria-label="Road Desk home">Road Desk</Link>
       <nav className="sidebar-nav" aria-label="Main navigation">
         {GROUPS.map((group) => <div className="nav-group" key={group.label}>
           <div className="nav-label">{group.label}</div>

@@ -99,3 +99,37 @@ Checked / changed / rejected:
   5438 instead. Node 22 (not 24) here; seed, typecheck and smoke all pass.
 - Left the dark-mode token skeleton (also M0) to stream B, since
   `globals.css` is theirs.
+
+## 2026-10-24 ~11:55 UTC · Claude Code (stream B, cloud instance 2) · control room M0 + M1 UI
+
+Asked: own workstream B; do M0 if `lib/cr/` is missing, then work toward M1;
+stay in B's folders; keep smoke passing.
+
+Got: dark theme and theme toggle, the old board moved to `/board`, a new
+"Needs you" queue on `/`, and an order page that opens with the case: a
+decision card, a "Log what happened" box, a merged timeline and an "Ask the
+agent" box.
+
+Checked / changed / rejected:
+- Did not write `lib/cr/`. Stream A's session was already doing it (seen in its
+  task list). Two contracts would have collided, so B messaged A with what the
+  UI needs and built on A's branch once it was pushed.
+- Every colour is a token now (three hard-coded `rgba` values found and
+  replaced). The dark palette applies before first paint, so a saved choice
+  never flashes the light theme.
+- First queue draft also listed the 18 dataset orders with warn/danger
+  attention. Dropped after the plan update: the queue shows only our cases,
+  plus one quiet line ("43 other orders need a person …") linking to the board.
+- Screenshot review caught the global `.tone-danger` text colour leaking into
+  the whole decision card, so all its text rendered red. Fixed by moving those
+  containers to a `data-tone` attribute.
+- Screenshot review also caught a timeline that folded every line ("Show 24
+  earlier"). The fold point is now the earlier of the case opening and the
+  first live line.
+- The 4.2b "I'll handle it" and "Tell the agent instead" decisions are not in
+  A's `DecisionRequest` yet. Proposed the shape to A. Tested the whole flow
+  (handle → log outcome → case waits on roadside help → queue updates) against
+  a local stub route that was not committed, because `app/api/cases/` is A's.
+- The board and the record still agree on "needs a person" for all 100 orders
+  with a live case in the database (smoke). A missing `cr_` table falls back to
+  the snapshot instead of breaking the starter.

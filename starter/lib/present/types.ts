@@ -629,6 +629,8 @@ export type EntityList = { kind: EntityKind; kindLabel: string; items: EntityLis
 export type SourceChip = { kind: string; id: string; label: string; at: string | null; href?: string | null }
 
 export type DraftView = {
+  /** The draft as the agent stored it; an edit sends this back with a new body. */
+  original: import("@/lib/cr/types").DraftMessage
   toName: string
   /** "customer", "pickup site", "driver". */
   toRole: string
@@ -667,7 +669,15 @@ export type DecisionCardView = {
   createdBy: string
   /** Why this needs a person: the autonomy rule that applies to the action type. */
   approvalRule: string
-  decision: { by: string; at: string | null; note: string | null; option: string | null; nextStep: string | null; executedAt: string | null } | null
+  decision: {
+    by: string; at: string | null; note: string | null; option: string | null; nextStep: string | null; executedAt: string | null
+    /** `operator` when a person said "I'll handle it", `instruction` when they told the agent what to do instead. */
+    mode: string | null
+    /** The one line the operator logged after handling it. */
+    outcome: string | null
+  } | null
+  /** A person said "I'll handle it" and has not logged what happened yet. */
+  awaitingOutcome: boolean
 }
 
 export type CaseView = {
@@ -747,11 +757,11 @@ export type QueueView = {
   decide: QueueRow[]
   agentWorking: QueueRow[]
   waiting: QueueRow[]
-  /** Records in the snapshot that a person should look at and no case covers yet. */
-  records: QueueRow[]
+  /** Closed by the agent (or resolved) in the last 24 h of simulated time. */
   handled: QueueRow[]
-  /** Orders with only routine open items (owned threads, waiting conversations). */
-  routineCount: number
-  quietCount: number
+  /** Orders that need a person for reasons outside our road and driver cases. They stay on the board. */
+  otherCount: number
+  /** The most common of those reasons, in a few words each. */
+  otherReasons: string[]
   total: number
 }
