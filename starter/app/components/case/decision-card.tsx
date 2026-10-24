@@ -16,7 +16,9 @@ type Mode = "idle" | "edit" | "reject" | "instruct" | "confirm"
 export function Sources({ sources }: { sources: SourceChip[] }) {
   if (!sources.length) return null
   return <span className="sources">{sources.map((source) => {
-    const body = <>{source.label}{source.at && <> · <When at={source.at} withZone={false} /></>}</>
+    // The agent often writes the time into the label already ("OBD dongle, 09:01 UTC"); do not repeat it.
+    const timed = /\d{1,2}:\d{2}/.test(source.label)
+    const body = <>{source.label}{source.at && !timed && <> · <When at={source.at} withZone={false} /></>}</>
     return source.href
       ? <a key={`${source.kind}-${source.id}`} className="source" href={source.href} title="Show in the timeline">{body}</a>
       : <span key={`${source.kind}-${source.id}`} className="source">{body}</span>
@@ -43,6 +45,9 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [done, setDone] = useState<string | null>(null)
+  const [fullDraft, setFullDraft] = useState(false)
+  const draftLines = card.draft ? card.draft.body.split("\n").length : 0
+  const longDraft = !!card.draft && (draftLines > 8 || card.draft.body.length > 600)
   const call = card.draft?.channelLabel === "Phone call"
   const customer = card.draft?.isCustomer ?? card.actionType === "CONTACT_CUSTOMER"
   const driveOn = card.actionType === "CLEAR_TO_CONTINUE"
@@ -138,7 +143,10 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
       <h3>{call ? "Talking points for the call" : "Drafted message"} <span className="dcard-to">to {card.draft.toName} ({card.draft.toRole}) · {card.draft.channelLabel}</span></h3>
       {mode === "edit"
         ? <textarea className="dcard-draft-edit" value={draft} onChange={(event) => setDraft(event.target.value)} rows={6} aria-label="Edit the drafted message" />
-        : <blockquote className="dcard-draft">{card.draft.subject && <b>{card.draft.subject}</b>}{card.draft.body}</blockquote>}
+        : <>
+          <blockquote className={`dcard-draft${longDraft && !fullDraft ? " folded" : ""}`}>{card.draft.subject && <b>{card.draft.subject}</b>}{card.draft.body}</blockquote>
+          {longDraft && <button type="button" className="show-more" onClick={() => setFullDraft((value) => !value)}>{fullDraft ? "Show less" : "Show the whole message"}</button>}
+        </>}
       {customer && <p className="dcard-hint">Nothing reaches the customer until a person says yes.</p>}
     </section>}
 

@@ -593,3 +593,26 @@ scripted tests could not show:
   dataset's cities, results are now placed around the reported position.
 - 45 tests, typecheck, smoke and build pass. Not done yet: the voice
   triggers (`call_urgent`, `call_ended`), which wait for the voice stream.
+
+## 2026-10-24 ~13:10 UTC · Claude Code (stream B, cloud instance 2) · the real agent's card in the UI
+
+Asked: nothing new from the user; checked B against stream A's first
+real-model trace (scenario A, `traces/scenario-a-…`), since until now every
+card B had rendered came from B's own fixtures.
+
+Got: the real `propose_action` input from the trace, loaded into the local
+database through A's own `proposalFrom` mapping, rendered on the case page.
+The card holds up: 7 sourced facts, 4 unknowns, 3 options, an email draft and
+"Nothing reaches the customer until a person says yes".
+
+Checked / changed / rejected:
+- The real agent writes the time into source labels ("OBD dongle, 2026-10-21
+  09:01 UTC"), so chips showed the time twice. Chips now skip their own time
+  when the label already has one.
+- The real draft is a 20-line email, which pushed the decision buttons about
+  2,000 px down the card. Long drafts are now folded to a few lines with
+  "Show the whole message". Rejected moving the buttons above the facts:
+  operators should read what the agent found before they approve.
+- The model key added to the environment is not visible to this session
+  (environment variables reach new sessions only); network access to
+  OpenRouter works, so a new session can run the agent live.

@@ -712,6 +712,7 @@ a.source:hover { border-color: var(--sand); color: var(--ink); }
 .dcard-option small { display: block; font-size: 12.5px; color: var(--muted); }
 .dcard-draft { margin: 0; padding: 12px 14px; border-left: 3px solid var(--sand); border-radius: 0 var(--radius) var(--radius) 0; background: var(--canvas); font-size: 14px; line-height: 1.55; color: var(--ink); white-space: pre-wrap; max-width: 78ch; }
 .dcard-draft b { display: block; margin-bottom: 4px; font-weight: 600; }
+.dcard-draft.folded { max-height: 9.5em; overflow: hidden; -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent); mask-image: linear-gradient(to bottom, #000 60%, transparent); }
 .dcard-draft-edit { width: 100%; max-width: 78ch; padding: 12px 14px; border: 1px solid var(--ink); border-radius: var(--radius); background: var(--birch); font: inherit; font-size: 14px; line-height: 1.55; color: var(--ink); resize: vertical; }
 .dcard-hint { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
 .dcard-did summary { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; list-style: none; font-size: 12.5px; font-weight: 600; color: var(--muted); }
