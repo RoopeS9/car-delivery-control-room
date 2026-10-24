@@ -27,7 +27,7 @@ import { renderCallAudio, ttsEnabled } from "./tts"
 import { pullLive } from "./livepull"
 import { derive } from "./derived"
 import { RunMode, newRunReport, planTimeline, runDelivery, type RunReport } from "./run"
-import { Twist } from "./sim/persona-from-dossier"
+import { Twist, personaFor } from "./sim/persona-from-dossier"
 import { SuggestThread, suggestReplies } from "./suggest"
 
 const root = new URL("../", import.meta.url)
@@ -166,6 +166,27 @@ createServer(async (req, res) => {
       const id = byRef.get(parts[1]); if (!id) return json(res, 404, { error: `no order ${parts[1]}` })
       const purpose = CallPurpose.safeParse(parts[2]); if (!purpose.success) return json(res, 400, { error: `unknown purpose ${parts[2]}` })
       try { return json(res, 200, briefFor(buildDossier(ds, id), purpose.data)) } catch (e) { return json(res, 400, { error: (e as Error).message }) }
+    }
+    if (parts[0] === "calls" && req.method === "POST" && parts[1] === "sim") {
+      // A model-played call on any order: {ref, purpose, twist?, at?}. The counterpart comes from the dossier under the twist.
+      // Runs as a job like /calls/run; poll /calls/jobs/:id.
+      const input = JSON.parse((await body(req)) || "{}") as { ref?: string; purpose?: string; twist?: string; at?: string; live?: boolean }
+      const id = input.ref ? byRef.get(input.ref) : undefined; if (!id) return json(res, 404, { error: `no order ${input.ref}` })
+      const purpose = CallPurpose.safeParse(input.purpose); if (!purpose.success) return json(res, 400, { error: `unknown purpose ${input.purpose}` })
+      const twist = Twist.safeParse(input.twist ?? "cooperative"); if (!twist.success) return json(res, 400, { error: `unknown twist ${input.twist}` })
+      const d = await dossierFor(input.ref!, id, input.live !== false)
+      let persona; try { persona = personaFor(d, purpose.data, twist.data) } catch (e) { return json(res, 400, { error: (e as Error).message }) }
+      const at = input.at ?? new Date().toISOString()
+      const store = (call: CallRecord) => { calls.set(call.id, call); writeFileSync(new URL(`${call.id}.json`, callsDir), JSON.stringify(call, null, 1)) }
+      const job: Job = { id: `job-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, personaId: persona.id, mode: "llm", startedAt: new Date().toISOString(), status: "running" }
+      jobs.set(job.id, job)
+      void (async () => {
+        try {
+          const r = await runLlmCall(d, persona, purpose.data, at); store(r.record)
+          job.call = r.record; job.note = { costUsd: r.costUsd, briefBy: r.briefBy, twist: twist.data }; job.review = r.record.direction === "OUTBOUND" ? reviewCall(r.record) : null; job.status = "done"
+        } catch (e) { job.status = "failed"; job.error = (e as Error).message.slice(0, 600) }
+      })()
+      return json(res, 202, { jobId: job.id, personaId: persona.id, purpose: purpose.data, twist: twist.data })
     }
     if (parts[0] === "calls" && req.method === "POST" && parts[1] === "run") {
       const input = JSON.parse((await body(req)) || "{}") as { personaId?: string; at?: string; mode?: "llm" | "scripted" }
