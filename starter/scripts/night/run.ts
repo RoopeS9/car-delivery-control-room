@@ -27,6 +27,7 @@ const writeIndex = () => {
   writeFileSync(path.join(outDir, "index.md"), lines.join("\n"))
 }
 
+async function main() {
 for (const scenario of chosen) {
   const rec = new Rec(scenario.name, outDir)
   const world = new World(rec)
@@ -39,3 +40,5 @@ for (const scenario of chosen) {
   console.log(`  done ${scenario.name}: ${summary.at(-1)!.pass} pass, ${summary.at(-1)!.fail} fail, ${summary.at(-1)!.review} review`)
 }
 console.log(`written: ${path.resolve(outDir, "index.md")}`)
+}
+main().catch((e) => { console.error(e); process.exit(1) })
