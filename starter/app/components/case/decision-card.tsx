@@ -226,7 +226,7 @@ export function DecidedCard({ card }: { card: DecisionCardView }) {
     : d.mode === "refresh" ? "set it aside because facts changed"
     : card.outdated ? "approved it, but it went out of date before it ran"
     : card.status === "REJECTED" ? "rejected it"
-    : card.status === "EDITED_AND_APPROVED" ? "approved it with changes"
+    : card.editedDraft || card.status === "EDITED_AND_APPROVED" ? "approved it with changes"
     : card.status === "FAILED" ? "approved it, but it failed"
     : "approved it"
   return <div className="decided" data-tone={card.tone}>
@@ -238,6 +238,11 @@ export function DecidedCard({ card }: { card: DecisionCardView }) {
     {d.note && <p className="decided-note">“{d.note}”</p>}
     {d.outcome && <p>What happened: {d.outcome}</p>}
     {d.nextStep && !d.outcome && <p className="decided-next"><b>Next:</b> {d.nextStep}</p>}
+    {/* What went out is the operator's version, not the agent's draft: keep both findable. */}
+    {card.editedDraft && <details className="more">
+      <summary><Icon name="chevron" size={12} />{card.draft?.channelLabel === "Phone call" ? "The talking points as edited" : "The message as edited"}</summary>
+      <blockquote className="dcard-draft">{card.editedDraft.subject && <b>{card.editedDraft.subject}</b>}{card.editedDraft.body}</blockquote>
+    </details>}
   </div>
 }
 
