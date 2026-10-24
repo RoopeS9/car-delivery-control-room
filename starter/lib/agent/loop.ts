@@ -14,7 +14,7 @@ import { loadOrderFacts, type End, type OrderFacts } from "./context"
 import { screenDriverMessage, type Screen } from "./drivability"
 import { agentCouldNotFinish, ensureOpenCaseFields, replyDeadlineMinutes } from "./followup"
 import { submitProposal } from "./gate"
-import { relative, utcTime } from "./format"
+import { localTime, relative, utcTime } from "./format"
 import { systemPrompt } from "./prompts"
 import { actorName, names } from "./timeline"
 import { holdForClearance, runTool, toolsFor, type FollowUp, type TurnState } from "./tools"
@@ -98,69 +98,115 @@ export function isCaseLocked(caseId: string): boolean {
 const ALLOW: Screen = { allowed: true, layer: "none", reason: null, costUsd: 0 }
 
 /**
- * Lets a reply through one sentence at a time. For drivers, each sentence is
- * screened (patterns, then the classifier) against everything written so far,
- * and released in order once its check passes; a sentence that reads as
- * permission to drive on stops the stream (PLAN.md 4.2, drivability screen).
+ * Decides what of the model's text reaches the person. Text the model writes
+ * before a tool call is its own narration ("the car shows speed 0, so I'll
+ * ..."), not the reply, so each model call's text is held until the call
+ * ends: released when the call ends the turn, kept back when it goes on to
+ * call a tool. For drivers the whole reply is screened once (patterns, then
+ * the classifier; one check per reply keeps false alarms rare); a reply that
+ * reads as permission to drive on is held and the driver gets a fixed line
+ * instead (PLAN.md 4.2, drivability screen).
  */
 class ReplyGate {
-  private pending = ""
-  private queued = ""
+  private call = ""
   private chain: Promise<void> = Promise.resolve()
+  /** The last text written before a tool call, used only if the turn ends without a reply. */
+  private narration = ""
+  /** What reached the person. */
   text = ""
-  /** Everything the model wrote, including anything held back. */
-  get written() { return this.queued + this.pending }
+  /** Everything the model wrote as its reply, including anything held back. */
+  written = ""
   blocked: { reason: string | null } | null = null
   costUsd = 0
 
   constructor(private readonly screen: ((text: string) => Promise<Screen>) | null, private readonly emit?: (text: string) => void) {}
 
   push(delta: string) {
-    this.pending += delta
-    let match: RegExpExecArray | null
-    while ((match = /[.!?\n](?=\s)/.exec(this.pending))) {
-      const sentence = this.pending.slice(0, match.index + 1)
-      this.pending = this.pending.slice(match.index + 1)
-      this.enqueue(sentence)
+    this.call += delta
+  }
+
+  /** A model call ended. Its text is the reply only if the call did not go on to use a tool. */
+  endCall(stopReason: string | null) {
+    const text = this.call
+    this.call = ""
+    if (!text.trim()) return
+    if (stopReason === "tool_use") {
+      this.narration = text
+      return
     }
+    this.release(text)
   }
 
-  /** A model call ended; separate the next call's text with a blank line. */
-  breakParagraph() {
-    this.flushPending()
-    if (this.queued && !this.queued.endsWith("\n\n")) this.pending = "\n\n"
-  }
-
-  /** Wait until every sentence has been screened and released (or held). */
+  /** Wait until the reply has been screened and released (or held). */
   async finish(): Promise<void> {
-    this.flushPending()
+    this.call = ""
+    // The model wrote its reply and then only closed or updated the case: send that text.
+    if (!this.written.trim() && this.narration.trim()) this.release(this.narration)
     await this.chain
   }
 
-  private flushPending() {
-    if (this.pending.trim()) this.enqueue(this.pending)
-    this.pending = ""
-  }
-
-  private enqueue(sentence: string) {
-    this.queued += sentence
-    const check = this.screen ? this.screen(this.queued) : Promise.resolve(ALLOW)
+  private release(raw: string) {
+    const piece = this.written ? `\n\n${raw.trim()}` : raw.trim()
+    this.written += piece
+    const check = this.screen ? this.screen(this.written) : Promise.resolve(ALLOW)
     this.chain = this.chain.then(async () => {
       if (this.blocked) return
-      const result = await check.catch(() => ALLOW)
+      const result = await check.catch((): Screen => ({ allowed: false, layer: "fail_closed", reason: "the screen failed", costUsd: 0 }))
       this.costUsd += result.costUsd
       if (!result.allowed) {
         this.blocked = { reason: result.reason }
-        const fallback = `${this.text ? " " : ""}${DRIVE_ON_FALLBACK}`
+        const fallback = `${this.text ? "\n\n" : ""}${DRIVE_ON_FALLBACK}`
         this.text += fallback
         this.emit?.(fallback)
         return
       }
-      const piece = this.text ? sentence : sentence.trimStart()
-      if (!piece) return
       this.text += piece
       this.emit?.(piece)
     })
+  }
+}
+
+// ---------------------------------------------------------------- one model call
+
+type Usage = { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number; cost_usd: number; calls: number; attempts: number }
+
+const MALFORMED_TOOL_HINT = "(Note from the Road Desk: your last tool call could not be read. Its input was not valid JSON, probably because parameter tags were mixed into a JSON value. Make the call again with every parameter written as plain JSON.)"
+
+/**
+ * One streamed model call. OpenRouter reports the cost in the final
+ * message_delta's usage, which the SDK's message snapshot drops, so it is read
+ * from the stream. If the model writes a tool call whose input is not valid
+ * JSON (it sometimes mixes its own parameter tags into a nested value), the
+ * call is made once more with a short note appended to the last user message.
+ */
+async function callModel(client: Anthropic, body: Anthropic.MessageStreamParams, gate: ReplyGate, usage: Usage): Promise<Anthropic.Message> {
+  for (let tries = 0; ; tries++) {
+    const stream = client.messages.stream(body, { timeout: 120000 })
+    let cost = 0
+    stream.on("text", (delta) => gate.push(delta))
+    stream.on("streamEvent", (event) => {
+      if (event.type === "message_delta") cost = usageCost(event.usage) || cost
+    })
+    try {
+      const message = await stream.finalMessage()
+      usage.calls++
+      usage.input_tokens += message.usage.input_tokens
+      usage.output_tokens += message.usage.output_tokens
+      usage.cache_read_input_tokens += message.usage.cache_read_input_tokens ?? 0
+      usage.cache_creation_input_tokens += message.usage.cache_creation_input_tokens ?? 0
+      usage.cost_usd += cost || usageCost(message.usage)
+      return message
+    } catch (error) {
+      usage.cost_usd += cost
+      gate.endCall("tool_use")
+      const malformed = error instanceof SyntaxError || (error instanceof Error && / in JSON at position /.test(error.message))
+      if (!malformed || tries >= 1) throw error
+      // In place, so the turn's history keeps the note (append-only).
+      const index = body.messages.length - 1
+      const last = body.messages[index]
+      const content = typeof last.content === "string" ? [{ type: "text" as const, text: last.content }] : [...last.content]
+      body.messages[index] = { ...last, content: [...content, { type: "text", text: MALFORMED_TOOL_HINT }] } as Anthropic.MessageParam
+    }
   }
 }
 
@@ -171,6 +217,14 @@ function eventLine(n: Awaited<ReturnType<typeof names>>, event: EventRow): strin
   const to = event.recipientType ? ` → ${actorName(n, event.recipientType, event.recipientId)}` : ""
   const tag = event.kind === "photo" ? ` [photo, event ${event.id}]` : event.channel === "safety" ? " [safety instruction]" : ""
   return `[${utcTime(event.at)}] ${who}${to} (${event.channel.replace(/_/g, " ")})${tag}: ${event.body}`
+}
+
+/** "2026-10-21 09:02 UTC (simulated clock); local: Wed 21 Oct 11:02 CEST at pickup, ..." so the agent never has to work out offsets. */
+function nowLine(facts: OrderFacts): string {
+  const now = simNow().toISOString()
+  const zones = [...new Set([facts.pickup.timezone, facts.delivery.timezone].filter((zone): zone is string => Boolean(zone)))]
+  const local = zones.map((zone) => `${localTime(now, zone)} (${zone})`).join(", ")
+  return `${utcTime(now)} (simulated clock)${local ? `; local time: ${local}` : ""}`
 }
 
 async function caseNotes(request: TurnRequest, caseRow: CaseRow, facts: OrderFacts): Promise<string> {
@@ -194,7 +248,7 @@ async function caseNotes(request: TurnRequest, caseRow: CaseRow, facts: OrderFac
   return [
     "# Case notes",
     `Job: ${JOB[request.trigger]}${request.voice ? " (voice call: one or two short spoken sentences)" : ""}`,
-    `Now: ${utcTime(simNow())} (simulated clock)`,
+    `Now: ${nowLine(facts)}`,
     `Order: ${facts.reference} · ${vehicle} · ${route}`,
     `Case: ${caseRow.title} · ${caseRow.kind.toLowerCase().replace(/_/g, " ")} · ${caseRow.status.toLowerCase().replace(/_/g, " ")} · urgency ${caseRow.urgency.toLowerCase()} · opened ${relative(caseRow.openedAt)}`,
     `You are talking to: ${counterpart.name ?? counterpart.type} (${counterpart.type}) via ${request.replyChannel.replace(/_/g, " ")}${siteNote}`,
@@ -314,11 +368,12 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
 
   const model = agentModel()
   const effort = effortFor(request)
+  const turnStartedAt = simNow()
   const notes = await caseNotes(request, caseRow, facts)
   const run = await startRun({ caseId: caseRow.id, orderId: caseRow.orderId, audience: request.audience, model, effort, input: request.input })
   await updateCase(caseRow.id, { lastRunStatus: "RUNNING", lastRunAt: simNow() })
   const state: TurnState = {
-    audience: request.audience, caseRow, facts, readOnly: asking,
+    audience: request.audience, caseRow, facts, readOnly: asking, turnStartedAt,
     runId: run.id,
     driverId: caseRow.driverId,
     driverName: caseRow.driverId ? facts.driverNames.get(caseRow.driverId) ?? null : null,
@@ -332,7 +387,7 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
   }
   const tools = toolsFor(request.audience, asking)
   const system: Anthropic.TextBlockParam[] = [{ type: "text", text: systemPrompt(request.audience), cache_control: { type: "ephemeral" } }]
-  const usage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, cost_usd: 0, calls: 0, attempts: 0 }
+  const usage: Usage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, cost_usd: 0, calls: 0, attempts: 0 }
   let messages: Anthropic.MessageParam[] = []
   let gate = new ReplyGate(screen, holdsReply ? undefined : request.onText)
   let stopReason: string | null = null
@@ -349,16 +404,8 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
           error = `the agent reached its step limit of ${MAX_ITERATIONS} model calls`
           break
         }
-        const stream = client.messages.stream({ model, max_tokens: MAX_TOKENS, system, tools, messages, output_config: { effort } }, { timeout: 120000 })
-        stream.on("text", (delta) => gate.push(delta))
-        const message = await stream.finalMessage()
-        gate.breakParagraph()
-        usage.calls++
-        usage.input_tokens += message.usage.input_tokens
-        usage.output_tokens += message.usage.output_tokens
-        usage.cache_read_input_tokens += message.usage.cache_read_input_tokens ?? 0
-        usage.cache_creation_input_tokens += message.usage.cache_creation_input_tokens ?? 0
-        usage.cost_usd += usageCost(message.usage)
+        const message = await callModel(client, { model, max_tokens: MAX_TOKENS, system, tools, messages, output_config: { effort } }, gate, usage)
+        gate.endCall(message.stop_reason)
         stopReason = message.stop_reason
         if (message.stop_reason === "refusal") {
           error = "the model declined to continue"

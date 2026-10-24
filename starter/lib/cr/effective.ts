@@ -129,13 +129,20 @@ async function recordField(table: string, id: string, field: string): Promise<un
 }
 
 /** Check each assumption against the current effective state. */
+/** A record value as the card shows it: "MISSED_CHECK_IN" reads "missed check in". */
+function inWords(value: unknown): string {
+  if (value === null || value === "") return "empty"
+  const text = String(value)
+  return /^[A-Z][A-Z0-9_]*$/.test(text) ? text.toLowerCase().replace(/_/g, " ") : text
+}
+
 export async function checkAssumptions(caseId: string, orderId: string, assumptions: Assumption[]): Promise<AssumptionCheck[]> {
   const checks: AssumptionCheck[] = []
   for (const assumption of assumptions) {
     if (assumption.kind === "record") {
       const actual = await recordField(assumption.table, assumption.id, assumption.field)
       const holds = actual !== undefined && String(actual ?? null) === String(assumption.expected ?? null)
-      checks.push({ assumption, holds, now: actual === undefined ? "record not found" : String(actual ?? "empty") })
+      checks.push({ assumption, holds, now: actual === undefined ? "record not found" : inWords(actual) })
     } else if (assumption.kind === "no_new_message") {
       const after = new Date(assumption.after)
       const [latest] = Number.isNaN(after.getTime()) ? [] : await crDb().select().from(crEvents)

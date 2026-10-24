@@ -183,7 +183,7 @@ describe("M1: an OUTDATED proposal does not execute", () => {
     }))
     const decided = await decideProposal(caseRow.id, row.id, { decision: "approve", decided_by: "ops-shift" })
     assert.equal(decided.status, "OUTDATED")
-    assert.equal(decided.outdated?.[0]?.now, "BOOKED")
+    assert.equal(decided.outdated?.[0]?.now, "booked", "plain words for the card")
     assert.equal((await listEffects({ caseId: caseRow.id })).length, 0, "nothing was booked")
     await assert.rejects(decideProposal(caseRow.id, row.id, { decision: "reject", decided_by: "ops-shift", note: "x" }), DecisionError)
     assert.equal((await getCase(caseRow.id))?.status, "AGENT_WORKING", "the agent redrafts")
@@ -199,6 +199,21 @@ describe("M1: an OUTDATED proposal does not execute", () => {
     const decided = await decideProposal(caseRow.id, row.id, { decision: "approve", decided_by: "ops-shift" })
     assert.equal(decided.status, "OUTDATED")
     assert.equal((await listEffects({ caseId: caseRow.id })).length, 0)
+  })
+
+  test("a message the agent had already read is not new, even at minute precision", async () => {
+    const caseRow = await newCase()
+    const read = await appendEvent({ caseId: caseRow.id, orderId: facts.id, actorType: "driver", actorId: "drv-042", kind: "message", channel: "driver_chat", body: "I'm safe, engine off.", at: new Date(simNow().getTime() - 1000) })
+    // The agent saw "09:02 UTC" in its notes and wrote the minute, which is earlier than the message itself.
+    const minute = new Date(Math.floor(read.at.getTime() / 60000) * 60000 - 60000).toISOString()
+    const { proposal: row } = await submitProposal({ audience: "operator", caseRow, facts, turnStartedAt: simNow() }, proposal("CONTACT_CUSTOMER", {
+      draft_message: { ...customerDraft!, channel: "phone_call" },
+      assumptions: [{ kind: "no_new_message", from: "driver", after: minute, label: "No new driver message after the one I read" }],
+    }))
+    const stored = row.assumptions[0] as { after: string }
+    assert.equal(stored.after, read.at.toISOString(), "the cut-off moved up to the message the agent read")
+    const decided = await decideProposal(caseRow.id, row.id, { decision: "handle", decided_by: "ops-shift" })
+    assert.equal(decided.status, "APPROVED", "I'll handle it is not blocked by a message the agent had already read")
   })
 
   test("the redraft becomes the next revision of the card", async () => {

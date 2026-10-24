@@ -14,12 +14,11 @@ import {
 import { AGENT_ID } from "./config"
 import { contextFor, loadOrderFacts, type End } from "./context"
 import { renderSafetyTemplate, SAFETY_TEMPLATES, screenDriverMessage } from "./drivability"
-import { firstName } from "./format"
+import { firstName, localTime, relative, utcTime } from "./format"
 import { checkTool, submitProposal, validateProposal, type GateContext, type ProposalInput, type ToolName } from "./gate"
 import { cityCoords, matchWarningLights, playbook, playbooks, troubleCode } from "./knowledge"
 import { findNearbyHelp, searchTravelOptions, type HelpKind, type TravelKind } from "./mocks"
 import { orderTimeline, renderLines } from "./timeline"
-import { relative, utcTime } from "./format"
 
 export type FollowUp =
   | { kind: "analysis"; caseId: string; reason: string }
@@ -63,14 +62,17 @@ const sourceRefSchema = obj({
   label: text("Short human label, e.g. 'Driver, app chat, 08:22 UTC'."),
   at: text("When the source said it (ISO time), or an empty string."),
 })
-const handoverSchema = obj({
-  what_happened: text("One sentence."),
-  facts: { type: "array", items: obj({ text: text("One fact."), sources: { type: "array", items: sourceRefSchema } }) },
-  agent_did: { type: "array", items: { type: "string" }, description: "What you already did: questions asked, lookups, instructions given." },
-  unknowns: { type: "array", items: { type: "string" }, description: "What is still not known." },
-  recommendation: text("Your recommendation in one or two sentences."),
-  alternatives: { type: "array", items: { type: "string" } },
-})
+// The handover packet as top-level parameters. Models sometimes mix their own
+// parameter tags into an object-valued parameter, which breaks the JSON, so
+// the decision tools take no object-valued parameters; arrays are fine.
+const handoverFields = {
+  what_happened: text("Handover: what happened, in one sentence."),
+  facts: { type: "array", description: "Handover: the facts a person needs, each with its sources.", items: obj({ text: text("One fact."), sources: { type: "array", items: sourceRefSchema } }) },
+  agent_did: { type: "array", items: { type: "string" }, description: "Handover: what you already did: questions asked, lookups, instructions given." },
+  unknowns: { type: "array", items: { type: "string" }, description: "Handover: what is still not known." },
+  recommendation: text("Handover: your recommendation in one or two sentences."),
+  alternatives: { type: "array", items: { type: "string" }, description: "Handover: other reasonable choices." },
+}
 const optionsSchema = {
   type: "array",
   description: "Choices for the operator, if the decision has more than one sensible answer. Empty if it is a plain yes or no.",
@@ -178,7 +180,7 @@ export const TOOL_DEFINITIONS: Record<ToolName, Anthropic.Tool> = {
       waiting_for: { type: "string", enum: ["driver", "site", "customer", "provider", "dispatch", "operator"] },
       waiting_on: text("In words, e.g. 'the dealer's roadside help (ETA 11:00 local)'."),
       next_action: text("What happens next and who does it, e.g. 'Check at 11:15 that roadside help arrived; then check the ferry cutoff.'"),
-      check_in_minutes: { type: "integer", description: "Minutes from now (simulated clock) to check again." },
+      check_in_minutes: { type: "integer", description: "Minutes from now (simulated clock) to check again. Work it out from 'Now' in the case notes, in UTC; the result tells you the check time in UTC and local time so you can correct it." },
     }),
   },
   hand_over: {
@@ -193,28 +195,18 @@ export const TOOL_DEFINITIONS: Record<ToolName, Anthropic.Tool> = {
       action_type: { type: "string", enum: ACTION_TYPES.filter((type) => type !== "OPERATOR_DECISION") },
       title: text("The recommendation as a short imperative, e.g. 'Call the dealer about recovery'."),
       rationale: text("Why, in two or three sentences."),
-      handover: handoverSchema,
+      ...handoverFields,
       changes: { type: "array", description: "What changes if approved, before → after. Empty if nothing changes in the records.", items: obj({ label: text("What"), before: text("Current value, or empty."), after: text("New value.") }) },
-      draft_message: {
-        anyOf: [
-          { type: "null" },
-          obj({
-            to: { type: "string", enum: ["customer", "pickup_site", "delivery_site", "driver"], description: "'driver' only for CLEAR_TO_CONTINUE: the instruction the driver gets once an operator approves." },
-            channel: { type: "string", enum: ["email", "phone_call"] },
-            subject: text("Email subject, or empty for a call."),
-            body: text("The message or call script, ready to use. Plain, polite, factual; say what is known and what is not."),
-            language: text("Language code, e.g. en, de, fi."),
-          }),
-        ],
-        description: "A message for a person to approve and send, or null.",
-      },
+      draft_to: { type: "string", enum: ["none", "customer", "pickup_site", "delivery_site", "driver"], description: "Who the draft message is for, or 'none' when there is no message. 'driver' only for CLEAR_TO_CONTINUE: the instruction the driver gets once an operator approves." },
+      draft_channel: { type: "string", enum: ["email", "phone_call"], description: "How it is sent. Ignored when draft_to is 'none'." },
+      draft_subject: text("Email subject, or empty for a call or no draft."),
+      draft_body: text("The message or call script, ready to use. Plain, polite, factual; say what is known and what is not. Empty when draft_to is 'none'."),
+      draft_language: text("Language code of the draft, e.g. en, de, fi, or empty."),
       options: optionsSchema,
       evidence_refs: { type: "array", items: sourceRefSchema, description: "The sources behind this proposal." },
       assumptions: { type: "array", items: assumptionSchema, description: "The facts this card relies on. Before it executes they are rechecked; if one changed, nothing runs and you redraft it. Include the booking or record your action depends on, and the latest driver message you read." },
-      proposed_window: {
-        anyOf: [{ type: "null" }, obj({ start_utc: text("ISO time, UTC."), end_utc: text("ISO time, UTC.") })],
-        description: "For UPDATE_ETA and CHANGE_PROMISE: the new window. Otherwise null.",
-      },
+      window_start_utc: text("For UPDATE_ETA and CHANGE_PROMISE: start of the new window, ISO time in UTC. Otherwise empty."),
+      window_end_utc: text("For UPDATE_ETA and CHANGE_PROMISE: end of the new window, ISO time in UTC. Otherwise empty."),
       next_step_if_approved: text("What happens right after approval, in one sentence."),
       next_step_if_rejected: text("What you will do if rejected, in one sentence."),
     }),
@@ -224,7 +216,7 @@ export const TOOL_DEFINITIONS: Record<ToolName, Anthropic.Tool> = {
     description: "Hand a question to operations when there is no single action to propose, e.g. facts conflict or the choice is a judgement call. Give the handover packet and the options.",
     input_schema: obj({
       question: text("The question for the operator."),
-      handover: handoverSchema,
+      ...handoverFields,
       options: optionsSchema,
       evidence_refs: { type: "array", items: sourceRefSchema },
       next_step_if_decided: text("What you will do once they choose."),
@@ -300,6 +292,43 @@ export async function holdForClearance(state: GateContext, text: string, reason:
     next_step_if_approved: "The driver gets this message from the operator and may drive on.",
     next_step_if_rejected: "The driver stays stopped; the agent tells them an operator will confirm.",
   })
+}
+
+const list = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : [])
+const strings = (value: unknown): string[] => list<unknown>(value).filter((entry): entry is string => typeof entry === "string")
+
+/** The handover packet from the flat tool parameters. */
+function handoverFrom(input: Record<string, unknown>): ProposalInput["handover"] {
+  return {
+    what_happened: str(input.what_happened), facts: list(input.facts), agent_did: strings(input.agent_did),
+    unknowns: strings(input.unknowns), recommendation: str(input.recommendation), alternatives: strings(input.alternatives),
+  }
+}
+
+/** A proposal from propose_action's flat parameters. */
+export function proposalFrom(input: Record<string, unknown>): ProposalInput {
+  const to = str(input.draft_to)
+  const start = str(input.window_start_utc).trim()
+  const end = str(input.window_end_utc).trim()
+  return {
+    action_type: str(input.action_type) as ProposalInput["action_type"],
+    title: str(input.title),
+    rationale: str(input.rationale),
+    handover: handoverFrom(input),
+    changes: list(input.changes),
+    draft_message: to && to !== "none" && str(input.draft_body).trim()
+      ? {
+        to: to as NonNullable<ProposalInput["draft_message"]>["to"], channel: input.draft_channel === "email" ? "email" : "phone_call",
+        subject: str(input.draft_subject), body: str(input.draft_body), language: str(input.draft_language),
+      }
+      : null,
+    options: list(input.options),
+    evidence_refs: list(input.evidence_refs),
+    assumptions: list(input.assumptions),
+    proposed_window: start && end ? { start_utc: start, end_utc: end } : null,
+    next_step_if_approved: str(input.next_step_if_approved),
+    next_step_if_rejected: str(input.next_step_if_rejected),
+  }
 }
 
 const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknown>) => Promise<Handled>> = {
@@ -514,11 +543,14 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
     })
     if (updated) state.caseRow = updated
     state.waitSet = true
+    const at = new Date(simNow().getTime() + minutes * 60000).toISOString()
+    const zones = [...new Set([state.facts.pickup.timezone, state.facts.delivery.timezone].filter((zone): zone is string => Boolean(zone)))]
+    const when = `${utcTime(at)}${zones.length ? ` = ${zones.map((zone) => localTime(at, zone)).join(" = ")}` : ""}`
     await appendEvent({
       caseId: state.caseRow.id, orderId: state.facts.id, actorType: "agent", actorId: AGENT_ID, kind: "note", channel: "internal",
-      body: `Waiting on ${str(input.waiting_on)}. Next check in ${minutes} min: ${str(input.next_action)}`,
+      body: `Waiting on ${str(input.waiting_on)}. Next check at ${utcTime(at)}, in ${minutes} min: ${str(input.next_action)}`,
     })
-    return { content: `The case waits on ${str(input.waiting_on)}; a follow-up runs in ${minutes} minutes (simulated clock).`, log: null }
+    return { content: `The case waits on ${str(input.waiting_on)}. The follow-up runs in ${minutes} minutes, at ${when} (simulated clock). If that is not the time you meant, call wait_for again with the corrected minutes.`, log: null }
   },
 
   async hand_over(state, input) {
@@ -539,7 +571,7 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
   },
 
   async propose_action(state, input) {
-    const proposal = input as unknown as ProposalInput
+    const proposal = proposalFrom(input)
     const verdict = validateProposal(proposal, state.facts)
     if (!verdict.ok) return { content: `Not recorded: ${verdict.reason}`, isError: true, gate: "REFUSED" }
     state.sideEffects = true
@@ -557,12 +589,12 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
     const proposal: ProposalInput = {
       action_type: "OPERATOR_DECISION",
       title: str(input.question),
-      rationale: (input.handover as ProposalInput["handover"])?.what_happened ?? "",
-      handover: input.handover as ProposalInput["handover"],
+      rationale: str(input.what_happened),
+      handover: handoverFrom(input),
       changes: [],
       draft_message: null,
-      options: (input.options as ProposalInput["options"]) ?? [],
-      evidence_refs: (input.evidence_refs as SourceRef[]) ?? [],
+      options: list(input.options),
+      evidence_refs: list(input.evidence_refs),
       assumptions: [],
       proposed_window: null,
       next_step_if_approved: str(input.next_step_if_decided),

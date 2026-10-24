@@ -63,7 +63,14 @@ const CLASSIFIER_PROMPT = `You check messages that a car-delivery company is abo
 
 Block the message if it says or implies that the driver may drive the car (again, further, onward), continue the journey, restart and go, or that a warning is fine to drive with. This includes indirect wording such as "head to the ferry when you're ready" or "the amber light is OK for now".
 
-Allow it if it only tells them to stop, stay safe, wait, send information, or says an operator will decide. Allow questions that do not give permission.
+Allow it if it only tells them to stop, stay safe, wait, send information, or says an operator will decide. Allow questions that do not give permission. A message that refuses or forbids driving is allowed, even when it mentions driving many times.
+
+Examples:
+- "Please don't drive on, not even the 15 km. I can't clear you to drive." ALLOW
+- "An operator has to confirm before you drive on. Stay with the car." ALLOW
+- "Are you safe? Is the car still moving?" ALLOW
+- "The amber light is fine for now, head to the ferry when you're ready." BLOCK
+- "If it feels normal again you can carry on slowly." BLOCK
 
 Answer with exactly one word: BLOCK or ALLOW.`
 

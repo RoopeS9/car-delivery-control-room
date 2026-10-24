@@ -543,3 +543,53 @@ Checked / changed / rejected:
   unknown-outcome notice; waiting text no longer repeats on rows that wait
   for you.
 - Smoke (100 orders agree), build and A's 42 tests pass.
+
+## 2026-10-24 ~13:00 UTC · Claude Code (stream A agent) · M1 with the real model
+
+Asked: finish M1. That means a real-model run of scenario A saved in `traces/`.
+
+Got: `traces/scenario-a-2026-10-24T12-58-13/` (Sonnet 5.5, 4 runs, $0.19).
+The car reports a misfire and the agent sends two safety templates to the
+driver first. The driver says they are safe and asks "can I drive on 15 km?";
+the agent says no. It then hands over, and a separate turn builds one card,
+"Ask Kavellora how they want the Bentley recovered". The card has sourced
+facts, the unknowns, options and an email draft. The operator picks "I'll
+handle it" and logs the dealer's answer. The agent tells the driver, puts the
+case into a wait on the roadside help, and sets the next check at 12:27 CEST.
+`timeline.md` is the readable version; the JSON files hold every model call.
+
+Checked / changed / rejected. The first two real runs failed in ways the
+scripted tests could not show:
+- The model mixed its own parameter tags into the nested `handover` object,
+  so the tool input was not valid JSON (`"handover": <parameter
+  name="what_happened">`). This happened 3 times out of 3. OpenRouter does not
+  seem to enforce `strict` tool schemas. Fix: `propose_action` and `escalate`
+  no longer take object-valued parameters; the handover fields, the draft and
+  the date window are top-level. A broken tool call is now made once more,
+  with a short note, instead of failing the whole turn.
+- Text the model wrote before a tool call ("the car shows speed 0, so I'll
+  add the engine-off instruction") reached the driver. Fix: each model call's
+  text is held until the call ends. Only text from the call that ends the turn
+  is the reply.
+- The drivability classifier held a message that said "please don't drive
+  on". On its own, Haiku allows that text 12 times out of 12. The gate had
+  been checking every growing prefix, sentence by sentence (7+ calls), so one
+  stray BLOCK was likely. Fix: one check per reply, plus examples in the
+  classifier prompt. A held reply is now replaced entirely by the fixed line,
+  never cut off halfway.
+- "I'll handle it" marked the card OUTDATED. Its assumption was "no new
+  driver message after 09:02". The agent only sees minute-precision times,
+  and the message it had read came at 09:02:07. Fix: the cut-off moves up to
+  the latest message that was in front of the agent when its turn started.
+- The agent set a check for 12:15 UTC when it meant 12:15 CEST. Fix: the
+  case notes give "now" in the pickup and delivery zones too, and `wait_for`
+  answers with the check time in UTC and local time. The next run set it
+  correctly.
+- OpenRouter's cost arrives only in the stream's final `message_delta`, and
+  the SDK drops it. The first run reported $0.001 for four Sonnet calls. Now
+  it is read from the stream.
+- Mock bug: the tow search gave negative distances (a signed bit shift) and
+  described results as "near Düsseldorf, 102 km away". Fixed. Between the
+  dataset's cities, results are now placed around the reported position.
+- 45 tests, typecheck, smoke and build pass. Not done yet: the voice
+  triggers (`call_urgent`, `call_ended`), which wait for the voice stream.
