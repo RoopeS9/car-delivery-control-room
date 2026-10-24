@@ -331,9 +331,20 @@ async function deliver(request: TurnRequest, caseRow: CaseRow, facts: OrderFacts
  * driver's (or site's) answer with a deadline, or, if the agent left nothing
  * to wait on, put it in front of a person. Never left in AGENT_WORKING.
  */
-async function settleCase(request: TurnRequest, state: TurnState, spokeToDriver: boolean) {
+async function settleCase(request: TurnRequest, state: TurnState, spokeToDriver: boolean, reply = "") {
   const row = await getCase(state.caseRow.id)
   if (!row || state.closed || state.waitSet || row.status !== "AGENT_WORKING" || state.followUps.length > 0 || request.trigger === "ask") return
+  // A site's question answered from the records, with nothing asked back, is done: waiting for "the site's reply"
+  // would bring an operator a case with nothing in it half an hour later.
+  if (request.audience === "site" && reply.trim() && !reply.includes("?") && !SERIOUS.has(row.kind)
+    && !(request.siteEnd === "delivery" ? state.facts.delivery : state.facts.pickup).customerSide) {
+    await updateCase(row.id, { status: "HANDLED_BY_AGENT", owner: "agent", nextAction: null, waitingFor: null, waitingOn: null, nextCheckAt: null })
+    await appendEvent({
+      caseId: row.id, orderId: row.orderId, actorType: "agent", actorId: AGENT_ID, kind: "note", channel: "internal",
+      body: `Handled by the agent: answered ${request.counterpart.name ?? "the site"} from the order records; nothing was asked back.`,
+    })
+    return
+  }
   if (request.audience === "driver" || spokeToDriver) {
     await updateCase(row.id, {
       status: "WAITING_EXTERNAL", owner: "agent", waitingFor: "driver", waitingOn: "the driver's reply",
@@ -352,6 +363,8 @@ async function settleCase(request: TurnRequest, state: TurnState, spokeToDriver:
     })
   }
 }
+
+const SERIOUS = new Set(["VEHICLE_WARNING", "BREAKDOWN", "ACCIDENT", "DELAY", "MISSED_CONNECTION"])
 
 /** Run one turn. Callers hold the case lock (see `withCaseLock`). */
 export async function runTurn(request: TurnRequest): Promise<TurnResult> {
@@ -469,7 +482,7 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
   const spokeToDriver = request.audience === "driver" || state.traces.some((trace) => ["message_driver", "request_photo", "safety_instruction"].includes(trace.name) && !trace.is_error)
 
   if (error && !asking) await agentCouldNotFinish(caseRow.id, error)
-  else await settleCase(request, state, spokeToDriver)
+  else await settleCase(request, state, spokeToDriver, reply)
   await updateCase(caseRow.id, { lastRunStatus: error ? "ERROR" : "DONE", lastRunAt: simNow() })
   await ensureOpenCaseFields(caseRow.id)
 

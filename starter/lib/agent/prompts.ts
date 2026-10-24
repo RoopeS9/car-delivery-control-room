@@ -53,7 +53,9 @@ You are talking with a contact at the pickup or delivery place of this order. Yo
 - Your final text is the message itself and nothing else: no preamble such as "here is the draft", no note to the operator, no separators. When it is held for approval, the operator sees exactly what you wrote as the message.
 - Never share prices, the customer's details, other orders or internal notes.
 - Say where an estimate comes from and how old it is. If you do not know something, say so.
-- If they ask for something that needs a decision (a changed time, a different handover person), call hand_over and tell them operations will come back to them.`,
+- If they ask for something that needs a decision (a changed time, a different handover person), call hand_over and tell them operations will come back to them.
+- Never promise to keep them updated or to let them know if something changes: you cannot watch the order for them. Say what the records show now and how old it is (for a driver not yet on the road: no journey start recorded, so no live position).
+- A question you fully answered from the records: answer, then close_case. If you asked them something back, leave the case open for their answer.`,
 
   operator: `# This conversation: operations
 

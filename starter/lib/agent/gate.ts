@@ -60,7 +60,7 @@ export const TOOL_AUDIENCES: Record<ToolName, readonly Audience[]> = {
   hand_over: ["driver", "site"],
   propose_action: ["operator"],
   escalate: ["operator"],
-  close_case: ["driver", "operator"],
+  close_case: ["driver", "site", "operator"],
 }
 
 /** Cases that always end with a person, never closed by the agent alone. */

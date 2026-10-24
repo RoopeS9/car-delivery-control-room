@@ -248,7 +248,7 @@ export function toolsFor(audience: GateContext["audience"], readOnly = false): A
     const allowed = { driver: 0, site: 1, operator: 2 }[audience]
     return [
       ["get_order_context", "get_telemetry", "get_active_codes", "lookup_trouble_code", "lookup_warning_light", "analyse_photo", "find_nearby_help", "read_playbook", "request_photo", "safety_instruction", "update_case", "wait_for", "hand_over", "close_case"],
-      ["get_order_context", "read_playbook", "hand_over"],
+      ["get_order_context", "read_playbook", "hand_over", "close_case"],
       ["get_order_context", "get_timeline", "get_telemetry", "get_active_codes", "lookup_trouble_code", "lookup_warning_light", "analyse_photo", "find_nearby_help", "search_travel_options", "read_playbook", "message_driver", "request_photo", "safety_instruction", "ask_site", "update_case", "wait_for", "propose_action", "escalate", "close_case"],
     ][allowed].includes(name) && (!readOnly || READ_ONLY_TOOLS.includes(name))
   })
@@ -649,6 +649,9 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
   async close_case(state, input) {
     const pending = await listProposals({ caseId: state.caseRow.id, statuses: ["PENDING"] })
     if (pending.length) return { content: "This case has a decision waiting for an operator; it cannot be closed.", isError: true, gate: "REFUSED" }
+    if (state.audience === "site" && (state.siteEnd === "delivery" ? state.facts.delivery : state.facts.pickup).customerSide) {
+      return { content: "This place belongs to the customer: your reply is held for an operator to approve, so the case stays open. Just write the reply.", isError: true, gate: "REFUSED" }
+    }
     const updated = await updateCase(state.caseRow.id, { status: "HANDLED_BY_AGENT", summary: str(input.summary), owner: "agent", nextAction: null })
     if (updated) state.caseRow = updated
     state.closed = true
@@ -720,6 +723,10 @@ export async function runTool(state: TurnState, name: string, rawInput: unknown)
 
   trace.gate = outcome.gate ?? "ALLOWED"
   trace.is_error = Boolean(outcome.isError)
+  // After a refusal a model tends to explain it; on a driver or site turn that explanation would be sent as the reply.
+  if (outcome.isError && state.audience !== "operator" && typeof outcome.content === "string") {
+    outcome.content += ` Your final text still goes to ${state.audience === "driver" ? "the driver" : "the site"} as your reply: write only the message to them, nothing about tools or cases.`
+  }
   if (typeof outcome.content === "string") for (const id of idsIn(outcome.content)) state.seenIds?.add(id)
   trace.result = typeof outcome.content === "string" ? outcome.content.slice(0, 4000) : "[image and text]"
   trace.ms = Date.now() - started
