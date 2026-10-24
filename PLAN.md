@@ -293,8 +293,17 @@ const client = new Anthropic({
 - Not available through OpenRouter: token counting (`count_tokens`); do not
   rely on Anthropic beta-only parameters such as server-side refusal
   `fallbacks`. Handle `stop_reason: "refusal"` by handing the case to a person.
-- Each response's `usage.cost` reports dollars spent. Log it in `cr_agent_runs`
-  and show the running total on `/demo`.
+- Non-streamed responses report dollars spent in `usage.cost`. **Streamed
+  responses don't** (found by the voice stream), so estimate cost from tokens:
+  Haiku 5.5 $1/$5, Sonnet 5.5 $2/$10, Opus 5.5 $4/$20 per million input/output
+  tokens (cache reads cheaper), speech about $0.04 per 1,000 characters. Log it
+  in `cr_agent_runs` and show the running total on `/demo`.
+- **Haiku 5.5 thinks by default** and can spend its whole `max_tokens` on
+  thinking and return no text. Send `thinking: { type: "disabled" }` for
+  Haiku (classifiers, simulated driver) and give it a strict output format.
+  With thinking off it may say its instructions aloud, so don't use it for
+  anything spoken to users. Sonnet 5.5 rejects `disabled`; use
+  `output_config: { effort: "low" }` instead.
 - **Budget:** $60 in total (three $20 keys). The keys stop working a day after
   the event. A short Opus 5.5 tool call cost $0.003; expect roughly $0.05–0.15
   per agent turn with full order context. Use prompt caching (stable system
