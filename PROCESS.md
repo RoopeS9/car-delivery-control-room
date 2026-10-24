@@ -31,8 +31,6 @@ Checked / changed / rejected:
   operator yes.
 - Result: `PLAN.md`.
 
-
-
 ## 2026-10-24 · RoopeS + Claude Code (local) · plan review
 
 Asked: find the holes in PLAN.md while cloud instance 1 builds streams A+B
@@ -231,3 +229,34 @@ Checked / changed / rejected:
   place's standard instructions"), and the ferry line says "check-in not
   confirmed yet" rather than implying the driver is booked onto the ship.
 - The Call button appears only once `/driver/voice` exists (voice stream).
+
+## 2026-10-24 · RoopeS + Claude Code (local) · voice design
+
+Asked: the best approach for voice. Requirements from us: a reliable
+transcript for later use, an interview that asks the right things with low
+latency, the agent works through the transcript afterwards, and the first
+question decides whether it is urgent. Mentioned Moshi as an option. Also
+pasted another LLM's suggestion (ElevenLabs through OpenRouter for speech
+out, Chrome for speech in).
+
+Got: before deciding, the agent measured instead of guessing:
+- OpenRouter's model list: there is no Moshi or other full-duplex model.
+  There are 36 speech models and 28 transcription models.
+- A round trip: ElevenLabs Flash speech in 0.63 s; four transcription models
+  in about 1.1 s each, all accurate.
+- First words: Haiku 5.5 0.75 s, Sonnet 5.5 0.84 s, Opus 5.5 5.9 s.
+
+Checked / changed / rejected:
+- Rejected the full Opus agent inside the live call: 5.9 s per turn is too
+  slow. Split instead into a fast interviewer (Sonnet, preloaded context,
+  slot-filling) and an Opus analyst that works on the transcript.
+- Kept Chrome speech recognition only for live speed. The transcript of record
+  comes from recording each utterance and transcribing it on the server,
+  because Chrome keeps no audio and is unreliable in a noisy hall.
+- Rejected speech-to-speech models (no explicit transcript, harder rule
+  control), but kept the VoiceProvider swap point.
+- Added the echo problem (laptop speakers + mic): half-duplex for the demo.
+- Noticed Sonnet volunteered mechanical detail ("cylinder 2, catalytic
+  converter") in the latency test: the interviewer prompt must hold to
+  safety-only advice.
+
