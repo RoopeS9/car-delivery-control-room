@@ -35,29 +35,36 @@ export type DossierItem = {
 
 export type StripPoint = { label: string; place: string; state: "done" | "now" | "planned" | "unverified" | "missed"; note: string | null }
 
+/** Something worth watching, derived: a deadline at risk, two facts that disagree, a silent gap, a review under way. */
+export type WatchItem = { id: string; text: string; tone: Tone; at: string | null; why: string; sources: string[] }
+
 export type DossierView = {
   orderId: string
   reference: string
   vehicle: string
   make: string | null
-  plate: string | null
-  year: number | null
   customer: string
-  customerNote: string | null
   driver: string | null
   from: string
   to: string
   laneLabel: string
-  headline: string
-  intro: string
-  tone: Tone
+  /** The order's local zone; every time in the view is read in it. */
+  zone: string | null
   simNow: string
-  position: { label: string; ageLabel: string | null; stale: boolean; speedKmh: number | null } | null
-  eta: { at: string; text: string; strength: Strength; source: string } | null
-  promise: { at: string; text: string; source: string; late: boolean } | null
-  decision: { title: string; ask: string | null; sinceLabel: string | null; href: string } | null
+  /** One sentence of state, derived. */
+  headline: string
+  tone: Tone
+  /** The one thing that needs a person, or null for "Nothing needs you". */
+  need: { title: string; ask: string | null; since: string | null; sinceLabel: string | null; href: string; chain?: string[] } | null
   strip: StripPoint[]
+  /** At most three. */
+  watching: WatchItem[]
+  /** The last three things a person did or said, newest first. */
+  recent: { id: string; at: string; text: string }[]
+  /** Full history: planned steps and deadlines ahead, then what happened, without bookkeeping events. */
   ahead: DossierItem[]
   behind: DossierItem[]
+  /** Every record on the order, by class, for the curious. */
+  records: { label: string; items: { label: string; at: string | null; when: string | null; strength: string }[] }[]
+  recordsFromService: boolean
 }
-

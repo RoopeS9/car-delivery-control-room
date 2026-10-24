@@ -1,19 +1,20 @@
-// The operator's view of one delivery, opened from the chart: who and what, a
-// journey strip, and one progress timeline. Ahead: planned steps and deadlines,
-// soonest first. Behind: what happened, newest first. Every line carries how
-// strong its evidence is, in the dossier's words: a quote is not a booking, a
-// booking is not a gate scan, a message is a claim, a phone position here is
-// simulated. A waiting decision is one item at "now", not a card that leads.
+// The operator's view of one delivery, opened from the map. Above the fold:
+// one sentence of state, the one thing that needs a person (or nothing), the
+// journey strip, at most three things worth watching, and the last three
+// things a person did or said. Everything else folds into the full history,
+// and every record stays behind the full dossier. Lines carry at most one
+// evidence word: a quote is not a booking, a booking is not a gate scan, a
+// message is a claim, a phone position here is simulated.
 
 import { fleetCar } from "@/lib/sim/fleet"
 import { callsFor, serviceDossier, strengthIndex } from "./call-service"
 import { readToolArgument, slotLabel, slotValue, type CallRecord } from "./call-types"
 import { deriveKeyDates, milestones } from "./attention"
-import { type Bundle, num, rows, str } from "./bundle"
-import { labelIn } from "./labels"
+import { type Bundle, rows, str } from "./bundle"
+import { label, labelIn } from "./labels"
 import { buildRecordView } from "./record"
-import { fmtDateTime, isBefore, minutesBetween, relativeTo } from "./time"
-import type { DossierItem, DossierView, StripPoint, Strength } from "./dossier-types"
+import { isBefore, minutesBetween } from "./time"
+import type { DossierItem, DossierView, StripPoint, Strength, WatchItem } from "./dossier-types"
 import type { Tone } from "./types"
 
 export type { DossierItem, DossierView, StripPoint, Strength }
@@ -21,14 +22,48 @@ export { STRENGTH_LABEL } from "./dossier-types"
 
 const SOURCE_TONE: Record<string, Tone> = { danger: "danger", warn: "warn", accent: "accent", ok: "ok", neutral: "neutral" }
 
-function when(iso: string | null, zone?: string | null): string {
-  return iso ? fmtDateTime(iso, zone ?? null) : "time not recorded"
+/** Bookkeeping events that say the system moved, not that anything happened to the car: hidden from the operator view. */
+const LIFECYCLE = new Set([
+  "order.status_changed", "order.created", "plan.created", "plan.activated", "plan.completed", "plan.replaced", "plan.cancelled",
+  "offer.published", "offer.accepted", "offer.withdrawn", "proof.submitted", "proof.require", "proof.review", "assignment.booked",
+  "assignment.started", "assignment.completed", "expense.auto_recorded", "exposure.shown", "exposure.notified", "exposure.viewed",
+  "exposure.accepted", "order.item_added", "bundle.member_linked", "travel.booked", "availability.confirmed", "order.readiness_assessed",
+])
+/** Steps of a review chain, told once on the watching line they belong to. */
+const CHAIN = /^(alert|work_item|work|incident)\./
+/** Events where a person did something to the car or the handover. */
+const HANDOVER = new Set(["vehicle.picked_up", "vehicle.delivered", "pickup.attempted", "site_visit.arrived", "travel.arrival_reported", "delivery.delay_reported", "vehicle.custody_reported", "pickup.vehicle_not_found"])
+
+/** "Tue 13:10" in the order's zone. */
+function weekdayClock(zone: string | null) {
+  const format = new Intl.DateTimeFormat("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: zone ?? "UTC" })
+  const clock = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: zone ?? "UTC" })
+  const day = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: zone ?? "UTC" })
+  return {
+    at: (iso: string | null | undefined) => iso ? format.format(new Date(iso)).replace(",", "") : "time not recorded",
+    clock: (iso: string | null | undefined) => iso ? clock.format(new Date(iso)) : "",
+    day: (iso: string | null | undefined) => iso ? day.format(new Date(iso)) : "",
+  }
+}
+
+function duration(minutes: number): string {
+  if (minutes < 60) return `${Math.max(1, Math.round(minutes / 5) * 5 || 1)} min`
+  const hours = Math.floor(minutes / 60)
+  const rest = Math.round((minutes % 60) / 10) * 10
+  return rest ? `${hours} h ${rest} min` : `${hours} h`
+}
+
+function sentence(text: string, max = 120): string {
+  const flat = text.replace(/\s+/g, " ").trim()
+  return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat
 }
 
 export async function buildDossier(bundle: Bundle): Promise<DossierView> {
   const view = buildRecordView(bundle)
   const now = bundle.cr.now
   const header = view.header
+  const zone = header.to.zone ?? header.from.zone ?? null
+  const t = weekdayClock(zone)
   const { pickedUpAt, deliveredAt } = milestones(bundle)
   const { keyDates } = deriveKeyDates(bundle)
   // The robo-call service runs beside the app; without it the dossier still renders.
@@ -37,31 +72,28 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
   ])
   const active = view.assignments.find((row) => row.status === "IN_PROGRESS") ?? view.assignments.find((row) => row.status !== "CANCELLED" && row.status !== "COMPLETED") ?? null
   const driver = car?.driverName ?? active?.driver.name ?? null
+  const commandOf = new Map(bundle.events.map((event) => [event.id, event.command]))
   const ahead: DossierItem[] = []
   const behind: DossierItem[] = []
-  const push = (item: DossierItem) => (item.at && !isBefore(item.at, now) ? ahead : behind).push(item)
+  const watching: WatchItem[] = []
+  const recent: DossierView["recent"] = []
 
   // ---- journey steps and their windows
   const steps = view.journey.groups[0]?.steps ?? []
   for (const step of steps) {
-    // Done steps are told by the event log line, with who recorded them; the
-    // delivery window is told by the promise below.
     if (step.recorded || step.role === "DELIVERY") continue
     const slot = step.windows.find((window) => window.selected && window.purpose === "SELECTED_PICKUP_SLOT") ?? step.windows[0] ?? null
     if (!slot) continue
-    const where = `${step.place.name}, ${step.place.city}`
     const passed = isBefore(slot.end ?? slot.start, now)
-    const range = slot.end ? `${when(slot.start, slot.zone)} to ${when(slot.end, slot.zone)}` : when(slot.start, slot.zone)
-    const item: DossierItem = {
+    const range = slot.end ? `${t.at(slot.start)} to ${t.clock(slot.end)}` : t.at(slot.start)
+    ;(passed ? behind : ahead).push({
       id: `step-${step.id}`, at: passed ? slot.end ?? slot.start : slot.start, kind: "step",
-      title: passed ? `${step.roleLabel} window passed at ${where}` : `${step.roleLabel} at ${where}`,
-      detail: [`${slot.label} ${range}`, slot.sourceLabel, passed ? "nothing recorded at this point" : null].filter(Boolean).join(" · "),
-      strength: passed ? "missed" : "planned", source: slot.sourceLabel, tone: passed ? "warn" : "neutral",
-    }
-    ;(passed ? behind : ahead).push(item)
+      title: passed ? `${step.roleLabel} window ${range} passed at ${step.place.name}; nothing recorded there` : `${step.roleLabel} at ${step.place.name}, ${range}`,
+      detail: null, strength: passed ? "missed" : "planned", source: slot.sourceLabel, tone: passed ? "warn" : "neutral",
+    })
   }
 
-  // ---- ferry and travel: booked, check-in by gate scan, departure, arrival
+  // ---- ferry and travel: booked, check-in by gate scan, departure
   const gate = rows(bundle, "ferry_terminal_events").map((row) => row.details)
   const terminals = new Map(rows(bundle, "ferry_terminals").map((row) => [row.id, str(row.details.name)]))
   const ferryStrip: StripPoint[] = []
@@ -71,9 +103,8 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
     const route = reservation.route ?? reservation.kindLabel
     if (reservation.bookedAt) behind.push({
       id: `res-${reservation.id}`, at: reservation.bookedAt, kind: reservation.kind === "FERRY" ? "ferry" : "travel",
-      title: `${reservation.kindLabel} booked: ${route}`,
-      detail: [reservation.reference ? `booking ${reservation.reference}` : null, reservation.departureAt ? `departs ${when(reservation.departureAt)}` : null, reservation.amendment].filter(Boolean).join(" · ") || null,
-      strength: "booked", source: "Driver travel booking", tone: reservation.tone, ref: { collection: "travel_reservations", id: reservation.id },
+      title: `${reservation.kindLabel} booked: ${route}${reservation.departureAt ? `, departs ${t.at(reservation.departureAt)}` : ""}`,
+      detail: reservation.amendment, strength: "booked", source: "Travel booking", tone: reservation.tone, ref: { collection: "travel_reservations", id: reservation.id },
     })
     if (reservation.kind !== "FERRY") continue
     const scans = gate.filter((row) => row.reservation_id === reservation.id).sort((a, b) => String(a.occurred_at).localeCompare(String(b.occurred_at)))
@@ -82,114 +113,118 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
       const accepted = scan.kind === "CHECK_IN_ACCEPTED"
       behind.push({
         id: `gate-${str(scan.id)}`, at: str(scan.occurred_at), kind: "ferry",
-        title: accepted ? "Check-in confirmed by gate scan" : `Gate refused check-in`,
-        detail: [str(scan.reason), str(scan.receipt_reference) ? `receipt ${str(scan.receipt_reference)}` : null, "boarding is not recorded by the gate"].filter(Boolean).join(" · "),
-        strength: "verified", source: `Gate reader, ${terminal}`, tone: accepted ? "ok" : "danger", ref: { collection: "ferry_terminal_events", id: str(scan.id) ?? "" },
+        title: accepted ? `Check-in confirmed by gate scan at ${terminal}` : `Gate refused check-in at ${terminal}${str(scan.reason) ? `: ${str(scan.reason)}` : ""}`,
+        detail: "The gate records check-in; boarding is not recorded.", strength: "verified", source: "Terminal gate", tone: accepted ? "ok" : "danger",
+        ref: { collection: "ferry_terminal_events", id: str(scan.id) ?? "" },
       })
     }
     const checkedIn = scans.some((scan) => scan.kind === "CHECK_IN_ACCEPTED")
     const cutoff = reservation.checkInCutoffAt
-    if (cutoff) {
-      if (!isBefore(cutoff, now)) ahead.push({
-        id: `cutoff-${reservation.id}`, at: cutoff, kind: "deadline", title: `Ferry check-in closes at ${terminal}`,
-        detail: `${route}${reservation.reference ? ` · ${reservation.reference}` : ""} · ${checkedIn ? "checked in by gate scan" : "no gate scan yet"}`,
-        strength: "booked", source: "Carrier booking", tone: checkedIn ? "ok" : (minutesBetween(now, cutoff) ?? 999) < 180 ? "warn" : "neutral",
-      })
-      else if (!checkedIn) behind.push({
-        id: `cutoff-${reservation.id}`, at: cutoff, kind: "deadline", title: "Ferry check-in cutoff passed with no gate scan",
-        detail: reservation.status === "MISSED_CHECK_IN" ? "The booking is recorded as missed check-in." : "Check-in is not confirmed. A booking is not a gate scan.",
-        strength: reservation.status === "MISSED_CHECK_IN" ? "recorded" : "unverified", source: "Carrier booking and gate records", tone: "warn",
-      })
+    if (cutoff && !deliveredAt) {
+      if (!isBefore(cutoff, now)) {
+        ahead.push({ id: `cutoff-${reservation.id}`, at: cutoff, kind: "deadline", title: `Ferry check-in closes at ${terminal}, ${t.at(cutoff)}`, detail: null, strength: "booked", source: "Carrier booking", tone: checkedIn ? "ok" : "neutral" })
+        if (!checkedIn && (minutesBetween(now, cutoff) ?? 9999) < 6 * 60) watching.push({
+          id: `w-cutoff-${reservation.id}`, tone: "warn", at: cutoff,
+          text: `Ferry check-in closes ${t.at(cutoff)}; no gate scan yet`,
+          why: "The ferry is booked, but only the terminal's gate scan confirms check-in. Until then the car may still miss the ship.",
+          sources: ["Carrier booking", "Terminal gate records (none yet)"],
+        })
+      } else if (!checkedIn) {
+        behind.push({ id: `cutoff-${reservation.id}`, at: cutoff, kind: "deadline", title: `Ferry check-in closed ${t.at(cutoff)} with no gate scan`, detail: null, strength: reservation.status === "MISSED_CHECK_IN" ? "recorded" : "unverified", source: "Carrier booking", tone: "warn" })
+        watching.push({
+          id: `w-cutoff-${reservation.id}`, tone: "danger", at: cutoff,
+          text: reservation.status === "MISSED_CHECK_IN" ? `Missed ferry check-in, ${t.at(cutoff)}` : `Ferry check-in closed ${t.at(cutoff)} with no gate scan`,
+          why: "A booking is not a gate scan. Without one there is no evidence the car made the ship.",
+          sources: ["Carrier booking", "Terminal gate records"],
+        })
+      }
     }
-    if (reservation.departureAt && !deliveredAt) {
-      const departed = isBefore(reservation.departureAt, now)
-      push({
-        id: `dep-${reservation.id}`, at: reservation.departureAt, kind: "ferry",
-        title: departed ? `Ferry departure time passed: ${route}` : `Ferry departs: ${route}`,
-        detail: departed ? "Boarding is not recorded. Where the car is now comes only from the simulated phone." : reservation.arrivalAt ? `arrives ${when(reservation.arrivalAt)}` : null,
-        strength: departed ? "unverified" : "booked", source: "Carrier booking", tone: "neutral",
-      })
+    if (reservation.departureAt && !deliveredAt && !isBefore(reservation.departureAt, now)) {
+      ahead.push({ id: `dep-${reservation.id}`, at: reservation.departureAt, kind: "ferry", title: `Ferry departs, ${route}, ${t.at(reservation.departureAt)}`, detail: null, strength: "booked", source: "Carrier booking", tone: "neutral" })
     }
     const sailing = reservation.departureAt && reservation.arrivalAt && isBefore(reservation.departureAt, now) && isBefore(now, reservation.arrivalAt)
     ferryStrip.push({
       label: "Ferry", place: route,
       state: checkedIn ? (sailing ? "now" : "done") : reservation.status === "MISSED_CHECK_IN" ? "missed" : cutoff && isBefore(cutoff, now) ? "unverified" : "planned",
-      note: checkedIn ? "check-in by gate scan" : reservation.status === "MISSED_CHECK_IN" ? "missed check-in" : cutoff && isBefore(cutoff, now) ? "booked, no gate scan" : `booked, cutoff ${when(cutoff)}`,
+      note: checkedIn ? "checked in by gate scan" : reservation.status === "MISSED_CHECK_IN" ? "missed check-in" : cutoff && isBefore(cutoff, now) ? "booked, no gate scan" : `booked, check-in by ${t.at(cutoff)}`,
     })
   }
   for (const option of view.options) {
     behind.push({
       id: `opt-${option.id}`, at: option.checkedAt, kind: "quote",
-      title: `${option.kindLabel} quote${option.route ? `: ${option.route}` : ""}${option.quote ? `, ${option.quote}` : ""}`,
-      detail: [option.statusLabel, option.provider, option.departureAt ? `departs ${when(option.departureAt)}` : null, "a quote, not a booking"].filter(Boolean).join(" · "),
-      strength: "quote", source: option.provider ?? "Travel search", tone: "neutral", ref: { collection: "travel_options", id: option.id },
+      title: `${option.kindLabel} quote${option.route ? `, ${option.route}` : ""}${option.quote ? `, ${option.quote}` : ""}; a quote, not a booking`,
+      detail: null, strength: "quote", source: option.provider ?? "Travel search", tone: "neutral", ref: { collection: "travel_options", id: option.id },
     })
   }
 
   // ---- the promise and the ETA
   const promiseDate = keyDates.find((date) => date.key === "promise")
   const etaDate = keyDates.find((date) => date.key === "eta")
-  const promise = promiseDate ? {
-    at: promiseDate.end ?? promiseDate.start,
-    text: `${promiseDate.label} ${when(promiseDate.start, promiseDate.zone)}${promiseDate.end ? `–${fmtDateTime(promiseDate.end, promiseDate.zone).split(" ").slice(-2).join(" ")}` : ""}`,
-    source: promiseDate.source === "CUSTOMER" ? "agreed with the customer" : labelIn(promiseDate.source) || "source not recorded",
-    late: promiseDate.tone === "danger",
-  } : null
-  if (promiseDate && !deliveredAt) push({
-    id: "promise", at: promiseDate.end ?? promiseDate.start, kind: "deadline",
-    title: promiseDate.label === "Delivery promise" ? `Delivery promised by ${when(promiseDate.end ?? promiseDate.start, promiseDate.zone)}` : `${promiseDate.label} ${when(promiseDate.start, promiseDate.zone)}`,
-    detail: promiseDate.note, strength: promiseDate.source === "CUSTOMER" ? "recorded" : "planned",
-    source: promise?.source ?? "records", tone: promiseDate.tone,
-  })
-  const eta = etaDate ? {
-    at: etaDate.start, text: `${when(etaDate.start, etaDate.zone)}`,
-    strength: (etaDate.label.includes("Road Desk") ? "agent" : "claim") as Strength,
-    source: etaDate.label.includes("Road Desk") ? "Road Desk estimate" : `Driver app estimate${etaDate.note ? `, ${etaDate.note.replace(/; unverified$/, "")}` : ""}`,
-  } : null
+  const promiseRange = promiseDate ? (promiseDate.end
+    ? `${t.day(promiseDate.start) === t.day(now) ? "" : `${t.day(promiseDate.start)} `}${t.clock(promiseDate.start)} to ${t.clock(promiseDate.end)}`
+    : t.at(promiseDate.start)) : null
+  if (promiseDate && !deliveredAt) {
+    const item: DossierItem = {
+      id: "promise", at: promiseDate.end ?? promiseDate.start, kind: "deadline",
+      title: `${promiseDate.label === "Delivery promise" ? "Delivery promised" : promiseDate.label}, ${t.at(promiseDate.start)}${promiseDate.end ? ` to ${t.clock(promiseDate.end)}` : ""}`,
+      detail: promiseDate.note, strength: promiseDate.source === "CUSTOMER" ? "commitment" : "planned",
+      source: promiseDate.source === "CUSTOMER" ? "Agreed with the customer" : labelIn(promiseDate.source) || "Records", tone: promiseDate.tone,
+    }
+    ;(isBefore(item.at, now) ? behind : ahead).push(item)
+  }
 
   // ---- what happened: records, live case events, calls
   const callIds = new Set(view.calls.map((call) => call.id))
+  const chainSteps: { at: string; text: string }[] = []
   for (const entry of view.timeline) {
     if (entry.kind === "voice" && callIds.size) continue
+    const command = entry.source.kind === "operational_events" ? commandOf.get(entry.source.id) ?? null : null
+    if (command && LIFECYCLE.has(command)) continue
+    if ((command && CHAIN.test(command)) || entry.kind === "alert") {
+      chainSteps.push({ at: entry.at, text: `${sentence(entry.text, 90)} (${entry.actorName}, ${t.at(entry.at)})` })
+      continue
+    }
     const agentSide = entry.actorKind === "agent"
     let kind: DossierItem["kind"] = "event"
     let strength: Strength = "recorded"
-    if (entry.kind === "message") { kind = "message"; strength = agentSide ? "agent" : "claim" }
-    else if (entry.kind === "alert") { kind = "signal"; strength = "signal" }
-    else if (entry.kind === "lookup") { kind = "agent"; strength = "agent" }
+    if (entry.kind === "message" || entry.kind === "photo") { kind = "message"; strength = agentSide ? "agent" : "claim" }
+    else if (entry.kind === "lookup" || entry.kind === "proposal" || entry.kind === "safety") { kind = "agent"; strength = "agent" }
     else if (entry.kind === "telemetry" || entry.actorKind === "obd" || entry.actorKind === "phone") { kind = "telemetry"; strength = "simulated" }
-    else if (entry.kind === "proposal") { kind = "agent"; strength = "agent" }
     else if (entry.kind === "decision") { kind = "decision"; strength = "decision" }
-    else if (entry.kind === "safety") { kind = "agent"; strength = "agent" }
     else if (entry.kind === "note") { kind = "note"; strength = agentSide ? "agent" : "recorded" }
-    else if (entry.kind === "photo") { kind = "message"; strength = "claim" }
-    behind.push({
+    const who = entry.channelLabel && entry.kind === "message" ? `${entry.actorName}, ${entry.channelLabel.charAt(0).toLowerCase()}${entry.channelLabel.slice(1)}` : entry.actorName
+    const item: DossierItem = {
       id: `t-${entry.id}`, at: entry.at, kind, strength, tone: SOURCE_TONE[entry.tone] ?? "neutral",
-      title: entry.text.length > 180 ? `${entry.text.slice(0, 177).trimEnd()}…` : entry.text,
-      detail: entry.text.length > 180 ? entry.text : null,
-      source: [entry.actorName, entry.channelLabel].filter(Boolean).join(", "), ref: { collection: entry.source.kind, id: entry.source.id },
-    })
+      title: sentence(entry.text.replace(/\. (from|occurred) .*$/, ""), 200), detail: entry.text.length > 200 ? entry.text : null,
+      source: who, ref: { collection: entry.source.kind, id: entry.source.id },
+    }
+    behind.push(item)
+    // Recent: what a person did or said (not the agent, not a sensor, not the system).
+    const person = !agentSide && !["system", "obd", "phone"].includes(entry.actorKind) || entry.kind === "decision"
+    const handover = command ? HANDOVER.has(command) : false
+    if ((entry.kind === "message" && person) || entry.kind === "decision" || handover) {
+      recent.push({ id: item.id, at: entry.at, text: entry.kind === "message" ? `${who}: “${sentence(entry.text, 110)}”` : `${entry.actorName}: ${sentence(entry.text.replace(/\. (from|occurred) .*$/, ""), 110)}` })
+    }
   }
   for (const call of view.calls) {
-    const minutes = call.endedAt ? minutesBetween(call.startedAt, call.endedAt) : null
-    behind.push({
+    const item: DossierItem = {
       id: `call-${call.id}`, at: call.startedAt, kind: "call",
-      title: `${call.directionLabel}${call.urgencyLabel ? ` · ${call.urgencyLabel.toLowerCase()}` : ""}`,
-      detail: [call.urgencyQuote ? `“${call.urgencyQuote}”` : null, minutes != null ? `${Math.max(1, minutes)} min` : "still on the line", `${call.turns.length} turns`, call.readbackConfirmed ? "read back and confirmed by the driver" : null].filter(Boolean).join(" · "),
-      strength: "recorded", source: `Voice call with ${call.driverName}, transcript of the recording`, tone: call.tone,
+      title: `${call.directionLabel}${call.urgencyLabel ? `, ${call.urgencyLabel.toLowerCase()}` : ""}${call.readbackConfirmed ? "; the driver confirmed the read-back" : ""}`,
+      detail: call.urgencyQuote ? `“${call.urgencyQuote}”` : null, strength: "recorded", source: `Call with ${call.driverName}`, tone: call.tone,
       turns: call.turns.map((turn) => ({ speaker: turn.speakerName, text: turn.text, at: turn.at })),
-    })
+    }
+    behind.push(item)
+    recent.push({ id: item.id, at: call.startedAt, text: `${call.driverName} on a call: ${call.directionLabel.toLowerCase()}${call.urgencyLabel ? `, ${call.urgencyLabel.toLowerCase()}` : ""}` })
   }
-
   for (const call of robo) {
     const item = roboCallItem(call)
     // The call service stamps calls with its own wall clock, which can be ahead of the simulated one.
-    if (item.at && !isBefore(item.at, now)) item.detail = [item.detail, "stamped by the call service's own clock, not the simulated clock"].filter(Boolean).join(" · ")
+    if (item.at && !isBefore(item.at, now)) item.detail = [item.detail, "Timed by the call service's own clock, not the simulated clock."].filter(Boolean).join(" ")
     behind.push(item)
+    recent.push({ id: item.id, at: call.startedAt, text: item.title })
   }
 
-  // Where the dossier service has typed a record, its evidence word wins over
-  // ours, except for the judgements made here against the clock.
+  // Where the dossier service has typed a record, its evidence word wins over ours, except for judgements made here against the clock.
   const typedStrength = strengthIndex(typed)
   for (const item of [...ahead, ...behind]) {
     if (!item.ref || ["missed", "unverified", "simulated", "agent", "decision"].includes(item.strength)) continue
@@ -197,67 +232,127 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
     if (word && word !== "reference") item.strength = word
   }
 
-  // ---- a waiting decision is one item at "now"
-  let decision: DossierView["decision"] = null
+  // ---- the one thing that needs a person
+  let need: DossierView["need"] = null
   for (const kase of view.cases) {
-    for (const card of kase.pending) {
-      decision ??= { title: card.title, ask: card.recommendation ?? card.rationale, sinceLabel: relativeTo(card.createdAt, now)?.text ?? null, href: `/orders/${bundle.order.id}#case` }
-    }
+    for (const card of kase.pending) need ??= { title: card.title, ask: card.recommendation ?? card.rationale, since: card.createdAt, sinceLabel: t.at(card.createdAt), href: `/orders/${bundle.order.id}#case` }
   }
-  const attention = view.attention.find((item) => item.kind !== "case")
-  if (!decision && attention && (attention.tone === "danger" || attention.tone === "warn")) {
-    decision = { title: attention.title, ask: attention.detail, sinceLabel: attention.at ? relativeTo(attention.at, now)?.text ?? null : null, href: `/orders/${bundle.order.id}#${attention.section}` }
-  }
+  const open = view.attention.filter((item) => item.kind !== "case")
+  const pressing = open.find((item) => item.tone === "danger" || item.tone === "warn")
+  if (!need && pressing) need = { title: pressing.title, ask: pressing.detail, since: pressing.at, sinceLabel: pressing.at ? t.at(pressing.at) : null, href: `/orders/${bundle.order.id}#${pressing.section}` }
 
-  // ---- where it is now: the simulated phone
+  // ---- watching: deadlines at risk, conflicts, silent gaps, open reviews
   const gps = bundle.cr.gps
-  let position: DossierView["position"] = null
-  if (gps) {
-    const data = gps.data as Record<string, unknown>
-    const at = gps.at.toISOString()
-    const age = minutesBetween(at, now) ?? 0
-    const stale = age > 30 || car?.phone === "STALE"
-    position = {
-      label: typeof data.place_label === "string" ? data.place_label : "Position reported",
-      ageLabel: relativeTo(at, now)?.text ?? null, stale, speedKmh: stale ? null : num(data.speed_kmh),
-    }
+  const gpsAt = gps ? gps.at.toISOString() : null
+  const phoneQuiet = !!gpsAt && ((minutesBetween(gpsAt, now) ?? 0) > 30 || car?.phone === "STALE")
+  if (bundle.order.lane === "moving" && phoneQuiet && gpsAt) watching.push({
+    id: "w-phone", tone: "warn", at: gpsAt, text: `No phone position since ${t.at(gpsAt)}`,
+    why: car?.phoneNote ?? "The driver app has stopped reporting. The last position is old; it says nothing about where the car is now.",
+    sources: ["Driver's phone GPS, simulated"],
+  })
+  if (bundle.order.lane === "moving" && !gps && car?.phone === "NONE") watching.push({
+    id: "w-phone", tone: "warn", at: null, text: "No phone position on this trip", why: "The driver app has not reported a position since the trip started.", sources: ["Driver's phone GPS, simulated"],
+  })
+  if (promiseDate?.tone === "danger") watching.push({
+    id: "w-promise", tone: "danger", at: promiseDate.end ?? promiseDate.start, text: `Delivery promise ${promiseRange} at risk`,
+    why: `${promiseDate.note ?? ""}${etaDate ? ` The estimate comes from the driver app (${etaDate.note ?? "unverified"}); it is a claim, not a position.` : ""}`.trim(),
+    sources: [promiseDate.source === "CUSTOMER" ? "Promise agreed with the customer" : "Delivery window in the records", ...(etaDate ? ["Driver app estimate"] : [])],
+  })
+  const slot = keyDates.find((date) => date.key === "pickup_slot")
+  if (slot?.tone === "warn") watching.push({ id: "w-slot", tone: "warn", at: slot.start, text: `Pickup slot ${t.at(slot.start)}: ${slot.note}`, why: "The slot is the selected pickup window; nothing in the records shows the car collected.", sources: ["Pickup slot in the records"] })
+  for (const item of open) {
+    if (need && item.title === need.title) continue
+    const since = chainSteps.find((step) => step.text.toLowerCase().includes(item.title.toLowerCase().replace(/^open alert: /, "").slice(0, 20)))?.at ?? item.at
+    const conflict = item.kind === "claim"
+    watching.push({
+      id: `w-${item.recordId}`, tone: item.tone, at: item.at,
+      text: conflict ? `Records disagree: ${item.title}` : `${item.title.replace(/^(Open|Owned) alert: /, "")}${item.kind === "alert" || item.kind === "owned_alert" || item.kind === "work" ? ` under review since ${t.at(since)}` : ""}`,
+      why: item.detail ?? "From the records.", sources: [label(item.kind === "owned_alert" ? "alert" : item.kind)],
+    })
   }
+  // The steps of review chains go into the fold of the line they belong to (or the need).
+  const chainLines = chainSteps.sort((a, b) => a.at.localeCompare(b.at)).map((step) => step.text)
+  const rankTone: Record<Tone, number> = { danger: 0, warn: 1, accent: 2, neutral: 3, ok: 4 }
+  watching.sort((a, b) => rankTone[a.tone] - rankTone[b.tone])
+  const shownWatching = watching.filter((item, index) => watching.findIndex((other) => other.text === item.text) === index).slice(0, 3)
+  if (need && chainLines.length) need.chain = chainLines
+  else if (shownWatching[0] && chainLines.length) shownWatching[0].sources = [...shownWatching[0].sources, ...chainLines]
 
   // ---- journey strip
   const pickup = steps.find((step) => step.role === "PICKUP")
   const delivery = [...steps].reverse().find((step) => step.role === "DELIVERY")
   const moving = bundle.order.lane === "moving"
+  const placeLabel = gps && typeof (gps.data as Record<string, unknown>).place_label === "string" ? String((gps.data as Record<string, unknown>).place_label) : null
   const strip: StripPoint[] = [
-    { label: "Pickup", place: pickup?.place.city ?? header.from.city, state: pickedUpAt ? "done" : "planned", note: pickedUpAt ? `picked up ${when(pickedUpAt)}` : keyDates.find((date) => date.key === "pickup_slot")?.note ?? null },
+    { label: "Pickup", place: pickup?.place.city ?? header.from.city, state: pickedUpAt ? "done" : "planned", note: pickedUpAt ? `picked up ${t.at(pickedUpAt)}` : slot ? `slot ${t.at(slot.start)}` : null },
     ...steps.filter((step) => step.role === "TRANSFER").map((step) => ({ label: "Yard", place: step.place.city, state: (step.recorded ? "done" : "planned") as StripPoint["state"], note: step.recorded?.label ?? null })),
     ...ferryStrip,
-    { label: "Delivery", place: delivery?.place.city ?? header.to.city, state: deliveredAt ? "done" : "planned", note: deliveredAt ? `delivered ${when(deliveredAt)}` : promise ? promise.text.replace(/^Delivery promise /, "promised ") : null },
+    { label: "Delivery", place: delivery?.place.city ?? header.to.city, state: deliveredAt ? "done" : "planned", note: deliveredAt ? `delivered ${t.at(deliveredAt)}` : promiseRange ? `promised ${promiseRange}` : null },
   ]
   if (moving && !strip.some((point) => point.state === "now")) {
     const nextIndex = strip.findIndex((point) => point.state !== "done")
-    strip.splice(Math.max(1, nextIndex), 0, { label: "Now", place: position ? position.label.replace(/^On the road /, "") : "no position", state: "now", note: position ? `simulated phone, ${position.stale ? `last seen ${position.ageLabel}` : position.ageLabel}` : null })
+    strip.splice(Math.max(1, nextIndex), 0, {
+      label: "Now", place: placeLabel ? placeLabel.replace(/^(On the road|Last app position) /, "") : "no position", state: "now",
+      note: gpsAt ? `simulated phone, ${phoneQuiet ? `last seen ${t.at(gpsAt)}` : t.clock(gpsAt)}` : null,
+    })
+  }
+
+  // ---- the headline: one sentence of state, in plain words
+  const first = driver?.split(" ")[0] ?? "The driver"
+  let headline = view.story.headline
+  if (moving) {
+    const where = placeLabel ?? ""
+    let state = `${first} is driving it to ${header.to.city}`
+    if (phoneQuiet && gpsAt) state = `${first}'s phone has been quiet since ${t.at(gpsAt)}, last seen ${where.replace(/^(On the road|Last app position|Stopped) /, "")}`
+    else if (/^Stopped|^Pulling into/.test(where)) state = `${first} has stopped ${where.replace(/^Stopped /, "")}`
+    else if (/^On the ferry/.test(where)) state = `${first} is on the ferry to ${car?.ferry?.destinationName ?? header.to.city}`
+    else if (/^At /.test(where)) state = `${first} is waiting ${where.charAt(0).toLowerCase()}${where.slice(1)}`
+    else if (/^Near the delivery/.test(where)) state = `${first} is near the delivery address in ${header.to.city}`
+    let timing = ""
+    if (etaDate && promiseDate?.end && promiseRange) {
+      const late = minutesBetween(promiseDate.end, etaDate.start) ?? 0
+      timing = phoneQuiet ? `; the driver app's last estimate was ${t.at(etaDate.start)} against the ${promiseRange} promise`
+        : late > 0 ? `, about ${duration(late)} late against the ${promiseRange} promise by the driver app's estimate`
+        : `, expected ${t.at(etaDate.start)}, inside the ${promiseRange} promise`
+    } else if (promiseRange) timing = `; promised ${promiseRange}`
+    headline = `${state}${timing}.`
+  } else if (bundle.order.lane === "booked" && driver) {
+    headline = `${first} is booked to collect it in ${header.from.city}${slot ? `, slot ${t.at(slot.start)}` : ""}.`
   }
 
   ahead.sort((a, b) => String(a.at).localeCompare(String(b.at)))
   behind.sort((a, b) => String(b.at ?? "").localeCompare(String(a.at ?? "")))
+  recent.sort((a, b) => String(b.at).localeCompare(String(a.at)))
+  // The same thing said twice (a call run again) is one line.
+  const recentLines = recent.filter((item, index) => recent.findIndex((other) => other.text === item.text) === index)
+
+  // ---- the full dossier: every record, as the dossier service typed it
+  const records: DossierView["records"] = typed
+    ? Object.entries(typed.classes).filter(([, items]) => items.length).map(([name, items]) => ({
+      label: label(name), items: items.map((item) => ({ label: label(item.collection), at: item.at, when: item.at ? t.at(item.at) : null, strength: STRENGTH_WORD[item.strength] ?? labelIn(item.strength) })),
+    }))
+    : view.otherRecords.map((record) => ({ label: record.label, items: [{ label: `${record.count} record${record.count === 1 ? "" : "s"}`, at: null, when: null, strength: "" }] }))
+
   const primary = bundle.items.find((item) => item.role === "PRIMARY") ?? bundle.items[0] ?? null
   return {
     orderId: bundle.order.id, reference: bundle.order.reference,
     vehicle: header.vehicle?.title ?? "Vehicle not linked", make: primary?.vehicle.make ?? null,
-    plate: header.vehicle?.plate ?? null, year: header.vehicle?.year ?? null,
-    customer: bundle.customer.name, customerNote: header.customer.tierLabel,
-    driver, from: header.from.city, to: header.to.city, laneLabel: header.laneLabel,
-    headline: view.story.headline, intro: view.story.intro, tone: view.story.tone, simNow: now,
-    position, eta, promise, decision, strip, ahead, behind,
+    customer: bundle.customer.name, driver, from: header.from.city, to: header.to.city, laneLabel: header.laneLabel, zone, simNow: now,
+    headline, tone: need ? "danger" : view.story.tone,
+    need, strip, watching: shownWatching, recent: recentLines.slice(0, 3), ahead, behind, records, recordsFromService: !!typed,
   }
 }
 
+const STRENGTH_WORD: Record<string, string> = {
+  REFERENCE: "Reference", REQUEST: "Request", PLAN: "Plan", QUOTE: "Quote", BOOKING: "Booking", COMMITMENT: "Commitment", CLAIM: "Claim",
+  OBSERVATION: "Observation", VERIFIED: "Verified", REJECTED: "Rejected", DECISION: "Decision", SIGNAL: "Signal", PROPOSAL: "Proposal", RECORD: "Record",
+}
 
 const PURPOSE_WORDS: Record<string, string> = {
   PICKUP_READINESS: "pickup readiness", DRIVER_START_CHECK: "driver start check", DRIVER_INBOUND: "driver call",
 }
 
-/** One robo-call as a timeline line: who, why, what it established (each citing its turn), what it did not, and the retry. */
+/** One robo-call as a line: who, why, what it established (each citing its turn), what it did not, and the retry. */
 function roboCallItem(call: CallRecord): DossierItem {
   const callee = call.brief?.callee.name ?? (call.brief?.callee.kind ? labelIn(call.brief.callee.kind) : "the other party")
   const inbound = call.direction === "INBOUND"
@@ -268,18 +363,12 @@ function roboCallItem(call: CallRecord): DossierItem {
   const triage = typeof call.triage === "object" && call.triage ? call.triage : null
   // The service records Road Desk's voice as CALLER and the other party as CALLEE, whoever dialled.
   const speaker = (turn: CallRecord["turns"][number]) => turn.speaker === "CALLER" ? "Road Desk" : callee
+  const outcome = escalation ? "handed to an operator" : call.outcome === "COMPLETED" ? "all answers taken" : missing.length ? `${missing.length} answer${missing.length === 1 ? "" : "s"} still open` : labelIn(call.outcome).toLowerCase()
   return {
     id: `robo-${call.id}`, at: call.startedAt, kind: "call",
-    title: `${inbound ? `${callee} called in` : `Robo-call to ${callee}`}${purpose ? `, ${purpose}` : ""}: ${labelIn(call.outcome).toLowerCase()}`,
-    detail: [
-      triage?.urgency ? `triaged ${String(triage.urgency).toLowerCase()}${triage.situation ? `, ${labelIn(String(triage.situation)).toLowerCase()}` : ""}` : null,
-      call.slots.length ? `${call.slots.length} answer${call.slots.length === 1 ? "" : "s"} taken` : null,
-      missing.length ? `not established: ${missing.join(", ").toLowerCase()}` : null,
-      call.retryAfter ? `tries again ${fmtDateTime(call.retryAfter)}` : null,
-      escalation ? "handed to an operator" : null,
-    ].filter(Boolean).join(" · ") || null,
-    strength: "recorded", source: `${call.engine === "SIMULATED" ? "Simulated call" : "Call"}, transcript of record`,
-    tone: escalation ? "danger" : call.outcome === "COMPLETED" ? "ok" : "warn",
+    title: `${inbound ? `${callee} called in` : `Robo-call to ${callee}`}${purpose ? ` (${purpose})` : ""}${triage?.urgency ? `, ${String(triage.urgency).toLowerCase()}` : ""}: ${outcome}`,
+    detail: call.retryAfter ? `Tries again ${call.retryAfter.slice(11, 16)} UTC.` : null,
+    strength: "recorded", source: "Simulated call, transcript", tone: escalation ? "danger" : call.outcome === "COMPLETED" ? "ok" : "warn",
     turns: call.turns.map((turn) => ({ speaker: speaker(turn), text: turn.text, at: turn.startedAt })),
     slots: call.slots.map((slot) => ({ label: slotLabel(slot.value.slot), value: slotValue(slot.value.value), quote: slot.quote, turn: slot.turnSeq })),
     missing, escalated: escalation ? readToolArgument(escalation.argument) : null,

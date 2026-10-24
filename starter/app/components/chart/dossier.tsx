@@ -6,21 +6,19 @@ import type { ChartNode } from "@/lib/present/chart"
 import { STRENGTH_LABEL, type DossierItem, type DossierView } from "@/lib/present/dossier-types"
 import { Icon } from "../icons"
 import { MakeMark } from "../queue"
-import { clockOf, dayOf, relative } from "./format"
+import { weekdayClock } from "./format"
 
 const REFRESH_MS = 8000
-const BEHIND_FIRST = 10
 
 const KIND_ICON: Record<DossierItem["kind"], string> = {
   step: "flag", deadline: "waiting", ferry: "ferry", travel: "train", quote: "offer", call: "message", agent: "bot",
   message: "message", signal: "alert", event: "dot", telemetry: "pin", decision: "proposal", note: "note",
 }
 
-/** The delivery's dossier: who, where it is, and one timeline. Read-only; decisions are made on the order page. */
+/** The operator's view of one delivery: state, the one thing that needs a person, the journey, what to watch, what people last did. */
 export function Dossier({ node, onClose }: { node: ChartNode; onClose: () => void }) {
   const [view, setView] = useState<DossierView | null>(null)
   const [error, setError] = useState(false)
-  const [showAll, setShowAll] = useState(false)
 
   useEffect(() => {
     let stopped = false
@@ -40,39 +38,33 @@ export function Dossier({ node, onClose }: { node: ChartNode; onClose: () => voi
     return () => { stopped = true; clearTimeout(timer) }
   }, [node.orderId])
 
-  const behind = view ? (showAll ? view.behind : view.behind.slice(0, BEHIND_FIRST)) : []
+  const at = (iso: string | null) => weekdayClock(iso, view?.zone ?? null)
   return <aside className="dossier" aria-label={`${node.vehicle} ${node.reference}`}>
     <header className="ds-head">
       <MakeMark make={node.make} size={28} />
       <div className="ds-title">
         <h2>{node.vehicle}</h2>
         <p><span className="mono">{node.reference}</span> · {node.from} → {node.to}</p>
+        <p className="ds-who">{view?.customer ?? node.customer}{(view?.driver ?? node.driver) ? ` · driver ${view?.driver ?? node.driver}` : ""}</p>
       </div>
-      <button type="button" className="ds-close" onClick={onClose} aria-label="Close the dossier">×</button>
+      <button type="button" className="ds-close" onClick={onClose} aria-label="Close">×</button>
     </header>
-    <dl className="ds-who">
-      <div><dt>Customer</dt><dd>{view?.customer ?? node.customer}{view?.customerNote ? <small> · {view.customerNote}</small> : null}</dd></div>
-      <div><dt>Driver</dt><dd>{view?.driver ?? node.driver ?? "None booked"}</dd></div>
-      <div><dt>Stage</dt><dd>{view?.laneLabel ?? node.laneLabel}</dd></div>
-      {view?.plate && <div><dt>Plate</dt><dd className="mono">{view.plate}</dd></div>}
-    </dl>
 
     {!view && !error && <div className="ds-loading" aria-live="polite"><span /><span /><span /></div>}
-    {error && !view && <p className="ds-error">The dossier could not be loaded. It will try again in a few seconds.</p>}
+    {error && !view && <p className="ds-error">This delivery could not be loaded. It will try again in a few seconds.</p>}
 
     {view && <div className="ds-body">
-      <section className={`ds-now tone-edge-${view.tone}`} aria-label="Now">
-        <p className="ds-headline">{view.headline}</p>
-        {view.position && <p className="ds-pos">
-          <Icon name="pin" size={13} />{view.position.label}
-          <span className="chip-s s-simulated">{view.position.stale ? `last seen ${view.position.ageLabel}` : view.position.ageLabel} · simulated</span>
-          {view.position.speedKmh ? <span className="ds-quiet">{view.position.speedKmh} km/h</span> : null}
-        </p>}
-        {(view.eta || view.promise) && <div className="ds-times">
-          {view.eta && <div><span>ETA</span><b>{view.eta.text}</b><small><StrengthChip strength={view.eta.strength} /> {view.eta.source}</small></div>}
-          {view.promise && <div className={view.promise.late ? "late" : undefined}><span>Promise</span><b>{view.promise.text.replace(/^(Delivery promise|Requested delivery) /, "")}</b><small>{view.promise.source}{view.promise.late ? " · at risk" : ""}</small></div>}
-        </div>}
-      </section>
+      <p className={`ds-headline tone-edge-${view.tone}`}>{view.headline}</p>
+
+      {view.need ? <section className="ds-need" aria-label="Needs you">
+        <b>{view.need.title}</b>
+        {view.need.ask && <p>{view.need.ask}</p>}
+        <span className="ds-need-foot">
+          <Link href={view.need.href}>Decide on the order page<Icon name="arrow" size={12} /></Link>
+          {view.need.sinceLabel && <span>since {view.need.sinceLabel}</span>}
+        </span>
+        {view.need.chain && view.need.chain.length > 0 && <details className="ds-fold-inline"><summary>How it got here</summary><ul>{view.need.chain.map((line) => <li key={line}>{line}</li>)}</ul></details>}
+      </section> : <p className="ds-calm"><Icon name="check" size={13} />Nothing needs you.</p>}
 
       <ol className="strip" aria-label="Journey">
         {view.strip.map((point, index) => <li key={`${point.label}-${index}`} className={`sp sp-${point.state}`}>
@@ -83,28 +75,40 @@ export function Dossier({ node, onClose }: { node: ChartNode; onClose: () => voi
         </li>)}
       </ol>
 
-      <section className="tl" aria-label="Timeline">
-        {view.ahead.length > 0 && <>
-          <h3 className="tl-h">Ahead</h3>
-          <ol className="tl-list">{view.ahead.map((item) => <Item key={item.id} item={item} now={view.simNow} />)}</ol>
-        </>}
-        <div className="tl-now" role="separator"><span>Now · {clockOf(view.simNow)} UTC</span></div>
-        {view.decision && <div className="tl-decision">
-          <Icon name="proposal" size={14} />
-          <div>
-            <b>Waiting for a person: {view.decision.title}</b>
-            {view.decision.ask && <p>{view.decision.ask}</p>}
-            <Link href={view.decision.href}>Decide on the order page<Icon name="arrow" size={12} /></Link>
-            {view.decision.sinceLabel && <small>{view.decision.sinceLabel}</small>}
-          </div>
-        </div>}
-        <h3 className="tl-h">Behind <span className="num">{view.behind.length}</span></h3>
-        {view.behind.length === 0 ? <p className="ds-quiet">Nothing recorded yet.</p>
-          : <ol className="tl-list">{behind.map((item) => <Item key={item.id} item={item} now={view.simNow} />)}</ol>}
-        {view.behind.length > BEHIND_FIRST && <button type="button" className="tl-more" onClick={() => setShowAll((all) => !all)}>
-          {showAll ? "Show fewer" : `Show ${view.behind.length - BEHIND_FIRST} earlier`}
-        </button>}
+      {view.watching.length > 0 && <section className="ds-sec" aria-label="Watching">
+        <h3>Watching</h3>
+        <ul className="watch">{view.watching.map((item) => <li key={item.id} className={`watch-${item.tone}`}>
+          <details>
+            <summary><span className="watch-dot" aria-hidden="true" />{item.text}</summary>
+            <div className="watch-why">
+              <p>{item.why}</p>
+              {item.sources.length > 0 && <ul>{item.sources.map((source) => <li key={source}>{source}</li>)}</ul>}
+            </div>
+          </details>
+        </li>)}</ul>
+      </section>}
+
+      <section className="ds-sec" aria-label="Recent">
+        <h3>Recent</h3>
+        {view.recent.length === 0 ? <p className="ds-quiet">Nobody has said or done anything on this order yet.</p>
+          : <ul className="recent">{view.recent.map((item) => <li key={item.id}><time dateTime={item.at}>{at(item.at)}</time><span>{item.text}</span></li>)}</ul>}
       </section>
+
+      <details className="ds-fold">
+        <summary><Icon name="chevron" size={12} />Full history <span className="num">{view.ahead.length + view.behind.length}</span></summary>
+        {view.ahead.length > 0 && <><h4>Coming up</h4><ol className="tl-list">{view.ahead.map((item) => <Item key={item.id} item={item} at={at} />)}</ol></>}
+        <h4>What happened</h4>
+        <ol className="tl-list">{view.behind.map((item) => <Item key={item.id} item={item} at={at} />)}</ol>
+      </details>
+
+      <details className="ds-fold">
+        <summary><Icon name="chevron" size={12} />Full dossier <span className="num">{view.records.reduce((sum, group) => sum + group.items.length, 0)}</span></summary>
+        <p className="ds-quiet">Every record on this order{view.recordsFromService ? ", typed by the dossier service" : ""}, with how strong it is as evidence.</p>
+        {view.records.map((group) => <div key={group.label} className="rec-group">
+          <h4>{group.label}</h4>
+          <ul>{group.items.map((item, index) => <li key={index}><span>{item.label}</span>{item.when && <time>{item.when}</time>}{item.strength && <span className="rec-strength">{item.strength}</span>}</li>)}</ul>
+        </div>)}
+      </details>
     </div>}
 
     <footer className="ds-foot">
@@ -113,28 +117,24 @@ export function Dossier({ node, onClose }: { node: ChartNode; onClose: () => voi
   </aside>
 }
 
-function StrengthChip({ strength }: { strength: DossierItem["strength"] }) {
-  return <span className={`chip-s s-${strength}`}>{STRENGTH_LABEL[strength]}</span>
-}
-
-function Item({ item, now }: { item: DossierItem; now: string }) {
+/** One history line: time, what, and one source chip. Long text, call answers and transcripts fold. */
+function Item({ item, at }: { item: DossierItem; at: (iso: string | null) => string }) {
   const [open, setOpen] = useState(false)
-  const foldable = !!item.detail && item.detail.length > 140 || !!item.turns?.length
+  const foldable = !!item.detail || !!item.turns?.length || !!item.slots?.length
+  const [day, clock] = item.at ? at(item.at).split(" ") : ["", "–"]
   return <li className={`ti ti-${item.strength} ti-tone-${item.tone}`}>
-    <time className="ti-when" dateTime={item.at ?? undefined} title={item.at ? `${dayOf(item.at)} ${clockOf(item.at)} UTC` : undefined}>
-      <b>{item.at ? clockOf(item.at) : "–"}</b><span>{item.at ? dayOf(item.at) : ""}</span>
-    </time>
+    <time className="ti-when" dateTime={item.at ?? undefined}><b>{clock}</b><span>{day}</span></time>
     <span className="ti-dot" aria-hidden="true"><Icon name={KIND_ICON[item.kind]} size={12} /></span>
     <div className="ti-main">
       <p className="ti-title">{item.title}</p>
-      {item.detail && (!foldable || open) && <p className="ti-detail">{item.detail}</p>}
+      {open && item.detail && <p className="ti-detail">{item.detail}</p>}
       {open && item.escalated && <p className="ti-escalated"><Icon name="alert" size={12} />Handed to an operator: {item.escalated}</p>}
       {open && item.slots && item.slots.length > 0 && <ul className="ti-slots">{item.slots.map((slot) => <li key={`${slot.label}-${slot.turn}`}>
         <b>{slot.label}: {slot.value}</b> <q>{slot.quote}</q> <span>turn {slot.turn}</span>
       </li>)}</ul>}
       {open && item.missing && item.missing.length > 0 && <p className="ti-missing">Not established: {item.missing.join(", ")}</p>}
       {open && item.turns && <ol className="ti-turns">{item.turns.map((turn, index) => <li key={index}><b>{turn.speaker}</b> {turn.text}</li>)}</ol>}
-      <p className="ti-src"><StrengthChip strength={item.strength} /><span>{item.source}</span>{item.at && <span className="ti-rel">{relative(item.at, now)}</span>}
+      <p className="ti-src"><span className={`chip-s s-${item.strength}`}>{STRENGTH_LABEL[item.strength]}</span><span>{item.source}</span>
         {foldable && <button type="button" className="ti-fold" onClick={() => setOpen((value) => !value)} aria-expanded={open}>{open ? "Less" : item.turns?.length ? "Transcript" : "More"}</button>}
       </p>
     </div>

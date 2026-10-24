@@ -21,3 +21,9 @@ export function relative(iso: string | null, now: string): string {
   const amount = abs < 60 ? `${abs} min` : abs < 36 * 60 ? `${Math.round(abs / 60)} h` : `${Math.round(abs / 1440)} d`
   return minutes < 0 ? `${amount} ago` : `in ${amount}`
 }
+
+/** "Tue 13:10" in the order's zone. */
+export function weekdayClock(iso: string | null, zone: string | null): string {
+  if (!iso) return ""
+  return new Intl.DateTimeFormat("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: zone ?? "UTC" }).format(new Date(iso)).replace(",", "")
+}
