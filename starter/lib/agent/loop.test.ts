@@ -206,6 +206,15 @@ describe("scenario A wiring", () => {
     assert.equal(second.result.reply, "Noted, thanks. Stay with the car.")
   })
 
+  test("a reply split around a tool call mid-sentence reaches the driver whole", async () => {
+    useTestLlm(scriptedModel([
+      { stop_reason: "tool_use", content: [text("Yes, please go with the truck and stay with"), tool("u2", "update_case", { title: "Car on the tow truck", summary: "Collected.", kind: "VEHICLE_WARNING", urgency: "HIGH" })] },
+      { stop_reason: "end_turn", content: [text("the car.")] },
+    ]))
+    const { result } = await handleDriverMessage(await prepareDriverMessage({ orderRef: ORDER, driverId: DRIVER, text: "The truck is here. Do I go with them?", mode: "chat" }))
+    assert.equal(result.reply, "Yes, please go with the truck and stay with the car.")
+  })
+
   test("a tool call with broken JSON is made once more with a note, without restarting the turn", async () => {
     const model = scriptedModel([
       { throws: "Expected ',' or '}' after property value in JSON at position 435 (line 1 column 436)" },

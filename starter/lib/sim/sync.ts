@@ -5,7 +5,7 @@
 
 import { and, eq, sql } from "drizzle-orm"
 import { beginRuntimeWork, isResetting } from "@/lib/cr/activity"
-import { simNow } from "@/lib/cr/clock"
+import { advanceSimClock, simNow } from "@/lib/cr/clock"
 import { crDb } from "@/lib/cr/db"
 import { appendEvent, insertTelemetry, type NewTelemetry } from "@/lib/cr/queries"
 import { crEvents } from "@/lib/cr/schema"
@@ -24,18 +24,37 @@ const FAULT_FAST_S = 15 * 60
 
 type Latest = Map<string, Date>
 
-const holder = globalThis as unknown as { __simSyncing?: Promise<SyncResult> }
+const holder = globalThis as unknown as { __simSyncing?: Promise<SyncResult>; __simClockCaughtUp?: boolean }
 
 export type SyncResult = { at: string; gps: number; obd: number }
 
 /** Write every sample due up to `now`. Concurrent calls share one run. */
-export function syncTelemetry(now: Date = simNow()): Promise<SyncResult> {
-  if (isResetting()) return Promise.resolve({ at: now.toISOString(), gps: 0, obd: 0 })
+export function syncTelemetry(now?: Date): Promise<SyncResult> {
+  if (isResetting()) return Promise.resolve({ at: (now ?? simNow()).toISOString(), gps: 0, obd: 0 })
   if (!holder.__simSyncing) {
     const release = beginRuntimeWork("telemetry sync")
-    holder.__simSyncing = runSync(now).finally(() => { holder.__simSyncing = undefined; release() })
+    holder.__simSyncing = catchUpClock().then(() => runSync(now ?? simNow())).finally(() => { holder.__simSyncing = undefined; release() })
   }
   return holder.__simSyncing
+}
+
+/**
+ * The clock lives in memory and starts at SIM_NOW, so a restart (a deploy, a crash) would put it behind the samples
+ * and events already stored: a GPS fix "in 8 min", reply deadlines that never come. Once per process, before the first
+ * sync, the clock moves up to just after the newest stored sample or event. A demo reset marks it done.
+ */
+async function catchUpClock(): Promise<void> {
+  if (holder.__simClockCaughtUp) return
+  holder.__simClockCaughtUp = true
+  const result = await crDb().execute(sql`SELECT greatest((SELECT max(at) FROM cr_telemetry), (SELECT max(at) FROM cr_events)) AS at`)
+  const latest = (result as unknown as { at: string | Date | null }[])[0]?.at
+  const behindMs = latest ? new Date(latest).getTime() - simNow().getTime() : 0
+  if (behindMs > 0) advanceSimClock(Math.ceil(behindMs / 60000))
+}
+
+/** The demo reset starts the clock at SIM_NOW on purpose; nothing to catch up to. */
+export function markClockCaughtUp(): void {
+  holder.__simClockCaughtUp = true
 }
 
 /** Faults injected by scenarios, newest per order. The plan rides on the scenario's OBD event. */

@@ -10,7 +10,9 @@ dongle reports a new trouble code or a lit check-engine light (MIL).
 1. **Is the driver safe?** Where is the car right now: moving, on the hard
    shoulder, at a service area?
 2. **What does the light look like?** Colour, symbol, steady or flashing,
-   any message text. Ask for a dashboard photo (`request_photo`).
+   any message text. Once the driver is stopped and safe, ask for a
+   dashboard photo with `request_photo` (in the same turn as your question
+   about the light); it is evidence for the operator and the owner.
 3. **How does the car feel?** Loss of power, shaking, noises, smells, smoke,
    temperature gauge.
 4. **What does the car report?** `get_active_codes` and `get_telemetry`.
@@ -46,6 +48,28 @@ for every detail.
   (`CLEAR_TO_CONTINUE`), only for `CONTINUE_AND_MONITOR` severity.
 - A later delivery is a **customer** agreement (`CHANGE_PROMISE`), after
   recovery is clear.
+
+## After the owner has chosen recovery
+
+An operator logs what the owner decided, often with a time ("their roadside
+help arrives 11:00"). In that same turn:
+
+1. Tell the driver what happens next and what to do meanwhile
+   (`message_driver`).
+2. Check the next hard deadline against that time: the booked ferry's
+   check-in cutoff, using the remaining distance and the time a repair or
+   diagnosis may take. Write the arithmetic out ("help 11:00, about 300 km
+   to the terminal, cutoff 15:30: the car must leave by about 12:00, so only
+   a repair at the roadside keeps today's sailing").
+3. Search later sailings now (`search_travel_options`) so the operator
+   already has the options. They are quotes.
+4. `wait_for` the recovery, checking shortly after its time, and put the
+   cutoff, the margin and the earliest credible later sailings in the wait
+   note.
+
+When the repair time is known and the booked sailing can no longer be made,
+propose one decision: `BOOK_TRAVEL` with the selected later sailing, saying
+that the customer must agree to any later delivery separately.
 
 ## Never
 

@@ -137,7 +137,10 @@ class ReplyGate {
       this.narration = text
       return
     }
-    this.release(text)
+    // Some models (DeepSeek) start the reply, call a tool mid-sentence and finish the sentence after it: "Yes, please
+    // go with" … "the car." A last piece that continues a sentence is joined to the text it continues.
+    const continues = /^\s*[a-z,;)]/.test(text) && this.narration.trim() && !/[.!?]["')]?\s*$/.test(this.narration)
+    this.release(continues ? `${this.narration.trimEnd()} ${text.trimStart()}` : text)
   }
 
   /** Wait until the reply has been screened and released (or held). On a failed turn the narration stays private. */

@@ -25,7 +25,7 @@ export const SAFETY_TEMPLATES: readonly SafetyTemplate[] = [
   { id: "do_not_drive_on", label: "Do not drive on", text: "Please do not drive the car any further until an operator has confirmed what happens next." },
   { id: "leave_car_behind_barrier", label: "Leave the car, stand behind the barrier", text: "Please get out on the side away from traffic and stand behind the barrier, well away from the car." },
   { id: "call_112", label: "Call 112", text: "If anyone is hurt, or you see smoke or fire, call 112 now. Your safety comes first." },
-  { id: "wait_for_help", label: "Wait for help", text: "Please stay in a safe place near the car. Help is being arranged and we will message you soon." },
+  { id: "wait_for_help", label: "Wait near the car", text: "Please stay in a safe place near the car. An operator is working out what happens next, and we will message you soon." },
 ]
 
 export function renderSafetyTemplate(id: string, driverFirstName: string | null): string | null {
@@ -183,7 +183,9 @@ export async function screenDriverMessage(text: string, context?: { driverSaid?:
   if (!client) return fallback("No classifier is configured")
   try {
     const message = await client.messages.create({
-      model: classifierModel(), max_tokens: 400, output_config: { effort: "low" }, system: CLASSIFIER_PROMPT,
+      // One word, no reasoning: a reasoning model (DeepSeek) otherwise spends the whole budget thinking, returns no
+      // answer, and every message that mentions driving is held as a clearance card.
+      model: classifierModel(), max_tokens: 400, thinking: { type: "disabled" }, system: CLASSIFIER_PROMPT,
       messages: [{ role: "user", content: `Trusted safety context: ${safety.mode.toUpperCase()}\n${safety.reasons.join(" ")}\n\n${context?.driverSaid ? `What the driver wrote before, for context only:\n"""${context.driverSaid.slice(0, 600)}"""\n\n` : ""}Message to the driver:\n"""${text}"""` }],
     }, { timeout: 15000 })
     const answer = message.content.filter((block) => block.type === "text").map((block) => (block as { text: string }).text).join("").trim().toUpperCase()

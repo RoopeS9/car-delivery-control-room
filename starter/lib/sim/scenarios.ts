@@ -16,7 +16,7 @@ import { baseMotion, faultMotion, freezeFrame, type MisfirePlan, type OverheatPl
 import { roughWhere } from "./places"
 import { clearDemoData } from "./routine"
 import { resetSimDriver } from "./sim-driver"
-import { activeFaults, syncTelemetry } from "./sync"
+import { activeFaults, markClockCaughtUp, syncTelemetry } from "./sync"
 
 export type ScenarioName = "warning-light-584" | "catch-up-322" | "driver-keys-145" | "site-eta-442" | "driver-silent-537" | "sensor-light-439" | "reset"
 
@@ -135,6 +135,7 @@ async function reset(keepRoutine: boolean): Promise<ScenarioResult> {
     await clearDemoData({ keepRoutine })
     resetSimDriver()
     resetSimClock()
+    markClockCaughtUp()
   } finally { finishReset() }
   // Polling writes are paused while records are cleared. Regenerate the
   // current clock's samples only after the reset releases its guard.

@@ -220,7 +220,8 @@ async function modelReply(persona: Persona, thread: Turn[]): Promise<Reply | nul
     const response = await client.messages.create({
       model: simDriverModel(),
       max_tokens: 400,
-      output_config: { effort: "low" },
+      // A short in-character line needs no reasoning; a reasoning model would spend the budget thinking.
+      thinking: { type: "disabled" },
       system: [
         "You play a delivery driver in a fictional demo, answering a dispatch assistant in a chat app.",
         "Answer in one or two short, natural sentences, as a driver typing on a phone. Answer only what was asked.",
