@@ -170,7 +170,9 @@ describe("scenario A wiring", () => {
     const [card] = await listProposals({ caseId, statuses: ["PENDING"] })
     const handled = await decide(caseId, card.id, { decision: "handle", decided_by: "ops-shift", option_id: "own" })
     assert.equal(handled.followUps.length, 0, "nothing runs until the outcome is logged")
-    assert.equal((await getCase(caseId))?.waitingOn, "ops-shift to log what happened")
+    const waiting = await getCase(caseId)
+    assert.equal(waiting?.waitingOn, "the shift lead to log what happened")
+    assert.ok(!/ops-/.test(`${waiting?.waitingOn} ${waiting?.nextStep}`), "operator-facing text uses desk titles, not ids")
 
     const model = scriptedModel([
       { stop_reason: "tool_use", content: [tool("t1", "message_driver", { text: "The dealer is sending their own roadside help, expected around 11:00. Please stay with the car." })] },

@@ -13,7 +13,8 @@ import {
 } from "@/lib/cr/types"
 import { AGENT_ID } from "./config"
 import { activeDriverId, activeOrderForDriver, driverName, loadOrderFacts, type End, type OrderFacts } from "./context"
-import { decideProposal, logOutcome, type DecisionOutcome } from "./gate"
+import { decideProposal, logOutcome, refreshProposal, type DecisionOutcome } from "./gate"
+import { operatorPhrase } from "./timeline"
 import { runTurn, withCaseLock, type TurnResult } from "./loop"
 import type { FollowUp } from "./tools"
 
@@ -189,9 +190,10 @@ export async function askAgent(request: AskAgentRequest): Promise<{ caseId: stri
     recipientType: "agent", recipientId: AGENT_ID, body: request.text.trim(),
   })
   const target = caseRow
+  const asker = await operatorPhrase(request.asked_by)
   const result = await withCaseLock(target.id, () => runTurn({
-    caseId: target.id, audience: "operator", trigger: "ask", input: `${request.asked_by} asks: "${request.text.trim()}"`,
-    counterpart: { type: "operator", id: request.asked_by, name: request.asked_by }, replyChannel: "operator_chat",
+    caseId: target.id, audience: "operator", trigger: "ask", input: `${asker.charAt(0).toUpperCase()}${asker.slice(1)} asks: "${request.text.trim()}"`,
+    counterpart: { type: "operator", id: request.asked_by, name: asker }, replyChannel: "operator_chat",
   }))
   if (created) await updateCase(target.id, result.error ? { status: "RESOLVED" } : { status: "HANDLED_BY_AGENT", summary: `Answered: ${request.text.slice(0, 160)}` })
   return { caseId: target.id, result }
@@ -217,6 +219,12 @@ export async function decide(caseId: string, proposalId: string, request: Decisi
 export async function outcome(caseId: string, input: { text: string; logged_by: string; proposal_id?: string | null }): Promise<{ outcome: DecisionOutcome; followUps: FollowUp[] }> {
   const result = await logOutcome(caseId, input)
   return { outcome: result, followUps: [{ kind: "decision", caseId, proposalId: result.proposal_id, outcome: "approved" }] }
+}
+
+/** "Facts changed since this was drafted": set the card aside; the agent drafts a fresh one. */
+export async function refresh(caseId: string, proposalId: string, by: string): Promise<{ response: Awaited<ReturnType<typeof refreshProposal>>; followUps: FollowUp[] }> {
+  const response = await refreshProposal(caseId, proposalId, by)
+  return { response, followUps: [{ kind: "analysis", caseId, reason: "New facts came in after the last card was drafted, and the operator asked for a fresh one. Re-read the case notes and the records." }] }
 }
 
 // ---------------------------------------------------------------- follow-ups
@@ -252,7 +260,7 @@ export async function runFollowUps(followUps: FollowUp[]): Promise<void> {
       const caseRow = await getCase(followUp.caseId)
       if (!caseRow) continue
       const request = followUp.kind === "analysis"
-        ? { trigger: "analysis" as const, input: `The driver-facing turn handed this case over: "${followUp.reason}". Prepare the decision for operations now.` }
+        ? { trigger: "analysis" as const, input: `Prepare the decision for operations now. Why: ${followUp.reason}` }
         : await decisionInput(caseRow, followUp.proposalId)
       const result = await withCaseLock(caseRow.id, () => runTurn({
         caseId: caseRow.id, audience: "operator", trigger: request.trigger, input: request.input, counterpart: OPERATIONS, replyChannel: "internal",

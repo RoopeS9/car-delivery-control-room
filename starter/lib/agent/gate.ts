@@ -10,13 +10,17 @@
 // 4. The agent may tell a driver to stop, never that it is fine to drive on.
 
 import { randomUUID } from "node:crypto"
-import { getAutonomy, getCase, getProposal, listProposals, transitionProposal, updateCase, appendEvent, createProposal, type CaseRow, type ProposalRow } from "@/lib/cr/queries"
+import {
+  appendEvent, createProposal, getAutonomy, getCase, getProposal, listProposals, proposalsWithChangedFacts, transitionProposal, updateCase,
+  type CaseRow, type ProposalRow,
+} from "@/lib/cr/queries"
 import { simNow } from "@/lib/cr/clock"
 import {
   LOCKED_ACTIONS, type ActionType, type Audience, type AutonomyLevel, type CaseKind, type CaseStatus, type DecisionRequest,
   type DecisionResponse, type DraftMessage, type HandoverPacket, type ProposalChange, type ProposalOption, type SourceRef,
 } from "@/lib/cr/types"
 import { AGENT_ID } from "./config"
+import { operatorPhrase } from "./timeline"
 import { activeDriverId, loadOrderFacts, type OrderFacts } from "./context"
 
 // ---------------------------------------------------------------- tool policy
@@ -320,7 +324,7 @@ export async function executeProposal(proposalId: string, options: { by: string;
     // "I'll handle it": the person did it outside the system and logged what happened.
     const event = await appendEvent({
       caseId: proposal.caseId, orderId: proposal.orderId, actorType: "operator", actorId: options.by, kind: "effect", channel: "internal",
-      body: `Done by ${options.by === proposal.decidedBy ? "the operator" : options.by}: ${proposal.title}. Outcome: ${options.outcome}`,
+      body: `Done by ${await operatorPhrase(options.by)}: ${proposal.title}. Outcome: ${options.outcome}`,
       data: { proposal_id: proposal.id, outcome: options.outcome, handled_outside: true },
     })
     effectIds.push(event.id)
@@ -412,7 +416,8 @@ export async function decideProposal(caseId: string, proposalId: string, request
   }
 
   if (request.decision === "handle") {
-    const nextStep = `${by} does this outside the system, then logs what happened.`
+    const who = await operatorPhrase(by)
+    const nextStep = `${who.charAt(0).toUpperCase()}${who.slice(1)} does this outside the system, then logs what happened.`
     const updated = await transitionProposal(proposal.id, ["PENDING"], {
       status: edited ? "EDITED_AND_APPROVED" : "APPROVED", decidedBy: by, decidedAt: now, decisionNote: note,
       chosenOptionId: option?.id ?? null, editedDraftMessage: edited, nextStep,
@@ -424,7 +429,7 @@ export async function decideProposal(caseId: string, proposalId: string, request
       data: { proposal_id: proposal.id, decision: "handle", option_id: option?.id ?? null },
     })
     const caseRow = await updateCase(caseId, {
-      status: (await pendingLeft(caseId)) ? "NEEDS_DECISION" : "WAITING_EXTERNAL", owner: by, waitingOn: `${by} to log what happened`, nextStep,
+      status: (await pendingLeft(caseId)) ? "NEEDS_DECISION" : "WAITING_EXTERNAL", owner: by, waitingOn: `${who} to log what happened`, nextStep,
       nextCheckAt: new Date(now.getTime() + HOUR / 2),
     })
     return { proposal_id: proposal.id, status: updated.status, next_step: nextStep, case_status: caseRow!.status, followUp: null }
@@ -446,6 +451,30 @@ export async function decideProposal(caseId: string, proposalId: string, request
     proposal_id: proposal.id, status: executed.status, next_step: proposal.nextStepIfApproved, case_status: caseRow!.status,
     followUp: { kind: "approved", proposal: executed, caseRow: caseRow!, text: note },
   }
+}
+
+/**
+ * "Facts changed since this was drafted": set the card aside and let the
+ * agent draft a fresh one. Only allowed when something new really came in.
+ */
+export async function refreshProposal(caseId: string, proposalId: string, by: string): Promise<DecisionResponse> {
+  const proposal = await getProposal(proposalId)
+  if (!proposal || proposal.caseId !== caseId) throw new DecisionError(404, "This decision is not on this case.")
+  if (proposal.status !== "PENDING") throw new DecisionError(409, `This was already decided (${proposal.status.toLowerCase().replace(/_/g, " ")}).`)
+  if (!by?.trim()) throw new DecisionError(400, "Say who is asking for the refresh.")
+  const changed = await proposalsWithChangedFacts(caseId)
+  if (!changed.some((entry) => entry.proposalId === proposalId)) throw new DecisionError(409, "Nothing new has come in since this card was drafted.")
+  const nextStep = "The agent drafts a fresh card with the new facts."
+  const updated = await transitionProposal(proposal.id, ["PENDING"], {
+    status: "REJECTED", decidedBy: by.trim(), decidedAt: simNow(), decisionNote: "Set aside: facts changed since it was drafted.", nextStep,
+  })
+  if (!updated) throw new DecisionError(409, "Someone else decided this first.")
+  await appendEvent({
+    caseId, orderId: proposal.orderId, actorType: "operator", actorId: by.trim(), kind: "decision", channel: "internal",
+    body: `Asked for a fresh card: facts changed since "${proposal.title}" was drafted.`, data: { proposal_id: proposal.id, decision: "refresh" },
+  })
+  const caseRow = await updateCase(caseId, { status: (await pendingLeft(caseId)) ? "NEEDS_DECISION" : "AGENT_WORKING", owner: "agent", nextStep, waitingOn: null })
+  return { proposal_id: proposal.id, status: "REJECTED", next_step: nextStep, case_status: caseRow!.status }
 }
 
 /** "Log what happened" after "I'll handle it": records the outcome and lets the agent continue. */

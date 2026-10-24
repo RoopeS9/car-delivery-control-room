@@ -166,6 +166,15 @@ export type LogOutcomeRequest = {
   proposal_id?: string | null
 }
 
+/**
+ * POST here when a card says "Facts changed since this was drafted" and the
+ * operator asks for a fresh one. Body: `{ by }`. The old card is set aside
+ * (REJECTED with a note) and the agent drafts a new one in the background.
+ * Response: `CaseActionResponse`. Which cards are out of date: the
+ * `facts_changed` list on GET /api/cases/{id}, or `proposalsWithChangedFacts()`.
+ */
+export const refreshPath = (caseId: string, proposalId: string) => `/api/cases/${caseId}/proposals/${proposalId}/refresh`
+
 /** POST here to give the agent a free-text instruction on a case. Body: `InstructRequest`. */
 export const instructPath = (caseId: string) => `/api/cases/${caseId}/instruct`
 

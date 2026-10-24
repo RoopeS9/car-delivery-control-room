@@ -33,6 +33,15 @@ export async function names(): Promise<Names> {
   return namesCache
 }
 
+/**
+ * An operator desk in words for a sentence: "the shift lead" for `ops-shift`,
+ * "the operator" when the desk is unknown. Never the raw id.
+ */
+export async function operatorPhrase(id: string | null | undefined): Promise<string> {
+  const title = id ? (await names()).operators.get(id) : null
+  return title ? `the ${title.charAt(0).toLowerCase()}${title.slice(1)}` : "the operator"
+}
+
 /** A person-readable name for an actor in either the dataset or our events. */
 export function actorName(n: Names, type: string, id: string | null, snapshot?: string | null): string {
   switch (type) {
