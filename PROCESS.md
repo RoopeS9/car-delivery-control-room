@@ -176,3 +176,34 @@ Checked / changed / rejected:
   who had not written; replaced with a fixed safety-first line.
 - Not yet run against the model: `OPENROUTER_API_KEY` is not visible in this
   session.
+
+## 2026-10-24 ~12:10 UTC · Claude Code (stream B, cloud instance 2) · map, agent page, real routes
+
+Asked: continue toward M1 on the control room side; the plan now asks for
+5 decision buttons, 2–3 s polling and a queue with only our cases.
+
+Got: `/map` (simulated phone positions by case state, stale ones hollow, a
+side list and a panel with the case and the position's source), `/agent`
+(what the agent does alone / asks first / never does, autonomy levels read
+only with customer contact locked, recent steps, the rulebook rendered from
+`rulebook/*.md`), and the order page wired to stream A's real decide,
+outcome, instruct and ask routes.
+
+Checked / changed / rejected:
+- Picked CARTO basemaps first; the screenshot showed "API KEY REQUIRED" on
+  every tile, so they are no longer keyless. Probed the alternatives with
+  curl and switched to Stadia's light and dark tiles (keyless on localhost,
+  where the demo runs), with filtered OpenStreetMap tiles as an automatic
+  fallback.
+- Positions are never guessed: cars on the road without a simulated position
+  are listed beside the map, not drawn on a straight line.
+- Ran the browser flow against A's routes (no model key, so the agent hands
+  back to a person). That exposed desk ids in the gate's sentences ("Waiting
+  on ops-shift to log what happened"). The presentation layer now replaces
+  desk ids with titles ("the shift lead"). Told stream A as well.
+- My first guess at how "I'll handle it" is stored (an execution marker) did
+  not match A's gate (an approved card with no execution yet). Switched to A's
+  semantics and read which button was used from the decision event.
+- Rulebook inline code (`request_photo`, `STOP_NOW`) renders as plain words
+  for operators instead of code.
+- Smoke still reports agreement on all 100 orders; build passes.

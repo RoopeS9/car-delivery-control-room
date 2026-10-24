@@ -7,12 +7,7 @@ import { Icon } from "../icons"
 import { When } from "../ui"
 import { OPERATOR } from "./operator"
 
-/**
- * PLAN.md 4.2b. `handle` (I'll handle it) and `instruct` (tell the agent
- * instead) are proposed additions to DecisionRequest; stream A owns the route.
- */
-type CardDecision = DecisionRequest["decision"] | "handle" | "instruct"
-type Body = Omit<DecisionRequest, "decision"> & { decision: CardDecision }
+type CardDecision = DecisionRequest["decision"]
 type Mode = "idle" | "edit" | "reject" | "instruct"
 
 export function Sources({ sources }: { sources: SourceChip[] }) {
@@ -25,7 +20,7 @@ export function Sources({ sources }: { sources: SourceChip[] }) {
   })}</span>
 }
 
-async function send(card: DecisionCardView, body: Body): Promise<DecisionResponse> {
+async function send(card: DecisionCardView, body: DecisionRequest): Promise<DecisionResponse> {
   const response = await fetch(decisionPath(card.caseId, card.id), {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
   })

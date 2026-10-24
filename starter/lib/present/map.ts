@@ -5,7 +5,7 @@
 import type { TelemetryRow } from "@/lib/cr/queries"
 import type { GpsData } from "@/lib/cr/types"
 import { rows, str, type Bundle } from "./bundle"
-import { caseStatusLabel, urgencyTone } from "./cases"
+import { caseStatusLabel, plainText, urgencyTone } from "./cases"
 import { minutesBetween, relativeTo } from "./time"
 import type { MapMarker, MapMarkerState, MapView, Tone } from "./types"
 
@@ -20,7 +20,7 @@ function markerState(bundle: Bundle): { state: MapMarkerState; label: string; to
   const working = open.find((kase) => kase.status === "AGENT_WORKING")
   if (working) return { state: "agent", label: "Agent working", tone: "accent", caseId: working.id, caseTitle: working.title, ask: working.nextStep }
   const waiting = open.find((kase) => kase.status === "WAITING_EXTERNAL")
-  if (waiting) return { state: "waiting", label: caseStatusLabel(waiting), tone: "neutral", caseId: waiting.id, caseTitle: waiting.title, ask: waiting.nextStep }
+  if (waiting) return { state: "waiting", label: plainText(bundle, caseStatusLabel(waiting)), tone: "neutral", caseId: waiting.id, caseTitle: waiting.title, ask: plainText(bundle, waiting.nextStep) }
   return { state: "fine", label: "No open case", tone: "ok", caseId: null, caseTitle: null, ask: null }
 }
 

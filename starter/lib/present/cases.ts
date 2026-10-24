@@ -150,13 +150,27 @@ export function caseAttention(bundle: Bundle): AttentionItem[] {
       })
     } else {
       items.push({
-        kind: "case", tone: "neutral", title: `${caseStatusLabel(row)}: ${row.title}`, short: caseStatusLabel(row),
-        detail: row.nextStep ?? (row.summary || null), owner: ownerName(bundle, row.owner), at: iso(row.updatedAt), atLabel: "updated",
+        kind: "case", tone: "neutral", title: plainText(bundle, `${caseStatusLabel(row)}: ${row.title}`), short: plainText(bundle, caseStatusLabel(row)),
+        detail: plainText(bundle, row.nextStep ?? (row.summary || null)), owner: ownerName(bundle, row.owner), at: iso(row.updatedAt), atLabel: "updated",
         section: "case", recordId: row.id,
       })
     }
   }
   return items
+}
+
+/** Free text from the agent or the gate may carry a desk id ("ops-shift"); operators read the desk's title. */
+export function plainText(bundle: Bundle, text: string): string
+export function plainText(bundle: Bundle, text: string | null): string | null
+export function plainText(bundle: Bundle, text: string | null): string | null {
+  if (!text) return text
+  return text
+    .replace(/\bops-[a-z]+\b/g, (id, offset: number) => {
+      const title = bundle.dir.title(id) ?? id
+      // "Shift lead does this…" at the start; "waiting on the shift lead" mid-sentence.
+      return offset === 0 || /[.!?]\s*$/.test(text.slice(0, offset)) ? title : `the ${title.toLowerCase()}`
+    })
+    .replace(/\broad-agent\b/g, AGENT_NAME)
 }
 
 export function ownerName(bundle: Bundle, owner: string | null | undefined): string | null {
@@ -187,8 +201,13 @@ export function decisionCardView(bundle: Bundle, proposal: ProposalRow): Decisio
   const chosen = proposal.chosenOptionId ? proposal.options.find((option) => option.id === proposal.chosenOptionId) : null
   const decided = proposal.status !== "PENDING"
   const execution = proposal.execution ?? {}
-  const mode = typeof execution.mode === "string" ? execution.mode : null
   const outcome = typeof execution.outcome === "string" && execution.outcome ? execution.outcome : null
+  // The decision event says which button was used (lib/agent/gate.ts records it).
+  const decisionEvent = bundle.cr.events.find((event) => event.kind === "decision" && event.data?.proposal_id === proposal.id)
+  const button = typeof decisionEvent?.data?.decision === "string" ? decisionEvent.data.decision : null
+  // "I'll handle it" leaves the card approved and not yet carried out until the outcome is logged.
+  const awaitingOutcome = (proposal.status === "APPROVED" || proposal.status === "EDITED_AND_APPROVED") && !proposal.executedAt
+  const mode = button === "handle" || awaitingOutcome || outcome ? "operator" : button === "instruct" ? "instruction" : null
   return {
     id: proposal.id, caseId: proposal.caseId, actionType: proposal.actionType,
     actionLabel: ACTION_LABELS[proposal.actionType] ?? label(proposal.actionType),
@@ -210,9 +229,9 @@ export function decisionCardView(bundle: Bundle, proposal: ProposalRow): Decisio
     approvalRule: approvalRule(proposal.actionType),
     decision: decided ? {
       by: deciderName(bundle, proposal.decidedBy), at: iso(proposal.decidedAt), note: proposal.decisionNote,
-      option: chosen?.label ?? null, nextStep: proposal.nextStep, executedAt: iso(proposal.executedAt), mode, outcome,
+      option: chosen?.label ?? null, nextStep: plainText(bundle, proposal.nextStep), executedAt: iso(proposal.executedAt), mode, outcome,
     } : null,
-    awaitingOutcome: decided && mode === "operator" && !outcome,
+    awaitingOutcome,
   }
 }
 
@@ -227,11 +246,11 @@ export function caseViews(bundle: Bundle): CaseView[] {
       const pending = cards.filter((card) => card.pending)
       return {
         id: row.id, kind: row.kind, kindLabel: CASE_KIND_LABELS[row.kind] ?? label(row.kind),
-        status: row.status, statusLabel: caseStatusLabel(row), tone: caseTone(row, pending.length),
+        status: row.status, statusLabel: plainText(bundle, caseStatusLabel(row)), tone: caseTone(row, pending.length),
         urgency: row.urgency, urgencyLabel: urgencyLabel(row.urgency),
-        title: row.title, summary: row.summary, channelLabel: CHANNEL_LABELS[row.channelOpened] ?? label(row.channelOpened),
+        title: row.title, summary: plainText(bundle, row.summary), channelLabel: CHANNEL_LABELS[row.channelOpened] ?? label(row.channelOpened),
         openedAt: iso(row.openedAt) ?? "", updatedAt: iso(row.updatedAt) ?? "", resolvedAt: iso(row.resolvedAt),
-        owner: ownerName(bundle, row.owner), waitingOn: row.waitingOn, nextStep: row.nextStep,
+        owner: ownerName(bundle, row.owner), waitingOn: plainText(bundle, row.waitingOn), nextStep: plainText(bundle, row.nextStep),
         sources: row.sourceRefs.map(sourceChip),
         pending,
         decided: cards.filter((card) => !card.pending).reverse(),
@@ -340,7 +359,7 @@ export function mergedTimeline(bundle: Bundle): TimelineEntry[] {
     const at = iso(event.at) ?? ""
     entries.push({
       id: event.id, at, actorName: actor.name, actorRole: actor.role, actorKind: event.actorType,
-      kind: event.channel === "safety" ? "safety" : LIVE_KIND[event.kind] ?? "note", text: event.body,
+      kind: event.channel === "safety" ? "safety" : LIVE_KIND[event.kind] ?? "note", text: plainText(bundle, event.body),
       channelLabel: to ? `${channel} to ${to}` : channel,
       source: { kind: "cr_events", id: event.id, label: event.actorType === "obd" || event.actorType === "phone" ? "simulated sensor" : "case log", at },
       tone: liveTone(event), origin: "live", internal: event.channel === "internal" || event.kind === "lookup" || event.kind === "tool_call",

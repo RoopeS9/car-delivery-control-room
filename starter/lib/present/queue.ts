@@ -4,7 +4,7 @@
 import type { CaseRow, ProposalRow } from "@/lib/cr/queries"
 import { deriveAttention } from "./attention"
 import type { Bundle } from "./bundle"
-import { CASE_KIND_LABELS, caseStatusLabel, ownerName, urgencyLabel, urgencyRank, urgencyTone } from "./cases"
+import { CASE_KIND_LABELS, caseStatusLabel, ownerName, plainText, urgencyLabel, urgencyRank, urgencyTone } from "./cases"
 import { label } from "./labels"
 import { relativeTo } from "./time"
 import type { AttentionKind, QueueRow, QueueView } from "./types"
@@ -43,10 +43,10 @@ function row(bundle: Bundle, kase: CaseRow, pending: ProposalRow | null, now: st
     customer: bundle.customer.name,
     caseId: kase.id,
     headline: kase.title,
-    ask,
+    ask: plainText(bundle, ask),
     tone: decide ? urgencyTone(kase.urgency) : kase.status === "AGENT_WORKING" ? "accent" : closed ? "ok" : "neutral",
     urgency: kase.urgency, urgencyLabel: urgencyLabel(kase.urgency),
-    statusLabel: pending ? "Decision waiting" : caseStatusLabel(kase),
+    statusLabel: pending ? "Decision waiting" : plainText(bundle, caseStatusLabel(kase)),
     who: decide ? "Waiting for you" : owner ?? (closed ? "Road agent" : "No owner recorded"),
     whoKind: decide ? "person" : owner === "Road agent" || kase.owner === "agent" ? "agent" : owner ? "person" : "nobody",
     since,

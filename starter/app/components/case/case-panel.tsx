@@ -1,16 +1,16 @@
 "use client"
 
 import { useState } from "react"
-import { askAgentPath, type AskAgentRequest, type AskAgentResponse } from "@/lib/cr/types"
+import {
+  askAgentPath, instructPath, outcomePath,
+  type AskAgentRequest, type AskAgentResponse, type CaseActionResponse, type InstructRequest, type LogOutcomeRequest,
+} from "@/lib/cr/types"
 import type { CaseView, RecordView } from "@/lib/present/types"
 import { Icon } from "../icons"
 import { When } from "../ui"
 import { DecidedCard, DecisionCard, Sources } from "./decision-card"
 import { OPERATOR } from "./operator"
 import { Timeline } from "./timeline"
-
-/** Proposed in PLAN.md 4.2b; stream A owns the route. */
-const outcomePath = (caseId: string) => `/api/cases/${caseId}/outcome`
 
 function OutcomeBox({ kase, proposalId, title, onSaved }: { kase: CaseView; proposalId: string; title: string; onSaved: () => void }) {
   const [text, setText] = useState("")
@@ -21,11 +21,10 @@ function OutcomeBox({ kase, proposalId, title, onSaved }: { kase: CaseView; prop
     setBusy(true)
     setError("")
     try {
-      const response = await fetch(outcomePath(kase.id), {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ proposal_id: proposalId, text: text.trim(), logged_by: OPERATOR.id }),
-      })
-      if (!response.ok) throw new Error("Could not reach the agent service. Nothing was saved.")
+      const body: LogOutcomeRequest = { proposal_id: proposalId, text: text.trim(), logged_by: OPERATOR.id }
+      const response = await fetch(outcomePath(kase.id), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
+      const data = await response.json().catch(() => null) as CaseActionResponse | null
+      if (!response.ok) throw new Error(data?.error ?? "Could not reach the agent service. Nothing was saved.")
       setText("")
       onSaved()
     } catch (cause) {
@@ -40,6 +39,43 @@ function OutcomeBox({ kase, proposalId, title, onSaved }: { kase: CaseView; prop
       <input id={`outcome-${proposalId}`} value={text} onChange={(event) => setText(event.target.value)} placeholder="Dealer sends their own roadside help, ETA 11:00"
         onKeyDown={(event) => { if (event.key === "Enter") void save() }} />
       <button type="button" className="btn primary" disabled={busy} onClick={save}>Save and hand back to the agent</button>
+    </div>
+    {error && <p className="dcard-error" role="alert">{error}</p>}
+  </div>
+}
+
+/** "Tell the agent": a free-text instruction on an open case with no card waiting. */
+function TellAgent({ caseId, onSent, startOpen = false }: { caseId: string; onSent: () => void; startOpen?: boolean }) {
+  const [open, setOpen] = useState(startOpen)
+  const [text, setText] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState("")
+  async function send() {
+    if (!text.trim()) { setError("Write what the agent should do."); return }
+    setBusy(true)
+    setError("")
+    try {
+      const body: InstructRequest = { text: text.trim(), by: OPERATOR.id }
+      const response = await fetch(instructPath(caseId), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
+      const data = await response.json().catch(() => null) as CaseActionResponse | null
+      if (!response.ok) throw new Error(data?.error ?? "Could not reach the agent service. Nothing was sent.")
+      setText("")
+      setOpen(false)
+      onSent()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not send.")
+    } finally {
+      setBusy(false)
+    }
+  }
+  if (!open) return <button type="button" className="btn quiet tell-open" onClick={() => setOpen(true)}><Icon name="message" size={14} />Tell the agent what to do</button>
+  return <div className="outcome tell">
+    <label htmlFor={`tell-${caseId}`}><Icon name="bot" size={14} /><b>Tell the agent</b> · it follows your instruction on its next turn</label>
+    <div className="outcome-row">
+      <input id={`tell-${caseId}`} value={text} autoFocus onChange={(event) => setText(event.target.value)} placeholder="Ask the driver to wait in the café until the tow arrives"
+        onKeyDown={(event) => { if (event.key === "Enter") void send() }} />
+      <button type="button" className="btn primary" disabled={busy} onClick={send}>Send</button>
+      <button type="button" className="btn quiet" disabled={busy} onClick={() => { setOpen(false); setError("") }}>Cancel</button>
     </div>
     {error && <p className="dcard-error" role="alert">{error}</p>}
   </div>
@@ -98,6 +134,7 @@ function CaseBlock({ kase, view, onChange }: { kase: CaseView; view: RecordView;
     {kase.pending.map((card) => <DecisionCard key={card.id} card={card} onDecided={onChange} />)}
     {awaiting.map((card) => <OutcomeBox key={card.id} kase={kase} proposalId={card.id} title={card.title} onSaved={onChange} />)}
     {kase.pending.length === 0 && awaiting.length === 0 && kase.nextStep && open && <div className="decided-line"><Icon name="waiting" size={16} /><div><b>Next:</b> {kase.nextStep}</div></div>}
+    {kase.pending.length === 0 && awaiting.length === 0 && open && <TellAgent caseId={kase.id} onSent={onChange} startOpen={kase.status === "NEEDS_DECISION"} />}
     {kase.decided.length > 0 && <div className="case-history">
       <h3>Decisions on this case</h3>
       {kase.decided.map((card) => <DecidedCard key={card.id} card={card} />)}

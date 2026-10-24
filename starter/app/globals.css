@@ -726,6 +726,8 @@ a.source:hover { border-color: var(--sand); color: var(--ink); }
 .outcome-row { display: flex; gap: 8px; margin-top: 10px; }
 .outcome-row input { flex: 1; min-width: 0; height: 36px; padding: 0 12px; border: 1px solid var(--hair); border-radius: var(--radius); background: var(--birch); font-size: 14px; }
 .outcome-row input:focus { border-color: var(--ink); outline: 0; }
+.outcome.tell { box-shadow: 0 0 0 1px var(--hair); }
+.tell-open { margin-top: 10px; padding-left: 4px; }
 
 .order-divider { margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--hair); }
 .order-divider h2 { font-size: 13px; font-weight: 600; color: var(--muted); }
