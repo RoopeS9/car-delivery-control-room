@@ -11,19 +11,23 @@ export function hasLlm(): boolean {
   return Boolean(process.env.OPENROUTER_API_KEY)
 }
 
-/** The shared client, or null without a key. */
+/** The shared client, or null without a key. Tests may install a scripted stand-in with `useTestLlm`. */
 export function llm(): Anthropic | null {
+  if (holder.__roadDeskLlm) return holder.__roadDeskLlm
   const key = process.env.OPENROUTER_API_KEY
   if (!key) return null
-  if (!holder.__roadDeskLlm) {
-    holder.__roadDeskLlm = new Anthropic({
-      baseURL: process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api",
-      apiKey: null,
-      authToken: key,
-      maxRetries: 2,
-    })
-  }
+  holder.__roadDeskLlm = new Anthropic({
+    baseURL: process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api",
+    apiKey: null,
+    authToken: key,
+    maxRetries: 2,
+  })
   return holder.__roadDeskLlm
+}
+
+/** Tests only: replace the model client (pass null to go back to the real one). */
+export function useTestLlm(client: unknown): void {
+  holder.__roadDeskLlm = (client ?? undefined) as Anthropic | undefined
 }
 
 /** The model the Road Desk agent uses (OpenRouter name). */
