@@ -13,7 +13,7 @@ const FRAME_BYTES = 960
 const SILENCE = new ArrayBuffer(FRAME_BYTES)
 const QUIET_MS = 5000
 
-type Phase = "idle" | "checking" | "connecting" | "live" | "ending" | "ended" | "failed"
+type Phase = "idle" | "checking" | "composing" | "connecting" | "live" | "ending" | "ended" | "failed"
 type Caption = { role: "model" | "user"; text: string; final: boolean; t: number }
 type Line = { t: number; role: string; text: string }
 
@@ -215,6 +215,19 @@ export function CallScreen({ target, onClose, autoStart = false }: { target: Cal
       await ctx.audioWorklet.addModule("/audio/pcm-capture.js")
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } })
       const cardUrl = target.cardUrl ?? `http://127.0.0.1:8799/card/${target.orderRef}/${target.purpose}`
+      // A model-composed card takes 5 to 10 s the first time: compose it before placing the call, and stop here if the
+      // agent may not make this call at all.
+      if (cardUrl.includes("by=model")) {
+        setPhase("composing")
+        setStatus("Composing Mira's brief…")
+        const began = Date.now()
+        const ticker = window.setInterval(() => setStatus(`Composing Mira's brief… ${Math.round((Date.now() - began) / 1000)} s`), 1000)
+        const warm = await fetch(`/api/line/warm?ref=${encodeURIComponent(target.orderRef)}&purpose=${encodeURIComponent(target.purpose)}&by=model`, { cache: "no-store" })
+        const warmed = await warm.json().catch(() => null) as { ok?: boolean; error?: string } | null
+        window.clearInterval(ticker)
+        if (!warm.ok || !warmed?.ok) { stream.getTracks().forEach((track) => track.stop()); throw new Error(warmed?.error ? `No call: ${warmed.error}.` : "Mira's brief could not be composed.") }
+        setStatus("Connecting…")
+      }
       const response = await fetch(`${LINE}/calls`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caller_id: "voicechat", card_url: cardUrl }) })
       if (!response.ok) { stream.getTracks().forEach((track) => track.stop()); throw new Error(response.status === 409 ? "The line is busy with another call." : `The line refused the call (${response.status}).`) }
       const placed = (await response.json()) as { call_id: string; ws: string; name?: string }
@@ -273,7 +286,7 @@ export function CallScreen({ target, onClose, autoStart = false }: { target: Cal
   const autoStarted = useRef(false)
   useEffect(() => { if (autoStart && !autoStarted.current) { autoStarted.current = true; void start() } }, [autoStart, start])
 
-  const inCall = phase === "checking" || phase === "connecting" || phase === "live"
+  const inCall = phase === "checking" || phase === "composing" || phase === "connecting" || phase === "live"
   return <div className={`call-screen cs-${phase}`} aria-live="polite">
     <header className="cs-head">
       <span className="cs-avatar" aria-hidden="true">{target.calleeName.split(/\s+/).filter((part) => /^[A-Z]/.test(part)).map((part) => part[0]).join("").slice(0, 2)}</span>

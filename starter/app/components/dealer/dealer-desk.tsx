@@ -6,7 +6,11 @@ import type { DealerCollection, DealerView } from "@/lib/present/dealer"
 import { CallScreen, type CallTarget } from "../line/call-screen"
 
 /** The desk's view of its booked collections, and the phone where Mira from Bahn calls about one of them. */
-export function DealerDesk({ site, collections, asks }: { site: NonNullable<DealerView["site"]>; collections: DealerCollection[]; asks: Record<string, string[] | null> }) {
+export function DealerDesk({ site, collections, asks, callable }: {
+  site: NonNullable<DealerView["site"]>; collections: DealerCollection[]; asks: Record<string, string[] | null>
+  /** From the call service's actions: may the agent call this desk about this order, and if not, why. */
+  callable: Record<string, { may: boolean; reason: string | null }>
+}) {
   const [call, setCall] = useState<{ target: CallTarget; reference: string } | null>(null)
   const ringing = (item: DealerCollection) => setCall({
     reference: item.reference,
@@ -31,8 +35,8 @@ export function DealerDesk({ site, collections, asks }: { site: NonNullable<Deal
           <p>{item.slot ? `Collection ${item.slot}` : "No collection slot yet"} · {item.driver ? `driver ${item.driver}` : "no driver booked"} · {item.stage}</p>
           {item.plate && <p className="dc-quiet">Plate <span className="mono">{item.plate}</span></p>}
         </div>
-        {item.customerSite
-          ? <p className="dc-reason">This desk belongs to the paying customer: Bahn&apos;s agent never calls it; a person does.</p>
+        {!callable[item.reference]?.may
+          ? <p className="dc-reason"><b>{/paying customer/i.test(callable[item.reference]?.reason ?? "") ? "Customer site · a person calls" : "A person calls"}</b>{callable[item.reference]?.reason ? <><br />{callable[item.reference].reason}</> : null}</p>
           : <button type="button" className="btn primary" disabled={!!call} onClick={() => ringing(item)}>Simulate outbound call</button>}
       </li>)}</ul>
     </section>

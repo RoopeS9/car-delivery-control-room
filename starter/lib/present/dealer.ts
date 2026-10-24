@@ -6,7 +6,7 @@ import { deriveKeyDates } from "./attention"
 import { type Bundle, rows, str } from "./bundle"
 import { laneLabel } from "./labels"
 
-export type DealerSite = { id: string; name: string; city: string; kind: string; count: number }
+export type DealerSite = { id: string; name: string; city: string; kind: string; count: number; customerSite: boolean }
 
 export type DealerCollection = {
   orderId: string
@@ -49,9 +49,14 @@ export function buildDealerView(bundles: Bundle[], siteId: string | null): Deale
   const counts = new Map<string, number>()
   for (const bundle of upcoming) counts.set(bundle.order.pickupSiteId!, (counts.get(bundle.order.pickupSiteId!) ?? 0) + 1)
   const siteMap = bundles[0]?.sites ?? new Map()
+  // A site owned by the paying customer of every collection there: the agent never calls it.
+  const ownedByCustomer = (id: string) => {
+    const owner = str(siteMap.get(id)?.details.customer_id)
+    return !!owner && upcoming.filter((bundle) => bundle.order.pickupSiteId === id).every((bundle) => bundle.customer.id === owner)
+  }
   const sites: DealerSite[] = [...counts].map(([id, count]) => {
     const site = siteMap.get(id)
-    return { id, name: site?.name ?? id, city: site?.city ?? "", kind: site?.kind ?? "", count }
+    return { id, name: site?.name ?? id, city: site?.city ?? "", kind: site?.kind ?? "", count, customerSite: ownedByCustomer(id) }
   }).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
   const chosen = siteId ? sites.find((site) => site.id === siteId) ?? null : sites[0] ?? null
   if (!chosen) return { sites, site: null, collections: [] }
