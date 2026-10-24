@@ -57,7 +57,7 @@ export function Dossier({ node, onClose }: { node: ChartNode; onClose: () => voi
 
     {view && <div className="ds-body" data-keep-scroll="dossier">
       <ActionStrip orderId={node.orderId} compact />
-      <p className={`ds-headline tone-edge-${view.tone}`}>{view.headline}</p>
+      <p className={`ds-headline${view.need ? " tone-edge-danger" : ""}`}>{view.headline}</p>
 
       {view.progress && <div className="ds-journey"><JourneyBar progress={view.progress} /></div>}
       <ol className="strip" aria-label="Journey">

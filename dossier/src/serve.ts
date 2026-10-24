@@ -10,6 +10,7 @@
 //   GET  /calls/:id                       -> one CallRecord
 //   GET  /calls/:id/audio/:seq            -> that turn's mp3 (simulated calls rendered with SIM_TTS=1)
 //   POST /runs {ref, twist?, mode?}       -> starts a delivery run (TIMELINE walks the order through its phases; LIVE is one tick as the app sees it); 202 with the run id
+//   POST /suggest/:ref {thread}        -> draft replies for the operator from the dossier and the thread (ref "-" when no order is linked)
 //   GET  /runs?ref=CD-xxxxxx              -> stored runs, newest first;  GET /runs/:id -> one run (mutating while it runs);  GET /runs/plan/:ref -> the timeline a run would walk
 import { createServer } from "node:http"
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
@@ -27,6 +28,7 @@ import { pullLive } from "./livepull"
 import { derive } from "./derived"
 import { RunMode, newRunReport, planTimeline, runDelivery, type RunReport } from "./run"
 import { Twist } from "./sim/persona-from-dossier"
+import { SuggestThread, suggestReplies } from "./suggest"
 
 const root = new URL("../", import.meta.url)
 const callsDir = new URL("data/out/calls/", root)
@@ -109,6 +111,15 @@ createServer(async (req, res) => {
       actions.push({ kind: "CALL", label: `Call the receiver`, who: delivery?.name ?? deliveryAddr?.name ?? "receiver", purpose: "RECEIVER_CONFIRMATION", agentMay: false, reason: receiverReason, cardUrl: null })
       actions.push({ kind: "CALL", label: `Contact the customer`, who: ds.rows.customers.find((c) => c.id === order.customer_id)?.name ?? "customer", purpose: null, agentMay: false, reason: "customers are never contacted by the agent", cardUrl: null })
       return json(res, 200, { reference: order.reference, phase: d.phase, from: { city: pickupAddr?.city, name: pickup?.name ?? pickupAddr?.name }, to: { city: deliveryAddr?.city, name: delivery?.name ?? deliveryAddr?.name }, driver: driver?.display_name ?? null, actions })
+    }
+    if (parts[0] === "suggest" && parts[1] && req.method === "POST") {
+      // Draft replies for the operator's helpdesk. The thread comes from the app (it holds the live messages); the dossier is
+      // built live when an order is linked. "-" means no order: the drafts identify it or answer policy.
+      const input = JSON.parse((await body(req)) || "{}") as { thread?: unknown; live?: boolean }
+      const thread = SuggestThread.safeParse(input.thread); if (!thread.success) return json(res, 400, { error: thread.error.issues.slice(0, 3).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") })
+      let d = null
+      if (parts[1] !== "-") { const id = byRef.get(parts[1]); if (!id) return json(res, 404, { error: `no order ${parts[1]}` }); d = await dossierFor(parts[1], id, input.live !== false) }
+      try { return json(res, 200, await suggestReplies(d, thread.data)) } catch (e) { return json(res, 502, { error: (e as Error).message.slice(0, 600) }) }
     }
     if (parts[0] === "reason" && parts[1]) {
       const id = byRef.get(parts[1]); if (!id) return json(res, 404, { error: `no order ${parts[1]}` })

@@ -34,7 +34,7 @@ export function OrderPane({ detail, onChange }: { detail: Detail; onChange: () =
     <RecordHero view={view} compact />
     <AttentionPanel view={view} />
     <Tiles tiles={view.tiles} />
-    <ConversationsSection view={view} />
+    <ConversationsSection view={view} onChange={onChange} />
     <EvidenceSection view={view} />
     <DecisionsSection view={view} />
     <RecordsPanel view={view} orderId={detail.order.id} />
@@ -45,7 +45,7 @@ export function OrderPane({ detail, onChange }: { detail: Detail; onChange: () =
     <RouteStrip view={view} />
     <AttentionPanel view={view} />
     <Tiles tiles={view.tiles} />
-    <ConversationsSection view={view} />
+    <ConversationsSection view={view} onChange={onChange} />
     <EvidenceSection view={view} />
     <DecisionsSection view={view} />
     <ActivitySection view={view} />

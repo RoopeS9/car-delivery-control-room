@@ -114,7 +114,7 @@ export function callableParties(d: Dossier): string[] {
 
 const FORBIDDEN_OPTION = /\b(keep driving|continue driving|drive on|attempt to continue|carry on driving|cleared? to drive)\b/i
 
-async function chat(apiKey: string, model: string, system: string, user: string, feedback?: string): Promise<{ raw: string; usage: { prompt_tokens: number; completion_tokens: number; cost?: number } | undefined }> {
+export async function chat(apiKey: string, model: string, system: string, user: string, feedback?: string): Promise<{ raw: string; usage: { prompt_tokens: number; completion_tokens: number; cost?: number } | undefined }> {
   const messages: { role: string; content: string }[] = [{ role: "system", content: system }, { role: "user", content: user }]
   if (feedback) messages.push({ role: "user", content: `Your previous answer was rejected: ${feedback}\nAnswer again with JSON only, matching the schema exactly.` })
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {

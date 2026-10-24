@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { simNow } from "@/lib/cr/clock"
 import { casesForOrder, listEvents, resolveOrder, telemetrySince } from "@/lib/cr/queries"
+import { appMessagesFor } from "@/lib/present/helpdesk"
 import { carReadings } from "@/lib/sim/status"
 
 export const runtime = "nodejs"
@@ -18,11 +19,12 @@ export async function GET(_request: Request, context: { params: Promise<{ order:
   const order = await resolveOrder(ref)
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 })
   const now = simNow()
-  const [readings, telemetry, events, cases] = await Promise.all([
+  const [readings, telemetry, events, cases, helpdesk] = await Promise.all([
     carReadings(order.id).catch(() => null),
     telemetrySince(order.id, new Date(now.getTime() - DAY_MS)),
     listEvents({ orderId: order.id }),
     casesForOrder(order.id),
+    appMessagesFor(order.id).catch(() => []),
   ])
   const iso = (value: Date | null | undefined) => (value ? value.toISOString() : null)
   return NextResponse.json({
@@ -41,5 +43,7 @@ export async function GET(_request: Request, context: { params: Promise<{ order:
       id: row.id, kind: row.kind, status: row.status, urgency: row.urgency, title: row.title, summary: row.summary,
       openedAt: row.openedAt.toISOString(), updatedAt: row.updatedAt.toISOString(), waitingFor: row.waitingFor ?? null, nextCheckAt: iso(row.nextCheckAt),
     })),
+    // What the helpdesk wrote on this order since the snapshot; the dataset's own messages are in the dossier already.
+    messages: helpdesk,
   })
 }

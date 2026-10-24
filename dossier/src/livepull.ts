@@ -14,6 +14,19 @@ type Payload = {
   telemetry: { gps: Row[]; obd: Row[] }
   events: { id: string; caseId: string | null; at: string; actorType: string; actorId: string | null; kind: string; channel: string; body: string }[]
   cases: { id: string; kind: string; status: string; urgency: string; title: string; summary: string; openedAt: string; updatedAt: string; waitingFor: string | null; nextCheckAt: string | null }[]
+  /** Messages written in the app's helpdesk since the snapshot (the dataset's own messages are already in the dossier). */
+  messages?: { id: string; conversationId: string; at: string; authorType: string; authorId: string | null; channel: string; body: string; internal: boolean }[]
+}
+
+/** A helpdesk message as an app event: who wrote it and over which line, in the dossier's vocabulary. */
+export function mapMessage(m: NonNullable<Payload["messages"]>[number], orderId: string): AppEvent | null {
+  const actor = m.authorType === "site_contact" || m.authorType === "handoff_contact" ? "site" : m.authorType
+  const channel = m.internal || m.channel === "internal_note" ? "internal"
+    : m.channel === "email" || m.channel === "customer_email" ? "customer_email"
+    : m.channel === "site_chat" || m.channel === "site_call" ? "site_chat"
+    : m.channel === "support_chat" ? "operator_chat" : "driver_chat"
+  const r = AppEvent.safeParse({ kind: "APP_EVENT", id: m.id, orderId, caseId: null, at: m.at, actor, actorId: m.authorId, eventKind: m.internal ? "note" : "message", channel, text: `(helpdesk, ${m.channel}, thread ${m.conversationId}) ${m.body}`.slice(0, 1000) })
+  return r.success ? r.data : null
 }
 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null)
@@ -64,6 +77,8 @@ export function liveFromPayload(ds: Dataset, orderId: string, p: Payload, stored
     const r = AppEvent.safeParse({ kind: "APP_EVENT", id: e.id, orderId, caseId: e.caseId && idOk(e.caseId) ? e.caseId : null, at: e.at, actor: e.actorType, actorId: e.actorId, eventKind: e.kind, channel: e.channel, text: e.body.slice(0, 1000) })
     return r.success ? r.data : null
   }).filter(keep)
+  for (const m of p.messages ?? []) { const e = mapMessage(m, orderId); if (e) events.push(e); else dropped++ }
+  events.sort((a, b) => a.at.localeCompare(b.at))
   const cases = p.cases.map((c) => {
     const r = AppCase.safeParse({ kind: "APP_CASE", id: c.id, orderId, openedAt: c.openedAt, updatedAt: c.updatedAt, caseKind: c.kind, status: c.status, urgency: c.urgency, title: c.title, summary: c.summary, waitingFor: c.waitingFor, nextCheckAt: c.nextCheckAt })
     return r.success ? r.data : null

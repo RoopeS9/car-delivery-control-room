@@ -22,11 +22,13 @@ export function JourneyBar({ progress }: { progress: Progress }) {
   // Where each label's words sit: the first starts at 0, the last ends at 1, a middle one is centred on its tick.
   const span = (at: number, index: number): [number, number] => index === 0 ? [0, ROOM] : index === last ? [1 - ROOM, 1] : [at - ROOM / 2, at + ROOM / 2]
   const overlaps = (a: [number, number], b: [number, number]) => a[0] < b[1] && b[0] < a[1]
-  const shown: boolean[] = []
+  // The ends always speak and are decided first, so a middle stop near the right end yields to Delivery, not the
+  // other way round; then each middle stop speaks when it is clear of every stop already speaking.
+  const shown: boolean[] = progress.stops.map((_, index) => index === 0 || index === last)
   progress.stops.forEach((stop, index) => {
+    if (index === 0 || index === last) return
     const mine = span(stop.at, index)
-    // The ends always speak; a middle stop speaks when it is clear of every stop already speaking.
-    shown[index] = index === 0 || index === last || progress.stops.every((other, j) => j === index || !shown[j] || !overlaps(mine, span(other.at, j)))
+    shown[index] = progress.stops.every((other, j) => j === index || !shown[j] || !overlaps(mine, span(other.at, j)))
   })
   const nowAt = progress.fraction
   const nowShown = nowAt > 0.02 && nowAt < 0.98 && progress.stops.every((stop, index) => !shown[index] || !overlaps([nowAt - ROOM / 2, nowAt + ROOM / 2], span(stop.at, index)))

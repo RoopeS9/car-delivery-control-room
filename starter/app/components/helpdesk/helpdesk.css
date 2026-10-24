@@ -1,0 +1,57 @@
+/* The operator's composer: mode tabs, drafts from the dossier, the text, one row of controls. */
+.composer { display: grid; gap: 10px; margin-top: 14px; padding: 14px 16px 12px; border-radius: 14px; background: var(--birch); box-shadow: 0 0 0 1px var(--hair); }
+.composer.internal { background: var(--tray); box-shadow: 0 0 0 1px var(--sand); }
+.composer-mode { display: flex; gap: 4px; padding: 3px; border-radius: 999px; background: var(--hair-soft); width: fit-content; max-width: 100%; }
+.composer-mode button { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: 0; border-radius: 999px; background: transparent; font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.composer-mode button small { font-size: 11.5px; font-weight: 400; color: var(--subtle); }
+.composer-mode button[aria-selected="true"] { background: var(--birch); color: var(--ink); box-shadow: 0 1px 2px var(--shadow-lift, rgba(0,0,0,.08)); }
+.composer-text { width: 100%; min-height: 72px; padding: 10px 12px; border: 1px solid var(--hair); border-radius: 10px; background: var(--birch); font: inherit; font-size: 14.5px; line-height: 1.5; color: var(--ink); resize: vertical; }
+.composer-text:focus { outline: 2px solid var(--teal); outline-offset: -1px; }
+.composer.internal .composer-text { border-style: dashed; border-color: var(--sand); font-style: italic; }
+.composer-foot { display: flex; align-items: center; gap: 12px; }
+.composer-hint { flex: 1; min-width: 0; font-size: 12px; color: var(--subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-error { color: var(--red-ink); white-space: normal; }
+.composer-sent { display: inline-flex; align-items: center; gap: 4px; color: var(--green-ink); }
+.btn.small { height: 30px; padding: 0 12px; font-size: 12.5px; }
+.link-btn { padding: 0; border: 0; background: none; font-size: inherit; font-weight: 600; color: var(--teal-ink); text-decoration: underline; text-underline-offset: 3px; }
+
+/* Drafts: what the dossier says, then up to three cards with a stance each. */
+.drafts { display: grid; gap: 10px; padding: 12px 14px; border-radius: 12px; background: var(--canvas); }
+.drafts-summary { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; line-height: 1.5; color: var(--brown); }
+.drafts-summary .icon { flex: none; margin-top: 3px; color: var(--teal-ink); }
+.drafts-list { display: grid; gap: 8px; }
+.draft { display: grid; gap: 6px; padding: 12px 14px; border-radius: 10px; background: var(--birch); box-shadow: var(--shadow-card); }
+.draft-head { display: flex; align-items: center; gap: 8px; }
+.draft-head b { font-size: 13.5px; font-weight: 700; }
+.draft-body { font-size: 14px; line-height: 1.5; white-space: pre-wrap; color: var(--ink); }
+.draft-caution { display: flex; gap: 6px; align-items: flex-start; font-size: 12.5px; line-height: 1.45; color: var(--orange-ink); }
+.draft-caution .icon { flex: none; margin-top: 3px; }
+.draft-foot { display: flex; align-items: center; gap: 12px; margin-top: 2px; }
+.draft-basis { font-size: 12px; color: var(--subtle); }
+.drafts-note { font-size: 13px; line-height: 1.5; color: var(--brown); }
+.drafts-note b { font-weight: 600; color: var(--ink); }
+
+/* Thread controls on the order page: open a conversation, close or reopen one. */
+.thread-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 10px; }
+.new-conv { margin: 4px 0 18px; padding: 14px 16px; border-radius: 14px; background: var(--canvas); }
+.new-conv .composer { margin-top: 12px; }
+.new-conv-fields { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; }
+.new-conv-fields label { display: grid; gap: 3px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.new-conv-fields select { min-width: 180px; padding: 7px 10px; border: 1px solid var(--hair); border-radius: 8px; background: var(--birch); color: var(--ink); font: inherit; font-size: 13.5px; font-weight: 400; }
+.new-conv-fields .btn { margin-left: auto; }
+
+/* The inbox thread tools: link to an order, no order needed, close. */
+.mail-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+.mail-tools form { display: inline-flex; gap: 6px; }
+.mail-tools input { width: 150px; height: 34px; padding: 0 10px; border: 1px solid var(--hair); border-radius: 8px; background: var(--birch); font: inherit; font-size: 13px; text-transform: uppercase; }
+.mail-tools .label { font-size: 12.5px; font-weight: 600; color: var(--muted); margin-right: 4px; }
+.mail-read .composer { margin-top: 18px; }
+.mail-read .chat { margin-top: 18px; }
+
+@media (max-width: 640px) {
+  .composer-mode button small { display: none; }
+  .composer-foot { flex-wrap: wrap; }
+  .composer-hint { order: 3; flex-basis: 100%; white-space: normal; }
+  .new-conv-fields select { min-width: 0; width: 100%; }
+  .new-conv-fields label { flex: 1 1 140px; }
+}

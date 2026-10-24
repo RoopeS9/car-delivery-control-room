@@ -174,18 +174,19 @@
 .tip-waiting { color: var(--c-waiting); }
 
 /* ---- dossier */
-.dossier { position: absolute; z-index: 1003; top: 60px; right: 16px; bottom: 16px; width: 448px; display: flex; flex-direction: column;
+.dossier { position: absolute; z-index: 1003; top: 60px; right: 16px; bottom: 16px; width: 448px; max-width: calc(100% - 32px); display: flex; flex-direction: column;
   background: var(--birch); border-radius: 12px; box-shadow: var(--c-shadow); overflow: hidden;
   animation: ds-in 0.18s ease; }
 @keyframes ds-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
 .ds-head { display: flex; gap: 12px; align-items: flex-start; padding: 16px 16px 12px 18px; border-bottom: 1px solid var(--hair-soft); }
 .dossier .make-mark { background: var(--c-ink); }
-.ds-title h2 { font-family: var(--font-display); font-size: 17px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; }
+.ds-title h2 { font-family: var(--font-display); font-size: 18px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.25; }
 .ds-title p { font-size: 13px; color: var(--muted); margin-top: 3px; }
 .ds-title .mono { font-size: 12px; }
 .ds-close { margin-left: auto; align-self: flex-start; width: 30px; height: 30px; border-radius: 7px; border: 0; background: none; color: var(--c-quiet); font-size: 20px; line-height: 1; }
 .ds-close:hover { background: var(--c-line); color: var(--c-ink); }
-.ds-body { flex: 1; overflow-y: auto; padding: 0 0 12px; }
+.ds-body { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 0 0 12px; }
+.ds-body > * { max-width: 100%; }
 .ds-loading { display: flex; gap: 6px; padding: 28px 18px; }
 .ds-loading span { width: 7px; height: 7px; border-radius: 50%; background: var(--c-quiet); animation: ds-dots 1s infinite ease-in-out; }
 .ds-loading span:nth-child(2) { animation-delay: 0.15s; }
@@ -226,7 +227,7 @@
 .sp small { color: var(--subtle); font-size: 11.5px; padding-right: 8px; line-height: 1.35; }
 
 .tl { padding: 6px 0 0; }
-.tl-h { font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: 0.01em; padding: 16px 18px 6px; }
+.tl-h { font-size: 11.5px; font-weight: 700; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; padding: 18px 18px 8px; }
 .tl-h .num { font-weight: 400; color: var(--subtle); margin-left: 4px; }
 .tl-list { display: flex; flex-direction: column; }
 .tl-now { position: relative; margin: 12px 18px 4px; height: 18px; }
@@ -314,7 +315,7 @@
 
 /* ---- operator view of a delivery */
 .ds-title .ds-who { margin-top: 2px; font-size: 12.5px; color: var(--subtle); }
-.ds-headline { margin: 14px 18px 0; padding: 2px 0 2px 12px; border-left: 3px solid var(--hair); font-size: 15px; font-weight: 500; line-height: 1.45; }
+.ds-headline { margin: 14px 18px 0; padding: 2px 0 2px 12px; border-left: 3px solid var(--hair); font-size: 15.5px; font-weight: 600; line-height: 1.45; color: var(--ink); }
 .ds-need { display: grid; gap: 4px; margin: 12px 18px 0; padding: 12px 14px; border-radius: 10px; background: var(--red-bg); font-size: 13px; }
 .ds-need b { font-weight: 600; color: var(--red-ink); }
 .ds-need p { color: var(--brown); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -324,7 +325,7 @@
 .ds-fold-inline summary { cursor: pointer; font-size: 12px; color: var(--muted); }
 .ds-fold-inline ul { display: grid; gap: 3px; margin-top: 4px; font-size: 12px; color: var(--brown); }
 .ds-sec { margin: 16px 18px 0; }
-.ds-sec h3 { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+.ds-sec h3 { font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
 .watch { display: grid; gap: 2px; }
 .watch summary { list-style: none; cursor: pointer; display: flex; align-items: baseline; gap: 8px; padding: 4px 0; font-size: 13.5px; }
 .watch summary::-webkit-details-marker { display: none; }
