@@ -385,3 +385,32 @@ Checked / changed / rejected:
 - A running dev server kept serving its cached fleet after the code changed
   shape; the cache is now versioned and reset reloads it.
 - Not built yet, on purpose: the LLM simulated driver (video only, last).
+
+## 2026-10-24 ~14:00 UTC · Claude Code (stream C) · routine seed, sim tests
+
+Asked: `npm run sim:seed-routine` (4.5): genuine "handled by the agent" cases
+for the queue, kept or dropped on reset; tests for the simulator.
+
+Got: four routine driver questions on quiet moving orders, each answerable
+from records (closing time in Tampere, who takes the keys in Hamburg, which
+entrance in Turku, the storage gate in Helsinki). The seed calls stream A's
+real turn functions, saves a readable `traces/routine-*/timeline.md` plus the
+run JSON, and the `/demo` reset keeps those cases by default (a checkbox drops
+them). `lib/sim/sim.test.ts` adds 8 tests to `npm test` (39 pass): phones only
+report what the data supports, only scenario cars carry a dongle, OBD frames
+carry only decision signals, scenario A stops and switches off, scenario F
+sets P0217 and goes quiet while moving, ferry cars wait for their sailing,
+and every road shape starts at its city or terminal.
+
+Checked / changed / rejected:
+- Picked the questions from the data, not from imagination: only orders whose
+  delivery access is CONFIRMED, with no open alert or conversation, and not
+  the two cars whose phones go quiet on purpose. A question the records cannot
+  answer would make "handled by agent" a lie.
+- The seed refuses to run without `OPENROUTER_API_KEY`. In stub mode every
+  case is handed to a person, and keeping those would fill the "handled" list
+  with fakes. Not yet run for real: no key in this session.
+- The `/demo` spend read `usage.cost`; the agent loop stores `cost_usd`.
+  Fixed after reading stream A's scenario runner.
+- Touched `starter/package.json` (outside my folders) for two script lines:
+  `sim:seed-routine`, and `lib/sim/*.test.ts` added to `npm test`.

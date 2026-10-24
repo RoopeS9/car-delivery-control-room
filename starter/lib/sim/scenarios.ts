@@ -7,12 +7,13 @@
 import { and, eq } from "drizzle-orm"
 import { resetSimClock, simNow } from "@/lib/cr/clock"
 import { crDb } from "@/lib/cr/db"
-import { appendEvent, insertTelemetry, resetCrData } from "@/lib/cr/queries"
+import { appendEvent, insertTelemetry } from "@/lib/cr/queries"
 import type { DriverMessageRequest, SiteMessageRequest, SourceRef, TelemetryTriggerRequest } from "@/lib/cr/types"
 import { orders, relatedRecords } from "@/lib/schema"
 import { fleetCar, loadFleet, type FleetCar } from "./fleet"
 import { baseMotion, faultMotion, freezeFrame, type MisfirePlan, type OverheatPlan } from "./motion"
 import { roughWhere } from "./places"
+import { clearDemoData } from "./routine"
 import { activeFaults, syncTelemetry } from "./sync"
 
 export type ScenarioName = "warning-light-584" | "catch-up-322" | "driver-keys-145" | "site-eta-442" | "driver-silent-537" | "reset"
@@ -70,7 +71,7 @@ export const SCENARIOS: ScenarioInfo[] = [
     name: "reset",
     title: "Reset the demo",
     orderRef: null,
-    description: "Remove every case, message, decision and telemetry sample we added, and restart the sim clock at 09:00 UTC on 21 Oct.",
+    description: "Remove every case, message, decision and telemetry sample we added (optionally keeping the agent's seeded routine cases), and restart the sim clock at 09:00 UTC on 21 Oct.",
     links: [],
   },
 ]
@@ -93,9 +94,9 @@ export type ScenarioResult = {
   actions?: SimAction[]
 }
 
-export async function runScenario(name: string, origin: string): Promise<ScenarioResult> {
+export async function runScenario(name: string, origin: string, options: { keepRoutine?: boolean } = {}): Promise<ScenarioResult> {
   switch (name) {
-    case "reset": return reset()
+    case "reset": return reset(options.keepRoutine ?? true)
     case "warning-light-584": return warningLight584()
     case "catch-up-322": return driverWrites("catch-up-322", "CD-420322",
       "Still waiting at the service area with the Bentley. Has anyone decided who is collecting the car? I need to know if I should stay.")
@@ -108,12 +109,12 @@ export async function runScenario(name: string, origin: string): Promise<Scenari
   }
 }
 
-async function reset(): Promise<ScenarioResult> {
-  await resetCrData()
+async function reset(keepRoutine: boolean): Promise<ScenarioResult> {
+  await clearDemoData({ keepRoutine })
   resetSimClock()
   await loadFleet({ fresh: true })
   await syncTelemetry()
-  return { ok: true, name: "reset", message: `Demo reset. Sim clock back at ${simNow().toISOString().slice(11, 16)} UTC.` }
+  return { ok: true, name: "reset", message: `Demo reset${keepRoutine ? ", routine cases kept" : ""}. Sim clock back at ${simNow().toISOString().slice(11, 16)} UTC.` }
 }
 
 // ---------------------------------------------------------------- A

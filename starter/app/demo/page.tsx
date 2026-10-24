@@ -13,7 +13,7 @@ type FleetRow = {
   reference: string; orderId: string; vehicleTitle: string; driverName: string; driverId: string
   phone: "LIVE" | "STALE" | "NONE"; state: string; placeLabel: string; speedKmh: number; fault: string | null; quietFrom: string | null
 }
-type FleetState = { now: string; start: string; spend: { dollars: number; runs: number }; cars: FleetRow[] }
+type FleetState = { now: string; start: string; spend: { dollars: number; runs: number }; routineCases: number; cars: FleetRow[] }
 
 const STATE_WORDS: Record<string, string> = {
   DRIVING: "Driving", AT_TERMINAL: "At the ferry terminal", ON_FERRY: "On the ferry", ARRIVED: "Near delivery", PARKED: "Stopped",
@@ -29,6 +29,7 @@ export default function DemoPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [log, setLog] = useState<{ at: string; text: string; ok: boolean }[]>([])
   const [error, setError] = useState("")
+  const [keepRoutine, setKeepRoutine] = useState(true)
 
   const refresh = useCallback(async () => {
     try {
@@ -56,7 +57,9 @@ export default function DemoPage() {
     if (name === "reset" && !window.confirm("Reset the demo? Every case, message and decision added since the start is removed.")) return
     setBusy(name)
     try {
-      const response = await fetch(`/api/sim/scenarios/${name}`, { method: "POST" })
+      const response = await fetch(`/api/sim/scenarios/${name}`, {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(name === "reset" ? { keepRoutine } : {}),
+      })
       const result = (await response.json()) as { ok: boolean; message: string }
       setLog((items) => [{ at: new Date().toISOString(), text: result.message, ok: result.ok }, ...items].slice(0, 8))
       if (name === "reset") setLog([{ at: new Date().toISOString(), text: result.message, ok: result.ok }])
@@ -169,7 +172,13 @@ export default function DemoPage() {
       </table>
     </section>
 
-    {reset && <p className={`${styles.muted} ${styles.foot}`}>Reset: {reset.description}</p>}
+    {reset && <div className={`${styles.muted} ${styles.foot}`}>
+      <p>Reset: {reset.description}</p>
+      <label className={styles.keep}>
+        <input type="checkbox" checked={keepRoutine} onChange={(event) => setKeepRoutine(event.target.checked)} />
+        Keep the agent&apos;s routine cases on reset{fleet ? ` (${fleet.routineCases} stored)` : ""}. Seed them with <code>npm run sim:seed-routine</code>.
+      </label>
+    </div>}
   </main>
 }
 

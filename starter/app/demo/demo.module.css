@@ -55,6 +55,8 @@
 .rowFault small { color: var(--red-ink); opacity: 0.85; }
 
 .foot { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--hair); }
+.keep { display: flex; align-items: center; gap: 8px; margin-top: 8px; color: var(--brown); }
+.keep code { font-family: var(--font-mono); font-size: 12px; }
 
 @media (max-width: 640px) {
   .scenario { flex-direction: column; align-items: stretch; }

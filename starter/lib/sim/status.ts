@@ -10,6 +10,7 @@ import type { GpsData, ObdData } from "@/lib/cr/types"
 import { fleetCar, loadFleet, simStart, type FleetCar, type PhoneState } from "./fleet"
 import { motionAt, type MotionState, type SimObd } from "./motion"
 import { alreadyReconnected, canReconnect } from "./reconnect"
+import { routineCaseCount } from "./routine"
 import { activeFaults, syncTelemetry } from "./sync"
 
 export type CarReadings = {
@@ -84,20 +85,21 @@ export type FleetRow = {
   quietFrom: string | null
 }
 
-/** What the agent has cost so far, from OpenRouter's `usage.cost` on each run. */
+/** What the agent has cost so far: the `cost_usd` the agent loop sums from OpenRouter on each run. */
 async function spend(): Promise<{ dollars: number; runs: number }> {
-  const result = await crDb().execute(sql`SELECT count(*)::int AS runs, coalesce(sum((usage->>'cost')::numeric), 0)::float AS dollars FROM cr_agent_runs`)
+  const result = await crDb().execute(sql`SELECT count(*)::int AS runs, coalesce(sum((usage->>'cost_usd')::numeric), 0)::float AS dollars FROM cr_agent_runs`)
   const row = (result as unknown as { runs: number; dollars: number }[])[0]
   return { dollars: Number(row?.dollars ?? 0), runs: Number(row?.runs ?? 0) }
 }
 
-export async function fleetOverview(): Promise<{ now: string; start: string; spend: { dollars: number; runs: number }; cars: FleetRow[] }> {
-  const [fleet, faults, cost] = await Promise.all([loadFleet(), activeFaults(), spend()])
+export async function fleetOverview(): Promise<{ now: string; start: string; spend: { dollars: number; runs: number }; routineCases: number; cars: FleetRow[] }> {
+  const [fleet, faults, cost, routineCases] = await Promise.all([loadFleet(), activeFaults(), spend(), routineCaseCount()])
   const now = simNow()
   return {
     now: now.toISOString(),
     start: simStart().toISOString(),
     spend: cost,
+    routineCases,
     cars: fleet.map((car) => {
       const plan = faults.get(car.orderId) ?? null
       const row = {
