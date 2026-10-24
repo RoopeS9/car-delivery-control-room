@@ -3,7 +3,7 @@
 // agent's gate lives in lib/agent. These functions only store and fetch.
 
 import { randomUUID } from "node:crypto"
-import { and, asc, desc, eq, gte, inArray, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gt, gte, inArray, or, sql } from "drizzle-orm"
 import { orders } from "@/lib/schema"
 import { simNow } from "./clock"
 import { crDb } from "./db"
@@ -122,6 +122,19 @@ export async function listEvents(filter: { caseId?: string; orderId?: string; si
     filter.channels?.length ? inArray(crEvents.channel, filter.channels as EventRow["channel"][]) : undefined,
   )
   return crDb().select().from(crEvents).where(where).orderBy(asc(crEvents.at))
+}
+
+/** Messages addressed to one recipient (a driver's or a site's feed), oldest first. */
+export async function eventsForRecipient(recipientType: string, recipientId: string, since?: Date): Promise<EventRow[]> {
+  return crDb().select().from(crEvents)
+    .where(and(eq(crEvents.recipientType, recipientType as EventRow["actorType"]), eq(crEvents.recipientId, recipientId), since ? gt(crEvents.at, since) : undefined))
+    .orderBy(asc(crEvents.at))
+}
+
+/** Attach uploaded photos to the case and message they belong to. */
+export async function attachEvents(ids: string[], caseId: string): Promise<void> {
+  if (ids.length === 0) return
+  await crDb().update(crEvents).set({ caseId }).where(inArray(crEvents.id, ids))
 }
 
 export async function getEvent(id: string): Promise<EventRow | null> {
