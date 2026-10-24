@@ -14,6 +14,7 @@ import { fleetCar, loadFleet, type FleetCar } from "./fleet"
 import { baseMotion, faultMotion, freezeFrame, type MisfirePlan, type OverheatPlan } from "./motion"
 import { roughWhere } from "./places"
 import { clearDemoData } from "./routine"
+import { resetSimDriver } from "./sim-driver"
 import { activeFaults, syncTelemetry } from "./sync"
 
 export type ScenarioName = "warning-light-584" | "catch-up-322" | "driver-keys-145" | "site-eta-442" | "driver-silent-537" | "reset"
@@ -111,6 +112,7 @@ export async function runScenario(name: string, origin: string, options: { keepR
 
 async function reset(keepRoutine: boolean): Promise<ScenarioResult> {
   await clearDemoData({ keepRoutine })
+  resetSimDriver()
   resetSimClock()
   await loadFleet({ fresh: true })
   await syncTelemetry()

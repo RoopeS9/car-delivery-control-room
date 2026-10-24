@@ -30,6 +30,7 @@ export default function DemoPage() {
   const [log, setLog] = useState<{ at: string; text: string; ok: boolean }[]>([])
   const [error, setError] = useState("")
   const [keepRoutine, setKeepRoutine] = useState(true)
+  const [simDriver, setSimDriver] = useState<{ available: boolean; enabled: boolean; humans: string[]; usesModel: boolean } | null>(null)
 
   const refresh = useCallback(async () => {
     try {
@@ -37,6 +38,8 @@ export default function DemoPage() {
       if (!scenarioResponse.ok || !stateResponse.ok) throw new Error("The simulator did not answer")
       setScenarios(((await scenarioResponse.json()) as { scenarios: Scenario[] }).scenarios)
       setFleet((await stateResponse.json()) as FleetState)
+      const driverResponse = await fetch("/api/sim/driver")
+      if (driverResponse.ok) setSimDriver(await driverResponse.json())
       setError("")
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The simulator did not answer")
@@ -83,6 +86,11 @@ export default function DemoPage() {
       setBusy(null)
       void refresh()
     }
+  }
+
+  async function toggleSimDriver(enabled: boolean) {
+    const response = await fetch("/api/sim/driver", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ enabled }) })
+    if (response.ok) setSimDriver(await response.json())
   }
 
   const reset = scenarios?.find((scenario) => scenario.name === "reset")
@@ -145,6 +153,16 @@ export default function DemoPage() {
         <Link href="/site" target="_blank"><Icon name="building" />Site chat, pick a place</Link>
       </div>
     </section>
+
+    {simDriver?.available && <section className={styles.section} aria-labelledby="simdriver">
+      <h2 id="simdriver">Simulated driver <span className={styles.count}>video only</span></h2>
+      <label className={styles.keep}>
+        <input type="checkbox" checked={simDriver.enabled} onChange={(event) => void toggleSimDriver(event.target.checked)} />
+        Let a simulated driver answer the agent in scenarios A, B and C ({simDriver.usesModel ? "Claude Haiku 5.5 from a fact sheet" : "scripted answers, no model key"}).
+      </label>
+      <p className={styles.muted}>Keep this off in the live demo: a teammate plays the driver. Typing in a driver app takes over from it for that driver.
+        In scenario F nobody answers, on purpose.{simDriver.humans.length ? ` A person is playing ${simDriver.humans.length} driver${simDriver.humans.length === 1 ? "" : "s"}.` : ""}</p>
+    </section>}
 
     <section className={styles.section} aria-labelledby="log">
       <h2 id="log">What happened</h2>

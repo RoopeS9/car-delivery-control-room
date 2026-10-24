@@ -414,3 +414,37 @@ Checked / changed / rejected:
   Fixed after reading stream A's scenario runner.
 - Touched `starter/package.json` (outside my folders) for two script lines:
   `sim:seed-routine`, and `lib/sim/*.test.ts` added to `npm test`.
+
+## 2026-10-24 ~14:30 UTC · Claude Code (stream C) · simulated driver (video only)
+
+Asked: the simulated driver, built last and for the video only (4.5).
+
+Got: `lib/sim/sim-driver.ts` with personas for scenarios A, B and C. It runs
+on the sim tick, answers only an agent message to its driver that asks
+something (a question mark, "please send/tell/connect", or a photo request),
+waits until the agent's run has finished and a few seconds have passed, and
+replies through the real channel routes: the drawn dashboard picture for A's
+photo request, and for B it plugs the dongle in (stored P0217 arrives) before
+saying so. Scenario F has no persona: nobody answers. `/demo` has the toggle,
+labelled video only. Checked in the running app by inserting agent questions
+(stub mode never asks any): A answered the safety and location question and
+sent the photo, B reconnected the car, and after a "human" message for Leo
+the simulated driver stayed silent.
+
+Checked / changed / rejected:
+- Off by default, whatever `.env` says. In the live demo a teammate plays the
+  driver, and a forgotten "on" would answer over them. `SIM_DRIVER_ENABLED=false`
+  removes the toggle altogether.
+- A person typing in `/driver` takes over that driver for the rest of the take.
+  Rejected guessing "human or not" from message text: the driver app says so
+  explicitly.
+- Loop guards: only questions get answers, at most 8 replies per order, one
+  reply in flight per driver, and never while the agent's run is still going.
+- Read the `claude-api` skill before the model call: Haiku 5.5 runs adaptive
+  thinking by default and its effort defaults to `medium`, so the call omits
+  `thinking`, sets effort `low` explicitly, sends no `temperature`, and treats
+  a `refusal` as "use the script". It reuses stream A's OpenRouter client.
+- The persona speaks only from a short fact sheet that shares its place names
+  with the simulator (the stop label, the reconnect place), so the driver
+  never names a different service area than the GPS shows. The model path is
+  not yet run: no key in this session; the scripted path covers the same facts.

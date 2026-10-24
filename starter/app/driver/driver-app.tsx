@@ -96,6 +96,8 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow }: {
     if (!job || sending) return
     const body = text.trim()
     if (!body && photoIds.length === 0) return
+    // A person is playing this driver: the simulated driver (video only) stays quiet.
+    void fetch("/api/sim/driver", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ human: driver.id }) }).catch(() => undefined)
     setSending(true)
     setError("")
     const at = simIso()
