@@ -1,0 +1,428 @@
+{
+  "scenario": "emergency",
+  "title": "Emergency: smoke, standing on the hard shoulder (EMERGENCY)",
+  "model": "anthropic/claude-sonnet-5.5",
+  "ranAt": "2026-10-24T13:01:40.038Z",
+  "checks": [
+    {
+      "name": "urgency",
+      "ok": true,
+      "detail": "got EMERGENCY, quote \"There's smoke coming out from under the bonnet. I'm standing on the hard shoulder right next to the car.\""
+    },
+    {
+      "name": "urgency points at a driver turn",
+      "ok": true,
+      "detail": "call-fa2e25d25b-1"
+    },
+    {
+      "name": "first agent turn is the urgency question",
+      "ok": true,
+      "detail": "Road Desk here. First: are you safe, and is this urgent?"
+    },
+    {
+      "name": "call ended",
+      "ok": true,
+      "detail": "end_reason completed"
+    },
+    {
+      "name": "slot hazard",
+      "ok": true,
+      "detail": "\"smoke from under the bonnet; standing on hard shoulder\" from call-fa2e25d25b-1, quote \"There's smoke coming out from under the bonnet. I'm standing on the hard shoulder right next to the car.\""
+    },
+    {
+      "name": "slot location",
+      "ok": true,
+      "detail": "\"E18 just past the Lohja exit, hard shoulder\" from call-fa2e25d25b-5, quote \"I'm on the E18 just past the Lohja exit, on the hard shoulder.\""
+    },
+    {
+      "name": "slot quotes come from their turn",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "read-back happened",
+      "ok": true,
+      "detail": "Smoke from under the bonnet. You're standing on the hard shoulder of the E18, just past the Lohja exit, and nobody is hurt. Is that right?"
+    },
+    {
+      "name": "read-back reads the facts back",
+      "ok": true,
+      "detail": "Smoke from under the bonnet. You're standing on the hard shoulder of the E18, just past the Lohja exit, and nobody is hurt. Is that right?"
+    },
+    {
+      "name": "read-back confirmed",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "said /112/",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "emergency safety templates first",
+      "ok": true,
+      "detail": "If anyone is hurt or in danger, call 112 now. Get everyone out of the car and stand behind the barrier, away from the traffic. I've noted the smoke. Is anyone hurt?"
+    },
+    {
+      "name": "urgent call fired call_urgent",
+      "ok": true,
+      "detail": "call_urgent, call_ended"
+    },
+    {
+      "name": "call_ended recorded",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no mechanical advice, drivability or promises spoken",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no reasoning or labels spoken",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no re-prompt or repeated question after the driver answered",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every agent turn went through the screen",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every safety instruction is a template",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "call": {
+    "id": "call-fa2e25d25b",
+    "caseId": null,
+    "orderId": "ord-00089",
+    "orderRef": "CD-420089",
+    "driverId": "drv-055",
+    "driverName": "Tobias Malverin",
+    "direction": "DRIVER_INITIATED",
+    "startedAt": "2026-10-21T09:00:35.821Z",
+    "endedAt": "2026-10-21T09:00:55.859Z",
+    "urgency": "EMERGENCY",
+    "urgencyTurnId": "call-fa2e25d25b-1",
+    "urgencyQuote": "There's smoke coming out from under the bonnet. I'm standing on the hard shoulder right next to the car.",
+    "situation": "BREAKDOWN",
+    "slots": {
+      "hazard": {
+        "quote": "There's smoke coming out from under the bonnet. I'm standing on the hard shoulder right next to the car.",
+        "value": "smoke from under the bonnet; standing on hard shoulder",
+        "turn_id": "call-fa2e25d25b-1",
+        "confidence": 0.95
+      },
+      "injuries": {
+        "quote": "Nobody is hurt, it's just me.",
+        "value": "no one hurt, only the driver",
+        "turn_id": "call-fa2e25d25b-3",
+        "confidence": 0.95
+      },
+      "location": {
+        "quote": "I'm on the E18 just past the Lohja exit, on the hard shoulder.",
+        "value": "E18 just past the Lohja exit, hard shoulder",
+        "turn_id": "call-fa2e25d25b-5",
+        "confidence": 0.95
+      },
+      "safe_place": {
+        "quote": "on the hard shoulder",
+        "value": "No, on the hard shoulder next to the car",
+        "turn_id": "call-fa2e25d25b-5",
+        "confidence": 0.9
+      },
+      "safety_signal": {
+        "quote": "There's smoke coming out from under the bonnet.",
+        "value": "Smoke",
+        "turn_id": "call-fa2e25d25b-1",
+        "confidence": 0.9
+      }
+    },
+    "slotLabels": {
+      "hazard": "Danger",
+      "injuries": "Injuries",
+      "location": "Location",
+      "safe_place": "Safe place",
+      "safety_signal": "Safety signal"
+    },
+    "missing": [],
+    "readbackConfirmed": true,
+    "endReason": "completed",
+    "recordingKey": null,
+    "nextCheckAt": null,
+    "phase": "ended",
+    "context": [
+      {
+        "at": null,
+        "key": "driver",
+        "text": "Driver: Tobias Malverin.",
+        "source": "Driver record"
+      },
+      {
+        "at": "2026-10-20T10:10:00Z",
+        "key": "assignment",
+        "text": "Assignment status assigned.",
+        "source": "Work assignment"
+      },
+      {
+        "at": null,
+        "key": "vehicle",
+        "text": "Car: 2024 BMW M4, petrol, plate DEMO-FI-YERSAU.",
+        "source": "Order vehicle record"
+      },
+      {
+        "at": "2026-10-19T12:51:00Z",
+        "key": "route",
+        "text": "Route: Third-party handoff, Espoo to Norvessia Turku, Turku.",
+        "source": "Active transport plan"
+      },
+      {
+        "at": null,
+        "key": "pickup_slot",
+        "text": "Selected pickup slot: 26 Oct 10:00–13:00 EET.",
+        "source": "Time window, source ops"
+      },
+      {
+        "at": null,
+        "key": "promise",
+        "text": "Customer delivery promise: 27 Oct 11:00–16:00 EET.",
+        "source": "Time window, source customer"
+      },
+      {
+        "at": "2026-10-21T08:05:00Z",
+        "key": "travel_train",
+        "text": "Train booked: ? to ?, booking ref NWR-RAIL-00089, departs 26 Oct 05:00 UTC.",
+        "source": "Travel reservation (a booking, not a boarding scan)"
+      },
+      {
+        "at": "2026-10-19T11:24:00Z",
+        "key": "pickup_access",
+        "text": "Pickup access note: The office can direct a driver but cannot release the car without the named custodian. (status: needs verification).",
+        "source": "Order endpoint detail, stated by customer order input"
+      },
+      {
+        "at": null,
+        "key": "pickup_contact",
+        "text": "Pickup contact: Jasper Cinderbrook, handoff contact (contact unconfirmed).",
+        "source": "Order endpoint detail"
+      },
+      {
+        "at": "2026-10-19T11:24:00Z",
+        "key": "delivery_access",
+        "text": "Delivery access note: Use the staffed rear vehicle gate during open hours. The guard signs gate entry; receiving staff separately inspect and sign for the car and keys. No after-hours drop. (status: confirmed).",
+        "source": "Order endpoint detail, stated by managed site profile"
+      },
+      {
+        "at": "2026-10-19T11:24:00Z",
+        "key": "delivery_contact",
+        "text": "Delivery contact: Milo Alderbrook, site desk (contact confirmed).",
+        "source": "Order endpoint detail"
+      },
+      {
+        "at": null,
+        "key": "delivery_hours",
+        "text": "Delivery site opening hours (local time): sat 10:00-14:00, sun closed, mon–fri 08:00-17:00.",
+        "source": "Site profile"
+      }
+    ],
+    "triggers": [
+      {
+        "at": "2026-10-21T09:00:40.704Z",
+        "note": "No server origin (text harness); recorded only.",
+        "status": null,
+        "trigger": "call_urgent",
+        "delivered": false
+      },
+      {
+        "at": "2026-10-21T09:00:55.859Z",
+        "note": "No server origin (text harness); recorded only.",
+        "status": null,
+        "trigger": "call_ended",
+        "delivered": false
+      }
+    ],
+    "spend": {
+      "llm": 0.034379,
+      "stt": 0,
+      "tts": 0
+    },
+    "turns": [
+      {
+        "id": "call-fa2e25d25b-0",
+        "seq": 0,
+        "speaker": "agent",
+        "startedAt": "2026-10-21T09:00:35.821Z",
+        "endedAt": "2026-10-21T09:00:35.821Z",
+        "textLive": "Road Desk here. First: are you safe, and is this urgent?",
+        "textFinal": "Road Desk here. First: are you safe, and is this urgent?",
+        "sttModel": null,
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {
+          "phase": "urgency"
+        }
+      },
+      {
+        "id": "call-fa2e25d25b-1",
+        "seq": 1,
+        "speaker": "driver",
+        "startedAt": "2026-10-21T09:00:36.721Z",
+        "endedAt": "2026-10-21T09:00:36.721Z",
+        "textLive": "No! There's smoke coming out from under the bonnet. I'm standing on the hard shoulder right next to the car.",
+        "textFinal": "No! There's smoke coming out from under the bonnet. I'm standing on the hard shoulder right next to the car.",
+        "sttModel": "live-only",
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {}
+      },
+      {
+        "id": "call-fa2e25d25b-2",
+        "seq": 2,
+        "speaker": "agent",
+        "startedAt": "2026-10-21T09:00:40.696Z",
+        "endedAt": "2026-10-21T09:00:40.696Z",
+        "textLive": "If anyone is hurt or in danger, call 112 now. Get everyone out of the car and stand behind the barrier, away from the traffic. I've noted the smoke. Is anyone hurt?",
+        "textFinal": "If anyone is hurt or in danger, call 112 now. Get everyone out of the car and stand behind the barrier, away from the traffic. I've noted the smoke. Is anyone hurt?",
+        "sttModel": null,
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {
+          "phase": "urgency",
+          "timing": {
+            "model": "anthropic/claude-sonnet-5.5",
+            "total": 3975,
+            "firstSentence": 1097,
+            "modelFirstText": 1070
+          },
+          "rawText": "[[CALL_112]] [[LEAVE_CAR_BARRIER]] I've noted the smoke. Is anyone hurt?",
+          "screened": [],
+          "safetyTemplates": [
+            "CALL_112",
+            "LEAVE_CAR_BARRIER"
+          ]
+        }
+      },
+      {
+        "id": "call-fa2e25d25b-3",
+        "seq": 3,
+        "speaker": "driver",
+        "startedAt": "2026-10-21T09:00:40.721Z",
+        "endedAt": "2026-10-21T09:00:40.721Z",
+        "textLive": "Nobody is hurt, it's just me.",
+        "textFinal": "Nobody is hurt, it's just me.",
+        "sttModel": "live-only",
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {}
+      },
+      {
+        "id": "call-fa2e25d25b-4",
+        "seq": 4,
+        "speaker": "agent",
+        "startedAt": "2026-10-21T09:00:45.213Z",
+        "endedAt": "2026-10-21T09:00:45.213Z",
+        "textLive": "Thanks, I've noted that no one is hurt. Where exactly are you, which road and nearest town or junction?",
+        "textFinal": "Thanks, I've noted that no one is hurt. Where exactly are you, which road and nearest town or junction?",
+        "sttModel": null,
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {
+          "phase": "checklist",
+          "timing": {
+            "model": "anthropic/claude-sonnet-5.5",
+            "total": 4492,
+            "firstSentence": 2253,
+            "modelFirstText": 1060
+          },
+          "rawText": "Thanks, I've noted that no one is hurt. Where exactly are you, which road and nearest town or junction?",
+          "screened": [],
+          "safetyTemplates": []
+        }
+      },
+      {
+        "id": "call-fa2e25d25b-5",
+        "seq": 5,
+        "speaker": "driver",
+        "startedAt": "2026-10-21T09:00:45.236Z",
+        "endedAt": "2026-10-21T09:00:45.236Z",
+        "textLive": "I'm on the E18 just past the Lohja exit, on the hard shoulder.",
+        "textFinal": "I'm on the E18 just past the Lohja exit, on the hard shoulder.",
+        "sttModel": "live-only",
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {}
+      },
+      {
+        "id": "call-fa2e25d25b-6",
+        "seq": 6,
+        "speaker": "agent",
+        "startedAt": "2026-10-21T09:00:51.459Z",
+        "endedAt": "2026-10-21T09:00:51.459Z",
+        "textLive": "Smoke from under the bonnet. You're standing on the hard shoulder of the E18, just past the Lohja exit, and nobody is hurt. Is that right?",
+        "textFinal": "Smoke from under the bonnet. You're standing on the hard shoulder of the E18, just past the Lohja exit, and nobody is hurt. Is that right?",
+        "sttModel": null,
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {
+          "phase": "readback",
+          "timing": {
+            "model": "anthropic/claude-sonnet-5.5",
+            "total": 6223,
+            "firstSentence": 6223,
+            "modelFirstText": 5081
+          },
+          "rawText": "Smoke from under the bonnet. You're standing on the hard shoulder of the E18, just past the Lohja exit, and nobody is hurt. Is that right?",
+          "screened": [],
+          "safetyTemplates": []
+        }
+      },
+      {
+        "id": "call-fa2e25d25b-7",
+        "seq": 7,
+        "speaker": "driver",
+        "startedAt": "2026-10-21T09:00:51.488Z",
+        "endedAt": "2026-10-21T09:00:51.488Z",
+        "textLive": "Yes, correct.",
+        "textFinal": "Yes, correct.",
+        "sttModel": "live-only",
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {}
+      },
+      {
+        "id": "call-fa2e25d25b-8",
+        "seq": 8,
+        "speaker": "agent",
+        "startedAt": "2026-10-21T09:00:55.842Z",
+        "endedAt": "2026-10-21T09:00:55.842Z",
+        "textLive": "Thanks, that's noted. I've alerted an operator, and your case comes first. Stay there, somewhere safe, and wait for help. An operator will look at this now and contact you. Thank you. Goodbye for now.",
+        "textFinal": "Thanks, that's noted. I've alerted an operator, and your case comes first. Stay there, somewhere safe, and wait for help. An operator will look at this now and contact you. Thank you. Goodbye for now.",
+        "sttModel": null,
+        "audioUrl": null,
+        "interrupted": false,
+        "flags": {
+          "phase": "closing",
+          "timing": {
+            "model": "anthropic/claude-sonnet-5.5",
+            "total": 3423,
+            "firstSentence": 5,
+            "modelFirstText": 1043
+          },
+          "rawText": "Thank you, Tobias, that's all confirmed.",
+          "screened": [],
+          "safetyTemplates": [
+            "WAIT_FOR_HELP"
+          ]
+        }
+      }
+    ]
+  }
+}
