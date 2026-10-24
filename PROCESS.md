@@ -651,3 +651,32 @@ Checked / changed / rejected:
   decision* with "The agent couldn't finish" instead of the planned
   "Call William" card. The failure path held; the planned card did not
   appear. Not fixed here: it is in `lib/agent/`.
+
+## 2026-10-24 ~15:15 UTC · Claude Code (stream C) · first real runs: vision check, routine seed
+
+Asked: with the model key now available, run the two checks that were
+waiting for one.
+
+Got:
+- `npx tsx lib/sim/check-photo.ts`: Claude read the drawn dashboard as
+  "check-engine light, 'Engine malfunction / Reduced power / Stop safely',
+  0 km/h". All three checks pass, so 4.5's "readable by Claude's vision" is
+  now tested, not just eyeballed.
+- `npm run sim:seed-routine` on Sonnet 5.5 ($0.002): **1 of 4** routine
+  questions closed by the agent alone. Trace:
+  `starter/traces/routine-2026-10-24T12-51-34/timeline.md`.
+
+Checked / changed / rejected:
+- The three failures are not the questions: the agent's answers were right
+  ("open until 18:00", "use the marked vehicle entrance"), but stream A's
+  drive-on screen blocked them and sent the driver "An operator has to
+  confirm before you drive on. Please stay where you are for now", plus a
+  "Clear the driver to drive on?" card. Those drivers have nothing wrong
+  with their cars. Cause: `screenDriverMessage` (`lib/agent/drivability.ts`)
+  runs on every driver message, and its classifier blocks anything that
+  "implies ... continue the journey", which every routine direction does.
+  **For stream A:** screen only when the case has a fault, stop or safety
+  instruction (or give the classifier that context). As it stands this
+  breaks scenario C (protected core) and tells healthy drivers to stop.
+- Did not loosen the seed questions to dodge the screen; the questions are
+  the right test. Did not touch `lib/agent/`.
