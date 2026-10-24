@@ -109,8 +109,18 @@ export function ChartHome({ initial }: { initial: ChartView }) {
   const [drawer, setDrawer] = useState(false)
   const [, setTick] = useState(0)
   const [offline, setOffline] = useState(false)
+  const [replay, setReplay] = useState<Replay | null>(null)
 
-  const byId = useMemo(() => new Map(view.nodes.map((node) => [node.orderId, node])), [view.nodes])
+  // While replaying, vessels sit at their last stored fix at the chosen time; no fix then, no vessel.
+  const nodes = useMemo(() => {
+    if (!replay) return view.nodes
+    return view.nodes.flatMap((node) => {
+      if (node.kind !== "vessel") return [node]
+      const fix = replay.fixes.get(node.orderId)
+      return fix ? [{ ...node, lat: fix.lat, lng: fix.lng, heading: fix.heading, at: fix.at, trail: [], placeLabel: `Replay: stored fix at ${clockOf(fix.at)} UTC`, ageLabel: "replay" }] : []
+    })
+  }, [view.nodes, replay])
+  const byId = useMemo(() => new Map(nodes.map((node) => [node.orderId, node])), [nodes])
   const selected = selectedId ? byId.get(selectedId) ?? null : null
 
   // ---- map setup (Leaflet needs the window)
@@ -222,7 +232,7 @@ export function ChartHome({ initial }: { initial: ChartView }) {
     const clock = performance.now()
     const fanOut = zoom >= FAN_ZOOM
     const berths = new Map<string, ChartNode[]>()
-    for (const node of view.nodes) if (node.kind === "berth" && node.berth) berths.set(node.berth, [...(berths.get(node.berth) ?? []), node])
+    for (const node of nodes) if (node.kind === "berth" && node.berth) berths.set(node.berth, [...(berths.get(node.berth) ?? []), node])
 
     const place = (key: string, at: [number, number], html: string, tip: string, size: number, anchor: [number, number], z: number, onClick: () => void, trail: [number, number][] | null, hoverOrder: string | null) => {
       seen.add(key)
@@ -251,7 +261,7 @@ export function ChartHome({ initial }: { initial: ChartView }) {
     }
 
     const rank = { decide: 3000, agent: 2000, waiting: 1000, fine: 0 }
-    for (const node of view.nodes) {
+    for (const node of nodes) {
       const isSelected = node.orderId === selectedId
       const select = (event?: { originalEvent?: Event }) => { event?.originalEvent?.stopPropagation(); setSelectedId(node.orderId) }
       if (node.kind === "vessel") {
@@ -283,13 +293,13 @@ export function ChartHome({ initial }: { initial: ChartView }) {
 
     // A node whose state changed since the last poll pulses for a few seconds.
     const wall = Date.now()
-    for (const node of view.nodes) {
+    for (const node of nodes) {
       const before = sigs.current.get(node.orderId)
       if (before !== undefined && before !== node.sig) pulses.current.set(node.orderId, wall + PULSE_MS)
       sigs.current.set(node.orderId, node.sig)
     }
     // A fresh phone fix: one small ping, the chart's heartbeat.
-    for (const node of view.nodes) {
+    for (const node of nodes) {
       if (node.kind !== "vessel" || !node.at) continue
       const before = fixes.current.get(node.orderId)
       fixes.current.set(node.orderId, node.at)
@@ -306,7 +316,7 @@ export function ChartHome({ initial }: { initial: ChartView }) {
       if (until < wall) { pulses.current.delete(id); element?.classList.remove("pulse"); continue }
       element?.classList.add("pulse")
     }
-  }, [ready, view.nodes, zoom, selectedId])
+  }, [ready, nodes, zoom, selectedId])
 
   // ---- the route track: only for the hovered or selected node
   const trackId = hoverId ?? selectedId
@@ -408,6 +418,8 @@ export function ChartHome({ initial }: { initial: ChartView }) {
 
     {selected && <Dossier key={selected.orderId} node={selected} onClose={() => setSelectedId(null)} />}
 
+    <Scrubber simNow={simNow} replay={replay} onReplay={setReplay} />
+
     <div className="chart-legend" aria-label="Legend">
       <span><i className="lg lg-decide" />needs a person</span>
       <span><i className="lg lg-agent" />agent working</span>
@@ -416,6 +428,47 @@ export function ChartHome({ initial }: { initial: ChartView }) {
       <span><i className="lg lg-berth" />waiting in the city</span>
       <span className="lg-note">Every car position is simulated phone GPS</span>
     </div>
+  </div>
+}
+
+type Replay = { at: string; fixes: Map<string, { lat: number; lng: number; heading: number | null; at: string }> }
+
+/** Scrub back over the stored simulated fixes. Live updates keep arriving; positions show the chosen time until "Live". */
+function Scrubber({ simNow, replay, onReplay }: { simNow: string; replay: Replay | null; onReplay: (replay: Replay | null) => void }) {
+  const [first, setFirst] = useState<string | null>(null)
+  const [value, setValue] = useState<number | null>(null)
+  const request = useRef(0)
+  const end = Date.parse(simNow)
+  const start = first ? Date.parse(first) : end
+  const minutes = Math.max(0, Math.floor((end - start) / 60000))
+
+  const open = async () => {
+    const response = await fetch("/api/chart/replay", { cache: "no-store" }).catch(() => null)
+    const span = response?.ok ? (await response.json()) as { first: string | null } : null
+    setFirst(span?.first ?? null)
+    setValue(0)
+  }
+  const seek = async (back: number) => {
+    setValue(back)
+    if (back === 0) { onReplay(null); return }
+    const at = new Date(end - back * 60000).toISOString()
+    const id = ++request.current
+    const response = await fetch(`/api/chart/replay?at=${encodeURIComponent(at)}`, { cache: "no-store" }).catch(() => null)
+    if (!response?.ok || id !== request.current) return
+    const data = (await response.json()) as { fixes: { orderId: string; lat: number; lng: number; heading: number | null; at: string }[] }
+    onReplay({ at, fixes: new Map(data.fixes.map((fix) => [fix.orderId, fix])) })
+  }
+  const close = () => { request.current += 1; setValue(null); onReplay(null) }
+
+  if (value === null) return <button type="button" className="scrub-open" onClick={() => void open()} title="Replay the stored phone fixes">
+    <Icon name="waiting" size={13} />Replay
+  </button>
+  return <div className={`scrub${replay ? " scrubbing" : ""}`} role="group" aria-label="Replay stored positions">
+    <span className="scrub-time"><b className="num">{replay ? clockOf(replay.at) : "Live"}</b>{replay ? ` UTC · ${value} min ago` : ""}</span>
+    <input type="range" min={0} max={minutes} step={1} value={minutes - (value ?? 0)} aria-label="Minutes back"
+      onChange={(event) => void seek(minutes - Number(event.target.value))} disabled={minutes === 0} />
+    <span className="scrub-note">{minutes === 0 ? "No stored fixes yet" : `stored simulated fixes since ${clockOf(first)} UTC`}</span>
+    <button type="button" onClick={close}>{replay ? "Back to live" : "Close"}</button>
   </div>
 }
 
