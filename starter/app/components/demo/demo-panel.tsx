@@ -4,6 +4,7 @@
 // simulated driver and reset all propagate through the simulation to the map,
 // the node panels and the calls. The call simulator sits below as a section.
 
+import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import styles from "../../demo/demo.module.css"
 
@@ -142,8 +143,8 @@ export function DemoPanel({ onFocus }: { onFocus?: (driverId: string, orderRef: 
           <div className={styles.scenarioText}>
             <h3>{scenario.title}{scenario.orderRef && <span className="mono"> · {scenario.orderRef}</span>}</h3>
             <p>{scenario.description}</p>
-            {scenarioDriver(scenario) && onFocus && <p className={styles.scenarioLinks}>
-              <button type="button" className="studio-link" onClick={() => onFocus(scenarioDriver(scenario)!, scenario.orderRef)}>Show the driver&apos;s phone</button>
+            {scenarioDriver(scenario) && <p className={styles.scenarioLinks}>
+              <Link className="studio-link" href={`/driver?driver=${encodeURIComponent(scenarioDriver(scenario)!)}${scenario.orderRef ? `&job=${scenario.orderRef}` : ""}`}>Show the driver</Link>
             </p>}
           </div>
           <div className={styles.scenarioActions}>

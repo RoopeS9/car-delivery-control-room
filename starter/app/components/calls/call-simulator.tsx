@@ -21,8 +21,8 @@ export function CallSimulator({ scenarios, stored, orderIds, callees, drivers, o
   scenarios: CallScenario[] | null; stored: Record<string, CallRecord[]>; orderIds: Record<string, string>; callees: Record<string, string | null>
   /** Scenario id to the driver called or calling, when the other party is a driver. */
   drivers: Record<string, string>
-  /** Tells the Demo page which phone to show in the middle. */
-  onFocus: (focus: PhoneFocus) => void
+  /** Optional: told which phone belongs to the chosen scenario. */
+  onFocus?: (focus: PhoneFocus) => void
 }) {
   const [selected, setSelected] = useState<string | null>((scenarios?.find((item) => item.inbound) ?? scenarios?.[0])?.id ?? null)
   const [running, setRunning] = useState<string | null>(null)
@@ -57,7 +57,7 @@ export function CallSimulator({ scenarios, stored, orderIds, callees, drivers, o
   useEffect(() => {
     if (!scenario) return
     const driverId = drivers[scenario.id]
-    onFocus(driverId ? { kind: "driver", driverId, orderRef: scenario.orderRef } : { kind: "desk", name: callees[scenario.id] ?? words(ROLE_WORDS, scenario.role), call })
+    onFocus?.(driverId ? { kind: "driver", driverId, orderRef: scenario.orderRef } : { kind: "desk", name: callees[scenario.id] ?? words(ROLE_WORDS, scenario.role), call })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusKey])
 
@@ -99,7 +99,8 @@ export function CallSimulator({ scenarios, stored, orderIds, callees, drivers, o
         <div className="call-view-head">
           <div>
             <h2>{words(PURPOSE_WORDS, scenario.purpose)}{callees[scenario.id] ? ` with ${callees[scenario.id]}` : ""} · {orderIds[scenario.orderRef] ? <Link className="ref-link" href={`/orders/${orderIds[scenario.orderRef]}`}>{scenario.orderRef}</Link> : <span className="mono">{scenario.orderRef}</span>}</h2>
-            <p>{scenario.inbound ? `${words(ROLE_WORDS, scenario.role)} calls Road Desk` : `Road Desk calls the ${words(ROLE_WORDS, scenario.role).toLowerCase()}`}, {labelIn(scenario.mood).toLowerCase()}.</p>
+            <p>{scenario.inbound ? `${words(ROLE_WORDS, scenario.role)} calls Road Desk` : `Road Desk calls the ${words(ROLE_WORDS, scenario.role).toLowerCase()}`}, {labelIn(scenario.mood).toLowerCase()}.
+              {drivers[scenario.id] && <> <Link className="studio-link" href={`/driver?driver=${encodeURIComponent(drivers[scenario.id])}&job=${scenario.orderRef}`}>Show the driver</Link></>}</p>
           </div>
           <div className="call-run">
             <button type="button" className="btn primary" onClick={() => void run(scenario)} disabled={!!running} aria-busy={running === scenario.id}>

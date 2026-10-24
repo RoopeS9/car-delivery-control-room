@@ -6,15 +6,17 @@ import { fmtDateTime } from "@/lib/present/time"
 import { Icon } from "./icons"
 import { ThemeToggle } from "./theme-toggle"
 
-export type Section = "queue" | "board" | "map" | "demo" | "calls" | "agent" | "inbox" | "customers" | "drivers" | "sites"
+export type Section = "queue" | "board" | "map" | "driver" | "demo" | "calls" | "agent" | "inbox" | "customers" | "drivers" | "sites"
 
 type NavLink = { section: Section; href: string; label: string; icon: string; sub?: boolean }
 
-// Two first-class places: the map, where the work is watched, and Demo, where
-// things are made to happen. Everything else is under More… at the foot.
+// Three first-class panels, one per actor we roleplay: Map (the operator),
+// Driver (the driver's phone) and Demo (Bahn: scenarios, clock, calls).
+// Everything else is under More… at the foot.
 const GROUPS: { label: string; links: NavLink[] }[] = [
   { label: "", links: [
     { section: "map", href: "/", label: "Map", icon: "map" },
+    { section: "driver", href: "/driver", label: "Driver", icon: "driver" },
     { section: "demo", href: "/demo", label: "Demo", icon: "proposal" },
   ] },
 ]
@@ -28,7 +30,6 @@ const MORE: { href: string; label: string }[] = [
   { href: "/customers", label: "Customers" },
   { href: "/drivers", label: "Drivers" },
   { href: "/sites", label: "Places" },
-  { href: "/driver", label: "Driver app" },
   { href: "/site", label: "Pickup site app" },
 ]
 
