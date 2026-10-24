@@ -3,7 +3,7 @@
 // agent's gate lives in lib/agent. These functions only store and fetch.
 
 import { randomUUID } from "node:crypto"
-import { and, asc, desc, eq, gte, inArray, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gt, gte, inArray, or, sql } from "drizzle-orm"
 import { orders } from "@/lib/schema"
 import { simNow } from "./clock"
 import { crDb } from "./db"
@@ -78,6 +78,32 @@ export async function openCaseForOrder(orderId: string): Promise<CaseRow | null>
   return row ?? null
 }
 
+export type CaseWithProposals = CaseRow & { pendingProposals: ProposalRow[] }
+
+/**
+ * Every case still in front of a person, newest first, each with its PENDING
+ * proposals. One round trip each, for the queue and the board's attention.
+ * Pass `orderId` for a single order.
+ */
+export async function openCasesWithProposals(orderId?: string): Promise<CaseWithProposals[]> {
+  const cases = await crDb().select().from(crCases)
+    .where(and(inArray(crCases.status, [...OPEN_CASE_STATUSES]), orderId ? eq(crCases.orderId, orderId) : undefined))
+    .orderBy(desc(crCases.updatedAt))
+  if (cases.length === 0) return []
+  const pending = await crDb().select().from(crProposals)
+    .where(and(eq(crProposals.status, "PENDING"), inArray(crProposals.caseId, cases.map((row) => row.id))))
+    .orderBy(asc(crProposals.createdAt))
+  return cases.map((row) => ({ ...row, pendingProposals: pending.filter((proposal) => proposal.caseId === row.id) }))
+}
+
+/** All cases on one order (any status), newest first, each with all of its proposals. */
+export async function casesForOrder(orderId: string): Promise<(CaseRow & { proposals: ProposalRow[] })[]> {
+  const cases = await crDb().select().from(crCases).where(eq(crCases.orderId, orderId)).orderBy(desc(crCases.updatedAt))
+  if (cases.length === 0) return []
+  const proposals = await crDb().select().from(crProposals).where(eq(crProposals.orderId, orderId)).orderBy(asc(crProposals.createdAt))
+  return cases.map((row) => ({ ...row, proposals: proposals.filter((proposal) => proposal.caseId === row.id) }))
+}
+
 // ---------------------------------------------------------------- events
 
 export async function appendEvent(input: Omit<NewEvent, "id" | "at"> & { at?: Date }): Promise<EventRow> {
@@ -96,6 +122,19 @@ export async function listEvents(filter: { caseId?: string; orderId?: string; si
     filter.channels?.length ? inArray(crEvents.channel, filter.channels as EventRow["channel"][]) : undefined,
   )
   return crDb().select().from(crEvents).where(where).orderBy(asc(crEvents.at))
+}
+
+/** Messages addressed to one recipient (a driver's or a site's feed), oldest first. */
+export async function eventsForRecipient(recipientType: string, recipientId: string, since?: Date): Promise<EventRow[]> {
+  return crDb().select().from(crEvents)
+    .where(and(eq(crEvents.recipientType, recipientType as EventRow["actorType"]), eq(crEvents.recipientId, recipientId), since ? gt(crEvents.at, since) : undefined))
+    .orderBy(asc(crEvents.at))
+}
+
+/** Attach uploaded photos to the case and message they belong to. */
+export async function attachEvents(ids: string[], caseId: string): Promise<void> {
+  if (ids.length === 0) return
+  await crDb().update(crEvents).set({ caseId }).where(inArray(crEvents.id, ids))
 }
 
 export async function getEvent(id: string): Promise<EventRow | null> {

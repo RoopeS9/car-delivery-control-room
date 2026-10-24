@@ -60,9 +60,14 @@ export type SourceRef = { kind: string; id: string; label: string; at?: string |
 
 // ---------------------------------------------------------------- proposals
 
+/**
+ * `OPERATOR_DECISION` is an escalation: a question with options and no single
+ * action behind it (the agent's `escalate` tool). It still renders as a
+ * decision card; the chosen option goes back to the agent.
+ */
 export const ACTION_TYPES = [
   "CONTACT_CUSTOMER", "UPDATE_ETA", "CHANGE_PROMISE", "BOOK_RECOVERY", "BOOK_TRAVEL", "APPROVE_EXPENSE",
-  "REASSIGN_DRIVER", "CLEAR_TO_CONTINUE", "CONTACT_SITE_AS_CUSTOMER",
+  "REASSIGN_DRIVER", "CLEAR_TO_CONTINUE", "CONTACT_SITE_AS_CUSTOMER", "OPERATOR_DECISION",
 ] as const
 export type ActionType = (typeof ACTION_TYPES)[number]
 
@@ -100,6 +105,150 @@ export type HandoverPacket = {
   unknowns: string[]
   recommendation: string
   alternatives: string[]
+}
+
+// ---------------------------------------------------------------- API (stream A routes, used by the UI)
+
+/** POST here to decide a proposal. Body: `DecisionRequest`. Response: `DecisionResponse`. */
+export const decisionPath = (caseId: string, proposalId: string) => `/api/cases/${caseId}/proposals/${proposalId}/decide`
+
+/**
+ * The decision buttons (PLAN.md 4.2b):
+ * - `approve`: carry it out. Send `edited_draft_message` for "Edit and approve".
+ * - `reject`: `note` is the one-line reason; it goes back to the agent.
+ * - `handle`: "I'll handle it". The operator does it outside the system (e.g.
+ *   a phone call); the case then waits for "Log what happened" (`outcomePath`).
+ * - `instruct`: "Tell the agent instead". `note` is the instruction; the card
+ *   is set aside and the agent's next turn follows the instruction.
+ */
+export type DecisionRequest = {
+  decision: "approve" | "reject" | "handle" | "instruct"
+  /** Operator role id, e.g. `ops-shift`. No login in this prototype. */
+  decided_by: string
+  note?: string | null
+  /** The option picked when the card had options. */
+  option_id?: string | null
+  /** The operator's edited draft. Turns an approval into EDITED_AND_APPROVED. */
+  edited_draft_message?: DraftMessage | null
+}
+
+export type DecisionResponse = {
+  proposal_id: string
+  status: ProposalStatus
+  /** What happens now, in words, for the "what happens next" line. */
+  next_step: string
+  case_status: CaseStatus
+  error?: string
+}
+
+/** POST here for the "Ask the agent" box. Body: `AskAgentRequest`. Response: `AskAgentResponse`. */
+export const askAgentPath = "/api/agent/ask"
+
+export type AskAgentRequest = {
+  /** One of the two. A case wins; an order reference opens or reuses the order's open case. */
+  case_id?: string | null
+  order_ref?: string | null
+  text: string
+  /** Operator role id, e.g. `ops-shift`. */
+  asked_by: string
+}
+
+export type AskAgentResponse = { case_id: string; reply: string; run_id: string | null; error?: string }
+
+/** POST here for "Log what happened" after "I'll handle it". Body: `LogOutcomeRequest`. */
+export const outcomePath = (caseId: string) => `/api/cases/${caseId}/outcome`
+
+export type LogOutcomeRequest = {
+  /** One line, e.g. "Dealer sends their own roadside help, ETA 11:00". */
+  text: string
+  logged_by: string
+  /** The card the outcome belongs to. Defaults to the case's card waiting on an outcome. */
+  proposal_id?: string | null
+}
+
+/** POST here to give the agent a free-text instruction on a case. Body: `InstructRequest`. */
+export const instructPath = (caseId: string) => `/api/cases/${caseId}/instruct`
+
+export type InstructRequest = { text: string; by: string }
+
+/** Response of the decision, outcome and instruct routes when the agent continues in the background. */
+export type CaseActionResponse = { case_id: string; case_status: CaseStatus; next_step: string | null; error?: string }
+
+// ---------------------------------------------------------------- channels (PLAN.md 4.2c)
+
+/** POST /api/channels/driver/messages. Response: text/event-stream of `ChannelStreamEvent`. */
+export type DriverMessageRequest = {
+  orderRef: string
+  driverId: string
+  text: string
+  mode: "chat" | "voice"
+  /** Ids from POST /api/channels/photos. */
+  photoIds?: string[]
+}
+
+/**
+ * POST /api/channels/site/messages. `siteContactId` is the order's endpoint
+ * detail id (`ep-…`) or the site id (`site-…`) of the pickup or delivery place.
+ */
+export type SiteMessageRequest = Omit<DriverMessageRequest, "driverId"> & { siteContactId: string }
+
+/**
+ * Server-sent events: `event: text_delta` `data: {"text": "..."}`, then
+ * `event: done` `data: {"caseId","replyEventId","heldForApproval"}`, or
+ * `event: error` `data: {"message"}`. `heldForApproval` is true when the
+ * reply would reach the customer and waits for a person instead.
+ */
+export type ChannelStreamEvent =
+  | { event: "text_delta"; data: { text: string } }
+  | { event: "done"; data: { caseId: string; replyEventId: string | null; heldForApproval: boolean } }
+  | { event: "error"; data: { message: string } }
+
+/** POST /api/channels/photos, multipart: `file` (PNG/JPEG/WebP, ≤ 5 MB), `orderRef`, optional `subject` and `caption`. */
+export type PhotoUploadResponse = { photoId: string }
+
+/** GET /api/channels/driver/{driverId}/feed?since=ISO (and /api/channels/site/{siteContactId}/feed). */
+export type FeedResponse = { now: string; messages: FeedMessage[] }
+
+export type FeedMessage = {
+  id: string
+  at: string
+  caseId: string | null
+  orderId: string
+  /** Who wrote it. */
+  from: ActorType
+  fromName: string
+  /** `safety` is an immediate safety instruction; show it prominently and, in voice mode, ring. */
+  kind: "message" | "safety" | "photo_request"
+  text: string
+  photoRequest?: { subject: string } | null
+}
+
+// ---------------------------------------------------------------- cases API
+
+/** GET /api/cases?since=ISO: open cases plus anything changed since `since`. */
+export type CasesResponse = {
+  now: string
+  cases: (CaseSummary & { pending_proposals: number })[]
+  handled_by_agent_today: number
+}
+
+/** GET /api/cases/{id}?since=ISO: the case, all its proposals, and its events (since `since` if given). */
+export type CaseSummary = {
+  id: string; order_id: string; order_ref: string; kind: CaseKind; status: CaseStatus; urgency: Urgency
+  title: string; summary: string; owner: string | null; waiting_on: string | null; next_step: string | null
+  next_check_at: string | null; opened_at: string; updated_at: string
+}
+
+/** POST /api/agent/telemetry: the simulator reports a fault; the agent contacts the driver first. */
+export type TelemetryTriggerRequest = {
+  orderRef: string
+  /** Trouble codes now active, e.g. ["P0300", "P0302"]. */
+  codes: string[]
+  mil: MilState
+  /** One line on what the car shows, e.g. "reduced power message". */
+  note?: string | null
+  /** The `dtc` event the simulator already wrote, if any. Otherwise the route writes one. */
+  eventId?: string | null
 }
 
 // ---------------------------------------------------------------- autonomy

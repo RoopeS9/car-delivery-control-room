@@ -31,6 +31,48 @@ Checked / changed / rejected:
   operator yes.
 - Result: `PLAN.md`.
 
+
+
+## 2026-10-24 · RoopeS + Claude Code (local) · plan review
+
+Asked: find the holes in PLAN.md while cloud instance 1 builds streams A+B
+and a teammate builds voice.
+
+Got: twelve gaps, most importantly: no owner for the simulator/driver app, no
+contract between voice and the agent, no rule for when the agent runs
+(the brief's example is proactive, our plan was driver-initiated), and no
+story for what happens after a decision. The agent also checked the data for
+scenario A and found CD-420584 has a booked ferry with a 15:30 check-in
+cutoff, which turns a breakdown into the multi-step chain the brief describes.
+
+Checked / changed / rejected:
+- Rejected the agent's suggestion to run a triage pass over all ~30 dataset
+  orders needing a person; we keep the queue to road and driver cases.
+- Rejected the real-phone demo (needs HTTPS for the mic); second laptop
+  window instead.
+- Kept "operator logs the outcome" after a phone call instead of a simulated
+  dealer reply, because it matches "the person makes the call".
+- Added: channel API contract (4.2c), triggers and per-case run lock, decision
+  options and per-action effects (4.2b), live judging prep, a second cloud
+  instance for stream C (we ended up with three cloud instances, one each for A, B and C).
+
+## 2026-10-24 · RoopeS + Claude Code (local) · open questions
+
+Asked: resolve the plan's open questions.
+
+Got / decided:
+- Our event credits are OpenRouter keys, not Anthropic keys. Before changing
+  the plan, the agent made one real tool call through OpenRouter's
+  Anthropic-compatible endpoint (Opus 5.5, strict tool schema, effort) to
+  check it works with the official Anthropic SDK. It did ($0.003). Third-party
+  docs found by search were treated as hints only, not facts.
+- Checked the data for the customer rule: the delivery site is the paying
+  customer on 63 orders, the pickup site on only 4, so the "site owned by the
+  customer counts as the customer" rule really matters.
+- Picked scenario D from the data (CD-420442, Stockholm pickup desk).
+- Customer replies always need approval, even when the customer wrote first.
+- Product name: Road Desk.
+
 ## 2026-10-24 ~12:15 UTC · Claude Code (stream A agent) · M0 foundation
 
 Asked: do M0 (shared contract) since `lib/cr/` did not exist, then move on to
@@ -60,17 +102,18 @@ Checked / changed / rejected:
 - Left the dark-mode token skeleton (also M0) to stream B, since
   `globals.css` is theirs.
 
-## 2026-10-24 · RoopeS + Claude Code (local) · plan review
+## 2026-10-24 ~13:30 UTC · Claude Code (stream A agent) · agent core + channel routes
 
-Asked: find the holes in PLAN.md while cloud instance 1 builds streams A+B
-and a teammate builds voice.
+Asked: build the agent (loop, tools, gates) toward M1; mid-way, pull the
+updated plan (OpenRouter, channel contract 4.2c, decision options 4.2b,
+triggers) and follow it.
 
-Got: twelve gaps, most importantly: no owner for the simulator/driver app, no
-contract between voice and the agent, no rule for when the agent runs
-(the brief's example is proactive, our plan was driver-initiated), and no
-story for what happens after a decision. The agent also checked the data for
-scenario A and found CD-420584 has a booked ferry with a 15:30 check-in
-cutoff, which turns a breakdown into the multi-step chain the brief describes.
+Got: `lib/agent/` (OpenRouter client, context loader, tools, approval gate,
+prompts, loop, triggers) and the routes other streams build against:
+`/api/channels/{driver,site}/messages` (SSE), `/api/channels/photos`,
+driver and site feeds, `/api/cases` (list, detail, decide, outcome,
+instruct), `/api/agent/{ask,telemetry,runs}`. Without a key every route
+works in stub mode: a fixed reply, and the case goes to a person.
 
 Checked / changed / rejected:
 - Rejected the agent's suggestion to run a triage pass over all ~30 dataset
@@ -126,3 +169,32 @@ Checked / changed / rejected:
   that path is a proposal for instance 1, one constant to change.
 - For streams A and B: call `syncTelemetry()` from `lib/sim/sync.ts` (or
   `POST /api/sim/tick`) before reading `cr_telemetry`; it is idempotent.
+
+- Read the `claude-api` skill and the bundled Next 16 route docs first.
+  The skill's defaults (server-side refusal `fallbacks`, beta client,
+  `eager_input_streaming`) were dropped: OpenRouter does not support the
+  beta parameters, and eager streaming would turn off the schema check that
+  `strict: true` gives us. Refusals hand the case to a person instead.
+- Rules live in code, not just the prompt: per-audience tool allowlists,
+  order scoping for drivers and sites, `ask_site` refused for a site the
+  customer owns, customer drafts forced to ASK_FIRST whatever the autonomy
+  table says, and `executeProposal` refuses anything not approved.
+- "Never tell the driver to keep driving" is checked on every message to a
+  driver, including the streamed reply: the stream is released one sentence
+  at a time and stops before a sentence that clears driving ("you can
+  continue"), while negations and conditions ("not safe to drive", "until an
+  operator confirms you can drive") pass.
+- A reply to a site the customer owns is never streamed: it becomes a
+  CONTACT_SITE_AS_CUSTOMER draft (plan: "replies count too").
+- Driver and site turns stay fast and cannot propose; they call `hand_over`,
+  and a separate deeper "prepare a decision" turn builds the card. This keeps
+  voice replies quick and puts the careful work where the decision is made.
+- Each turn starts fresh from a stable cached system prompt (principles +
+  whole rulebook) plus case notes, and is append-only within the turn, so
+  thinking blocks are never edited or replayed across turns.
+- Deviation: photos are stored in Postgres (a `photo` event) instead of the
+  S3 object store, which needs Docker; this machine has none.
+- Telemetry stub reply first said "Thanks, we have your message" to a driver
+  who had not written; replaced with a fixed safety-first line.
+- Not yet run against the model: `OPENROUTER_API_KEY` is not visible in this
+  session.
