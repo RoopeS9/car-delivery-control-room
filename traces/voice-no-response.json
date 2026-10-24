@@ -2,7 +2,7 @@
   "scenario": "no-response",
   "title": "Reply deadline: the driver goes silent twice (no_response)",
   "model": "anthropic/claude-sonnet-5.5",
-  "ranAt": "2026-10-24T12:38:38.078Z",
+  "ranAt": "2026-10-24T12:49:50.781Z",
   "checks": [
     {
       "name": "urgency",
@@ -61,15 +61,15 @@
     }
   ],
   "call": {
-    "id": "call-e18dc5c36c",
+    "id": "call-4b1b2b4142",
     "caseId": null,
     "orderId": "ord-00584",
     "orderRef": "CD-420584",
     "driverId": "drv-042",
     "driverName": "Leo Quellford",
     "direction": "AGENT_INITIATED",
-    "startedAt": "2026-10-21T09:01:05.422Z",
-    "endedAt": "2026-10-21T09:01:07.328Z",
+    "startedAt": "2026-10-21T09:01:01.130Z",
+    "endedAt": "2026-10-21T09:01:03.126Z",
     "urgency": null,
     "urgencyTurnId": null,
     "urgencyQuote": null,
@@ -156,7 +156,7 @@
         "source": "Site profile"
       },
       {
-        "at": "2026-10-21T09:01:05.422Z",
+        "at": "2026-10-21T09:01:01.130Z",
         "key": "obd",
         "text": "The car's OBD dongle reports trouble codes P0300 and a flashing check-engine light.",
         "source": "OBD dongle (simulated)"
@@ -164,7 +164,7 @@
     ],
     "triggers": [
       {
-        "at": "2026-10-21T09:01:07.328Z",
+        "at": "2026-10-21T09:01:03.126Z",
         "note": "No server origin (text harness); recorded only.",
         "status": null,
         "trigger": "call_ended",
@@ -178,11 +178,11 @@
     },
     "turns": [
       {
-        "id": "call-e18dc5c36c-0",
+        "id": "call-4b1b2b4142-0",
         "seq": 0,
         "speaker": "agent",
-        "startedAt": "2026-10-21T09:01:05.422Z",
-        "endedAt": "2026-10-21T09:01:05.422Z",
+        "startedAt": "2026-10-21T09:01:01.130Z",
+        "endedAt": "2026-10-21T09:01:01.130Z",
         "textLive": "Hi Leo, this is Road Desk. Your car just reported an engine fault. Are you and the car safe right now, or is this an emergency?",
         "textFinal": "Hi Leo, this is Road Desk. Your car just reported an engine fault. Are you and the car safe right now, or is this an emergency?",
         "sttModel": null,
@@ -193,11 +193,11 @@
         }
       },
       {
-        "id": "call-e18dc5c36c-1",
+        "id": "call-4b1b2b4142-1",
         "seq": 1,
         "speaker": "driver",
-        "startedAt": "2026-10-21T09:01:05.436Z",
-        "endedAt": "2026-10-21T09:01:05.436Z",
+        "startedAt": "2026-10-21T09:01:01.145Z",
+        "endedAt": "2026-10-21T09:01:01.145Z",
         "textLive": null,
         "textFinal": null,
         "sttModel": null,
@@ -208,11 +208,11 @@
         }
       },
       {
-        "id": "call-e18dc5c36c-2",
+        "id": "call-4b1b2b4142-2",
         "seq": 2,
         "speaker": "agent",
-        "startedAt": "2026-10-21T09:01:06.355Z",
-        "endedAt": "2026-10-21T09:01:06.355Z",
+        "startedAt": "2026-10-21T09:01:02.122Z",
+        "endedAt": "2026-10-21T09:01:02.122Z",
         "textLive": "Sorry, I didn't hear you. Are you and the car safe right now, or is this an emergency?",
         "textFinal": "Sorry, I didn't hear you. Are you and the car safe right now, or is this an emergency?",
         "sttModel": null,
@@ -223,11 +223,11 @@
         }
       },
       {
-        "id": "call-e18dc5c36c-3",
+        "id": "call-4b1b2b4142-3",
         "seq": 3,
         "speaker": "driver",
-        "startedAt": "2026-10-21T09:01:06.379Z",
-        "endedAt": "2026-10-21T09:01:06.379Z",
+        "startedAt": "2026-10-21T09:01:02.143Z",
+        "endedAt": "2026-10-21T09:01:02.143Z",
         "textLive": null,
         "textFinal": null,
         "sttModel": null,
@@ -238,11 +238,11 @@
         }
       },
       {
-        "id": "call-e18dc5c36c-4",
+        "id": "call-4b1b2b4142-4",
         "seq": 4,
         "speaker": "agent",
-        "startedAt": "2026-10-21T09:01:07.309Z",
-        "endedAt": "2026-10-21T09:01:07.309Z",
+        "startedAt": "2026-10-21T09:01:03.114Z",
+        "endedAt": "2026-10-21T09:01:03.114Z",
         "textLive": "I can't hear you, so I'll end the call now. An operator has what you told us so far and will message you in the app.",
         "textFinal": "I can't hear you, so I'll end the call now. An operator has what you told us so far and will message you in the app.",
         "sttModel": null,

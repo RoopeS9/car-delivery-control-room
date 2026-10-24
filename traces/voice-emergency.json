@@ -2,7 +2,7 @@
   "scenario": "emergency",
   "title": "Emergency: smoke, standing on the hard shoulder (EMERGENCY)",
   "model": "anthropic/claude-sonnet-5.5",
-  "ranAt": "2026-10-24T12:38:16.264Z",
+  "ranAt": "2026-10-24T12:49:36.361Z",
   "checks": [
     {
       "name": "urgency",
@@ -12,7 +12,7 @@
     {
       "name": "urgency points at a driver turn",
       "ok": true,
-      "detail": "call-663f232f31-1"
+      "detail": "call-a0ccc06b48-1"
     },
     {
       "name": "first agent turn is the urgency question",
@@ -27,12 +27,12 @@
     {
       "name": "slot hazard",
       "ok": true,
-      "detail": "\"smoke from under the bonnet, driver on hard shoulder\" from call-663f232f31-1, quote \"There's smoke coming out from under the bonnet. I'm standing on the hard shoulder right next to the car.\""
+      "detail": "\"smoke from under bonnet; standing on hard shoulder\" from call-a0ccc06b48-1, quote \"There's smoke coming out from under the bonnet. I'm standing on the hard shoulder right next to the car.\""
     },
     {
       "name": "slot location",
       "ok": true,
-      "detail": "\"E18 just past the Lohja exit\" from call-663f232f31-5, quote \"I'm on the E18 just past the Lohja exit, on the hard shoulder.\""
+      "detail": "\"E18 just past the Lohja exit, on the hard shoulder\" from call-a0ccc06b48-5, quote \"I'm on the E18 just past the Lohja exit, on the hard shoulder.\""
     },
     {
       "name": "slot quotes come from their turn",
@@ -42,12 +42,12 @@
     {
       "name": "read-back happened",
       "ok": true,
-      "detail": "So: there's smoke from under the bonnet, nobody is hurt, and you're on the hard shoulder of the E18 just past the Lohja exit. Is that right?"
+      "detail": "So: smoke from under the bonnet, you're alone and unhurt, standing on the hard shoulder of the E18 just past the Lohja exit. Is that right?"
     },
     {
       "name": "read-back reads the facts back",
       "ok": true,
-      "detail": "So: there's smoke from under the bonnet, nobody is hurt, and you're on the hard shoulder of the E18 just past the Lohja exit. Is that right?"
+      "detail": "So: smoke from under the bonnet, you're alone and unhurt, standing on the hard shoulder of the E18 just past the Lohja exit. Is that right?"
     },
     {
       "name": "read-back confirmed",
@@ -96,43 +96,43 @@
     }
   ],
   "call": {
-    "id": "call-663f232f31",
+    "id": "call-a0ccc06b48",
     "caseId": null,
     "orderId": "ord-00089",
     "orderRef": "CD-420089",
     "driverId": "drv-055",
     "driverName": "Tobias Malverin",
     "direction": "DRIVER_INITIATED",
-    "startedAt": "2026-10-21T09:00:28.492Z",
-    "endedAt": "2026-10-21T09:00:45.513Z",
+    "startedAt": "2026-10-21T09:00:31.357Z",
+    "endedAt": "2026-10-21T09:00:48.705Z",
     "urgency": "EMERGENCY",
-    "urgencyTurnId": "call-663f232f31-1",
+    "urgencyTurnId": "call-a0ccc06b48-1",
     "urgencyQuote": "There's smoke coming out from under the bonnet. I'm standing on the hard shoulder right next to the car.",
     "situation": "BREAKDOWN",
     "slots": {
       "hazard": {
         "quote": "There's smoke coming out from under the bonnet. I'm standing on the hard shoulder right next to the car.",
-        "value": "smoke from under the bonnet, driver on hard shoulder",
-        "turn_id": "call-663f232f31-1",
+        "value": "smoke from under bonnet; standing on hard shoulder",
+        "turn_id": "call-a0ccc06b48-1",
         "confidence": 0.95
       },
       "injuries": {
         "quote": "Nobody is hurt, it's just me.",
-        "value": "no one hurt, only the driver present",
-        "turn_id": "call-663f232f31-3",
+        "value": "no one hurt, only the driver",
+        "turn_id": "call-a0ccc06b48-3",
         "confidence": 0.95
       },
       "location": {
         "quote": "I'm on the E18 just past the Lohja exit, on the hard shoulder.",
-        "value": "E18 just past the Lohja exit",
-        "turn_id": "call-663f232f31-5",
+        "value": "E18 just past the Lohja exit, on the hard shoulder",
+        "turn_id": "call-a0ccc06b48-5",
         "confidence": 0.95
       },
       "safe_place": {
-        "quote": "on the hard shoulder",
-        "value": "no, standing on the hard shoulder",
-        "turn_id": "call-663f232f31-5",
-        "confidence": 0.9
+        "quote": "I'm on the E18 just past the Lohja exit, on the hard shoulder.",
+        "value": "no, on the hard shoulder",
+        "turn_id": "call-a0ccc06b48-5",
+        "confidence": 0.8
       }
     },
     "slotLabels": {
@@ -223,14 +223,14 @@
     ],
     "triggers": [
       {
-        "at": "2026-10-21T09:00:32.878Z",
+        "at": "2026-10-21T09:00:35.702Z",
         "note": "No server origin (text harness); recorded only.",
         "status": null,
         "trigger": "call_urgent",
         "delivered": false
       },
       {
-        "at": "2026-10-21T09:00:45.513Z",
+        "at": "2026-10-21T09:00:48.705Z",
         "note": "No server origin (text harness); recorded only.",
         "status": null,
         "trigger": "call_ended",
@@ -238,17 +238,17 @@
       }
     ],
     "spend": {
-      "llm": 0.0466017,
+      "llm": 0.0456952,
       "stt": 0,
       "tts": 0
     },
     "turns": [
       {
-        "id": "call-663f232f31-0",
+        "id": "call-a0ccc06b48-0",
         "seq": 0,
         "speaker": "agent",
-        "startedAt": "2026-10-21T09:00:28.492Z",
-        "endedAt": "2026-10-21T09:00:28.492Z",
+        "startedAt": "2026-10-21T09:00:31.357Z",
+        "endedAt": "2026-10-21T09:00:31.357Z",
         "textLive": "Road Desk here. First: are you safe, and is this urgent?",
         "textFinal": "Road Desk here. First: are you safe, and is this urgent?",
         "sttModel": null,
@@ -259,11 +259,11 @@
         }
       },
       {
-        "id": "call-663f232f31-1",
+        "id": "call-a0ccc06b48-1",
         "seq": 1,
         "speaker": "driver",
-        "startedAt": "2026-10-21T09:00:29.437Z",
-        "endedAt": "2026-10-21T09:00:29.437Z",
+        "startedAt": "2026-10-21T09:00:32.307Z",
+        "endedAt": "2026-10-21T09:00:32.307Z",
         "textLive": "No! There's smoke coming out from under the bonnet. I'm standing on the hard shoulder right next to the car.",
         "textFinal": "No! There's smoke coming out from under the bonnet. I'm standing on the hard shoulder right next to the car.",
         "sttModel": "live-only",
@@ -272,11 +272,11 @@
         "flags": {}
       },
       {
-        "id": "call-663f232f31-2",
+        "id": "call-a0ccc06b48-2",
         "seq": 2,
         "speaker": "agent",
-        "startedAt": "2026-10-21T09:00:32.874Z",
-        "endedAt": "2026-10-21T09:00:32.874Z",
+        "startedAt": "2026-10-21T09:00:35.695Z",
+        "endedAt": "2026-10-21T09:00:35.695Z",
         "textLive": "If anyone is hurt or in danger, call 112 now. Get everyone out of the car and stand behind the barrier, away from the traffic. Is anyone hurt?",
         "textFinal": "If anyone is hurt or in danger, call 112 now. Get everyone out of the car and stand behind the barrier, away from the traffic. Is anyone hurt?",
         "sttModel": null,
@@ -284,6 +284,12 @@
         "interrupted": false,
         "flags": {
           "phase": "urgency",
+          "timing": {
+            "model": "anthropic/claude-sonnet-5.5",
+            "total": 3388,
+            "firstSentence": 1138,
+            "modelFirstText": 819
+          },
           "rawText": "[[CALL_112]] [[LEAVE_CAR_BARRIER]] Is anyone hurt?",
           "screened": [],
           "safetyTemplates": [
@@ -293,11 +299,11 @@
         }
       },
       {
-        "id": "call-663f232f31-3",
+        "id": "call-a0ccc06b48-3",
         "seq": 3,
         "speaker": "driver",
-        "startedAt": "2026-10-21T09:00:32.890Z",
-        "endedAt": "2026-10-21T09:00:32.890Z",
+        "startedAt": "2026-10-21T09:00:35.721Z",
+        "endedAt": "2026-10-21T09:00:35.721Z",
         "textLive": "Nobody is hurt, it's just me.",
         "textFinal": "Nobody is hurt, it's just me.",
         "sttModel": "live-only",
@@ -306,29 +312,35 @@
         "flags": {}
       },
       {
-        "id": "call-663f232f31-4",
+        "id": "call-a0ccc06b48-4",
         "seq": 4,
         "speaker": "agent",
-        "startedAt": "2026-10-21T09:00:36.618Z",
-        "endedAt": "2026-10-21T09:00:36.618Z",
-        "textLive": "Thank you, Tobias. Where exactly are you, which road and nearest town or junction?",
-        "textFinal": "Thank you, Tobias. Where exactly are you, which road and nearest town or junction?",
+        "startedAt": "2026-10-21T09:00:39.545Z",
+        "endedAt": "2026-10-21T09:00:39.545Z",
+        "textLive": "Thank you, Tobias. Where exactly are you: which road, and the nearest town or junction?",
+        "textFinal": "Thank you, Tobias. Where exactly are you: which road, and the nearest town or junction?",
         "sttModel": null,
         "audioUrl": null,
         "interrupted": false,
         "flags": {
           "phase": "checklist",
-          "rawText": "Thank you, Tobias. Where exactly are you, which road and nearest town or junction?",
+          "timing": {
+            "model": "anthropic/claude-sonnet-5.5",
+            "total": 3824,
+            "firstSentence": 2024,
+            "modelFirstText": 922
+          },
+          "rawText": "Thank you, Tobias. Where exactly are you: which road, and the nearest town or junction?",
           "screened": [],
           "safetyTemplates": []
         }
       },
       {
-        "id": "call-663f232f31-5",
+        "id": "call-a0ccc06b48-5",
         "seq": 5,
         "speaker": "driver",
-        "startedAt": "2026-10-21T09:00:36.633Z",
-        "endedAt": "2026-10-21T09:00:36.633Z",
+        "startedAt": "2026-10-21T09:00:39.566Z",
+        "endedAt": "2026-10-21T09:00:39.566Z",
         "textLive": "I'm on the E18 just past the Lohja exit, on the hard shoulder.",
         "textFinal": "I'm on the E18 just past the Lohja exit, on the hard shoulder.",
         "sttModel": "live-only",
@@ -337,29 +349,35 @@
         "flags": {}
       },
       {
-        "id": "call-663f232f31-6",
+        "id": "call-a0ccc06b48-6",
         "seq": 6,
         "speaker": "agent",
-        "startedAt": "2026-10-21T09:00:41.650Z",
-        "endedAt": "2026-10-21T09:00:41.650Z",
-        "textLive": "So: there's smoke from under the bonnet, nobody is hurt, and you're on the hard shoulder of the E18 just past the Lohja exit. Is that right?",
-        "textFinal": "So: there's smoke from under the bonnet, nobody is hurt, and you're on the hard shoulder of the E18 just past the Lohja exit. Is that right?",
+        "startedAt": "2026-10-21T09:00:44.637Z",
+        "endedAt": "2026-10-21T09:00:44.637Z",
+        "textLive": "So: smoke from under the bonnet, you're alone and unhurt, standing on the hard shoulder of the E18 just past the Lohja exit. Is that right?",
+        "textFinal": "So: smoke from under the bonnet, you're alone and unhurt, standing on the hard shoulder of the E18 just past the Lohja exit. Is that right?",
         "sttModel": null,
         "audioUrl": null,
         "interrupted": false,
         "flags": {
           "phase": "readback",
-          "rawText": "So: there's smoke from under the bonnet, nobody is hurt, and you're on the hard shoulder of the E18 just past the Lohja exit. Is that right?",
+          "timing": {
+            "model": "anthropic/claude-sonnet-5.5",
+            "total": 5071,
+            "firstSentence": 5071,
+            "modelFirstText": null
+          },
+          "rawText": "So: smoke from under the bonnet, you're alone and unhurt, standing on the hard shoulder of the E18 just past the Lohja exit. Is that right?",
           "screened": [],
           "safetyTemplates": []
         }
       },
       {
-        "id": "call-663f232f31-7",
+        "id": "call-a0ccc06b48-7",
         "seq": 7,
         "speaker": "driver",
-        "startedAt": "2026-10-21T09:00:41.679Z",
-        "endedAt": "2026-10-21T09:00:41.679Z",
+        "startedAt": "2026-10-21T09:00:44.664Z",
+        "endedAt": "2026-10-21T09:00:44.664Z",
         "textLive": "Yes, correct.",
         "textFinal": "Yes, correct.",
         "sttModel": "live-only",
@@ -368,11 +386,11 @@
         "flags": {}
       },
       {
-        "id": "call-663f232f31-8",
+        "id": "call-a0ccc06b48-8",
         "seq": 8,
         "speaker": "agent",
-        "startedAt": "2026-10-21T09:00:45.498Z",
-        "endedAt": "2026-10-21T09:00:45.498Z",
+        "startedAt": "2026-10-21T09:00:48.693Z",
+        "endedAt": "2026-10-21T09:00:48.693Z",
         "textLive": "Thanks, that's noted. I've alerted an operator, and your case comes first. Stay there, somewhere safe, and wait for help. An operator will look at this now and contact you. Thank you. Goodbye for now.",
         "textFinal": "Thanks, that's noted. I've alerted an operator, and your case comes first. Stay there, somewhere safe, and wait for help. An operator will look at this now and contact you. Thank you. Goodbye for now.",
         "sttModel": null,
@@ -380,6 +398,12 @@
         "interrupted": false,
         "flags": {
           "phase": "closing",
+          "timing": {
+            "model": "anthropic/claude-sonnet-5.5",
+            "total": 3047,
+            "firstSentence": 5,
+            "modelFirstText": 855
+          },
           "rawText": "Thank you, Tobias, that's all noted.",
           "screened": [],
           "safetyTemplates": [

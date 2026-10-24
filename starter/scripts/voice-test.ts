@@ -211,6 +211,13 @@ async function runScript(script: Script): Promise<{ checks: Check[]; view: CallV
   const freeSafety = agentTurns.flatMap((turn) => (turn.textFinal ?? "").split(/(?<=[.!?])\s+/)
     .filter((sentence) => safetyWords.test(sentence) && instruction.test(sentence) && !sentence.endsWith("?") && !Object.values(SAFETY_TEMPLATES).some((template) => sentence.includes(template.replace(/\.$/, "")))))
   check("every safety instruction is a template", freeSafety.length === 0, freeSafety.join(" | "))
+  const engineErrors = agentTurns.filter((turn) => turn.flags.engineError).map((turn) => `${turn.id}: ${turn.flags.engineError}`)
+  if (engineErrors.length) log.push(`  interviewer errors (call recovered with a neutral line): ${engineErrors.join(" | ")}`)
+  const timings = agentTurns.map((turn) => turn.flags.timing).filter((timing) => timing?.modelFirstText)
+  if (timings.length) {
+    const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]
+    log.push(`  latency (median over ${timings.length} model turns): model first text ${median(timings.map((t) => t!.modelFirstText!))} ms, first screened sentence ${median(timings.map((t) => t!.firstSentence ?? 0))} ms`)
+  }
   const raw = agentTurns.flatMap((turn) => (turn.flags.screened ?? []).map((flag) => `${flag.category} (${flag.by}): ${flag.text}`))
   if (raw.length) log.push(`  screen caught: ${raw.join(" | ")}`)
   const cost = view.spend.llm + view.spend.stt
