@@ -10,7 +10,10 @@
 // 4. The agent may tell a driver to stop, never that it is fine to drive on.
 
 import { randomUUID } from "node:crypto"
-import { getAutonomy, getCase, getProposal, listProposals, transitionProposal, updateCase, appendEvent, createProposal, type CaseRow, type ProposalRow } from "@/lib/cr/queries"
+import {
+  appendEvent, createProposal, getAutonomy, getCase, getProposal, listProposals, proposalsWithChangedFacts, transitionProposal, updateCase,
+  type CaseRow, type ProposalRow,
+} from "@/lib/cr/queries"
 import { simNow } from "@/lib/cr/clock"
 import {
   LOCKED_ACTIONS, type ActionType, type Audience, type AutonomyLevel, type CaseKind, type CaseStatus, type DecisionRequest,
@@ -446,6 +449,30 @@ export async function decideProposal(caseId: string, proposalId: string, request
     proposal_id: proposal.id, status: executed.status, next_step: proposal.nextStepIfApproved, case_status: caseRow!.status,
     followUp: { kind: "approved", proposal: executed, caseRow: caseRow!, text: note },
   }
+}
+
+/**
+ * "Facts changed since this was drafted": set the card aside and let the
+ * agent draft a fresh one. Only allowed when something new really came in.
+ */
+export async function refreshProposal(caseId: string, proposalId: string, by: string): Promise<DecisionResponse> {
+  const proposal = await getProposal(proposalId)
+  if (!proposal || proposal.caseId !== caseId) throw new DecisionError(404, "This decision is not on this case.")
+  if (proposal.status !== "PENDING") throw new DecisionError(409, `This was already decided (${proposal.status.toLowerCase().replace(/_/g, " ")}).`)
+  if (!by?.trim()) throw new DecisionError(400, "Say who is asking for the refresh.")
+  const changed = await proposalsWithChangedFacts(caseId)
+  if (!changed.some((entry) => entry.proposalId === proposalId)) throw new DecisionError(409, "Nothing new has come in since this card was drafted.")
+  const nextStep = "The agent drafts a fresh card with the new facts."
+  const updated = await transitionProposal(proposal.id, ["PENDING"], {
+    status: "REJECTED", decidedBy: by.trim(), decidedAt: simNow(), decisionNote: "Set aside: facts changed since it was drafted.", nextStep,
+  })
+  if (!updated) throw new DecisionError(409, "Someone else decided this first.")
+  await appendEvent({
+    caseId, orderId: proposal.orderId, actorType: "operator", actorId: by.trim(), kind: "decision", channel: "internal",
+    body: `Asked for a fresh card: facts changed since "${proposal.title}" was drafted.`, data: { proposal_id: proposal.id, decision: "refresh" },
+  })
+  const caseRow = await updateCase(caseId, { status: (await pendingLeft(caseId)) ? "NEEDS_DECISION" : "AGENT_WORKING", owner: "agent", nextStep, waitingOn: null })
+  return { proposal_id: proposal.id, status: "REJECTED", next_step: nextStep, case_status: caseRow!.status }
 }
 
 /** "Log what happened" after "I'll handle it": records the outcome and lets the agent continue. */

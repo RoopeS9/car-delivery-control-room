@@ -7,13 +7,14 @@ import assert from "node:assert/strict"
 import { after, before, describe, test } from "node:test"
 import { eq, inArray } from "drizzle-orm"
 import { closeCrDb, crDb } from "@/lib/cr/db"
-import { createCase, listEvents, resolveOrder, setAutonomy, getProposal, type CaseRow } from "@/lib/cr/queries"
+import { appendEvent, createCase, getProposal, listEvents, proposalsWithChangedFacts, resolveOrder, setAutonomy, type CaseRow } from "@/lib/cr/queries"
 import { crAgentRuns, crAutonomy, crCases, crEvents, crProposals } from "@/lib/cr/schema"
 import type { ActionType } from "@/lib/cr/types"
 import { AGENT_ID } from "./config"
 import { contextFor, loadOrderFacts, type OrderFacts } from "./context"
 import {
-  ApprovalRequiredError, DecisionError, checkTool, decideProposal, executeProposal, findClearance, logOutcome, submitProposal, type ProposalInput,
+  ApprovalRequiredError, DecisionError, checkTool, decideProposal, executeProposal, findClearance, logOutcome, refreshProposal, submitProposal,
+  type ProposalInput,
 } from "./gate"
 
 const created: string[] = []
@@ -153,6 +154,21 @@ describe("decisions", () => {
     const effect = (await effects(caseRow.id))[0]
     assert.equal(effect.actorId, "ops-shift")
     assert.match(effect.body, /Dealer sends their own roadside help/)
+  })
+
+  test("a card is flagged when new facts arrive after it, and only then can be refreshed", async () => {
+    const caseRow = await newCase()
+    const { proposal: row } = await submitProposal({ audience: "operator", caseRow, facts }, proposal("BOOK_RECOVERY"))
+    // The agent's and operators' own events do not count as new facts.
+    await appendEvent({ caseId: caseRow.id, orderId: facts.id, actorType: "agent", actorId: AGENT_ID, kind: "note", channel: "internal", body: "Note.", at: new Date(row.createdAt.getTime() + 1000) })
+    assert.deepEqual(await proposalsWithChangedFacts(caseRow.id), [])
+    await assert.rejects(refreshProposal(caseRow.id, row.id, "ops-shift"), (error: unknown) => error instanceof DecisionError && error.status === 409)
+    await appendEvent({ caseId: caseRow.id, orderId: facts.id, actorType: "driver", actorId: "drv-042", kind: "message", channel: "driver_chat", body: "The car started again.", at: new Date(row.createdAt.getTime() + 2000) })
+    assert.deepEqual((await proposalsWithChangedFacts(caseRow.id)).map((entry) => entry.proposalId), [row.id])
+    const refreshed = await refreshProposal(caseRow.id, row.id, "ops-shift")
+    assert.equal(refreshed.status, "REJECTED")
+    assert.equal((await getProposal(row.id))!.decisionNote, "Set aside: facts changed since it was drafted.")
+    assert.equal((await effects(caseRow.id)).length, 0)
   })
 
   test("an edit may change the message, not who it goes to", async () => {

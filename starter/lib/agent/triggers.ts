@@ -13,7 +13,7 @@ import {
 } from "@/lib/cr/types"
 import { AGENT_ID } from "./config"
 import { activeDriverId, activeOrderForDriver, driverName, loadOrderFacts, type End, type OrderFacts } from "./context"
-import { decideProposal, logOutcome, type DecisionOutcome } from "./gate"
+import { decideProposal, logOutcome, refreshProposal, type DecisionOutcome } from "./gate"
 import { runTurn, withCaseLock, type TurnResult } from "./loop"
 import type { FollowUp } from "./tools"
 
@@ -219,6 +219,12 @@ export async function outcome(caseId: string, input: { text: string; logged_by: 
   return { outcome: result, followUps: [{ kind: "decision", caseId, proposalId: result.proposal_id, outcome: "approved" }] }
 }
 
+/** "Facts changed since this was drafted": set the card aside; the agent drafts a fresh one. */
+export async function refresh(caseId: string, proposalId: string, by: string): Promise<{ response: Awaited<ReturnType<typeof refreshProposal>>; followUps: FollowUp[] }> {
+  const response = await refreshProposal(caseId, proposalId, by)
+  return { response, followUps: [{ kind: "analysis", caseId, reason: "New facts came in after the last card was drafted, and the operator asked for a fresh one. Re-read the case notes and the records." }] }
+}
+
 // ---------------------------------------------------------------- follow-ups
 
 const OPERATIONS = { type: "operator" as const, id: null, name: "Operations" }
@@ -252,7 +258,7 @@ export async function runFollowUps(followUps: FollowUp[]): Promise<void> {
       const caseRow = await getCase(followUp.caseId)
       if (!caseRow) continue
       const request = followUp.kind === "analysis"
-        ? { trigger: "analysis" as const, input: `The driver-facing turn handed this case over: "${followUp.reason}". Prepare the decision for operations now.` }
+        ? { trigger: "analysis" as const, input: `Prepare the decision for operations now. Why: ${followUp.reason}` }
         : await decisionInput(caseRow, followUp.proposalId)
       const result = await withCaseLock(caseRow.id, () => runTurn({
         caseId: caseRow.id, audience: "operator", trigger: request.trigger, input: request.input, counterpart: OPERATIONS, replyChannel: "internal",

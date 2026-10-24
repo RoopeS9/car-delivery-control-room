@@ -170,3 +170,26 @@ Checked / changed / rejected:
   client, so the prompts, gates and delivery code that run are the real ones.
 - Still open: a real-model run and its trace. `OPENROUTER_API_KEY` is not
   visible to this session.
+
+## 2026-10-24 ~14:40 UTC · Claude Code (stream A agent) · plan re-check, out-of-date cards
+
+Asked: pull, re-read PLAN.md 4.2–4.2c and 6, push the contract and channel
+stubs first, then continue toward M1 (telemetry trigger, 4.2b decisions).
+
+Got: main had nothing newer than the plan already merged. Checked the plan
+line by line against what is built: contract and stub routes were already
+pushed and both other streams had merged them and built against them (B's case
+panel calls the routes; C's simulator posts to `/api/agent/telemetry`).
+Neither touched stream A's folders. Built the one missing 4.2b item: "Facts
+changed since this was drafted". `GET /api/cases/{id}` lists out-of-date cards,
+and `POST …/proposals/{id}/refresh` sets one aside and has the agent draft a
+fresh one.
+
+Checked / changed / rejected:
+- Only outside facts count as "changed" (driver, site, customer, car, phone).
+  The agent's own notes and operators' actions do not, or every card would be
+  stale the moment the agent logs anything. A test covers both sides.
+- Refresh is refused (409) when nothing new came in, so it cannot be used to
+  silently discard a card.
+- Still blocked: the real-model M1 trace. `OPENROUTER_API_KEY` is not visible
+  in this session.
