@@ -1,14 +1,17 @@
 "use client"
 
 import { useState } from "react"
-import { decisionPath, refreshPath, type CaseActionResponse, type DecisionRequest, type DecisionResponse } from "@/lib/cr/types"
+import {
+  decisionPath, outcomePath, refreshPath,
+  type CaseActionResponse, type DecisionRequest, type DecisionResponse, type LogOutcomeRequest,
+} from "@/lib/cr/types"
 import type { DecisionCardView, SourceChip } from "@/lib/present/types"
 import { Icon } from "../icons"
 import { When } from "../ui"
 import { OPERATOR } from "./operator"
 
 type CardDecision = DecisionRequest["decision"]
-type Mode = "idle" | "edit" | "reject" | "instruct"
+type Mode = "idle" | "edit" | "reject" | "instruct" | "confirm"
 
 export function Sources({ sources }: { sources: SourceChip[] }) {
   if (!sources.length) return null
@@ -42,6 +45,8 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
   const [done, setDone] = useState<string | null>(null)
   const call = card.draft?.channelLabel === "Phone call"
   const customer = card.draft?.isCustomer ?? card.actionType === "CONTACT_CUSTOMER"
+  const driveOn = card.actionType === "CLEAR_TO_CONTINUE"
+  const chosen = card.options.find((option) => option.id === optionId) ?? null
 
   async function decide(decision: CardDecision) {
     if ((decision === "reject" || decision === "instruct") && !note.trim()) {
@@ -86,9 +91,14 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
 
   return <article className="dcard" data-tone={card.tone} aria-labelledby={`card-${card.id}`}>
     <header className="dcard-head">
-      <span className="dcard-eyebrow"><Icon name="proposal" size={13} />The agent recommends · {card.actionLabel}</span>
-      <span className="dcard-rule" title={card.approvalRule}>{customer ? <><Icon name="key" size={12} />Customer contact · needs a person</> : "Needs your yes"}</span>
+      <span className="dcard-eyebrow"><Icon name="proposal" size={13} />{card.choiceOnly ? "The agent needs you to choose" : <>The agent recommends · {card.actionLabel}</>}</span>
+      <span className="dcard-rule" title={card.approvalRule}>{customer ? <><Icon name="key" size={12} />Customer contact · needs a person</> : card.choiceOnly ? "Your choice" : "Needs your yes"}</span>
     </header>
+    {card.replaces && <div className="dcard-revision">
+      <p>Revision {card.revision}: it replaces a version that went out of date{card.replaces.changed.length ? ". What changed:" : "."}</p>
+      {card.replaces.changed.length > 0 && <ul>{card.replaces.changed.map((item, index) => <li key={index}>{item.label} → {item.actual ?? "unknown"}</li>)}</ul>}
+    </div>}
+    {driveOn && <p className="dcard-driveon"><Icon name="alert" size={14} />{card.approvalRule}</p>}
     {card.factsChanged && <div className="dcard-changed" role="note">
       <Icon name="alert" size={14} />
       <span><b>Facts changed since this was drafted:</b> {card.factsChanged.what} at <When at={card.factsChanged.at} withZone={false} />. Check the timeline, or ask for a fresh card.</span>
@@ -116,7 +126,7 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
       </div>)}</dl>
     </section>}
 
-    {card.options.length > 1 && <fieldset className="dcard-sec dcard-options">
+    {(card.options.length > 1 || card.choiceOnly) && <fieldset className="dcard-sec dcard-options">
       <legend>Choose</legend>
       {card.options.map((option) => <label key={option.id} className={`dcard-option${optionId === option.id ? " on" : ""}`}>
         <input type="radio" name={`opt-${card.id}`} checked={optionId === option.id} onChange={() => setOptionId(option.id)} />
@@ -139,10 +149,10 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
 
     {card.evidence.length > 0 && <p className="dcard-evidence">Evidence: <Sources sources={card.evidence} /></p>}
 
-    <div className="dcard-next">
+    {!card.choiceOnly && <div className="dcard-next">
       <p><b>If you approve:</b> {card.nextIfApproved}</p>
       <p><b>If you reject:</b> {card.nextIfRejected}</p>
-    </div>
+    </div>}
 
     {(mode === "reject" || mode === "instruct") && <div className="dcard-note">
       <label htmlFor={`note-${card.id}`}>{mode === "reject" ? "Why not? One line, it goes back to the agent." : "What should the agent do instead?"}</label>
@@ -153,17 +163,27 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
     {error && <p className="dcard-error" role="alert">{error}</p>}
 
     <div className="dcard-actions">
-      {mode === "idle" && <>
-        {call
+      {mode === "idle" && card.choiceOnly && <>
+        <button type="button" className="btn primary" disabled={busy || !chosen} onClick={() => decide("approve")}>{chosen ? chosen.label : "Choose an option"}</button>
+        <span className="dcard-spacer" />
+        <button type="button" className="btn quiet" disabled={busy} onClick={() => { setMode("instruct"); setError("") }}>Tell the agent instead</button>
+      </>}
+      {mode === "idle" && !card.choiceOnly && <>
+        {driveOn
+          ? <button type="button" className="btn primary" disabled={busy} onClick={() => setMode("confirm")}>Clear the driver to drive on…</button>
+          : call
           ? <button type="button" className="btn primary" disabled={busy} onClick={() => decide("handle")}>I&apos;ll make the call</button>
-          : <button type="button" className="btn primary" disabled={busy} onClick={() => decide("approve")}>{card.draft ? "Approve and send" : "Approve"}</button>}
-        {card.draft && <button type="button" className="btn" disabled={busy} onClick={() => setMode("edit")}>Edit first</button>}
-        {call
-          ? <button type="button" className="btn" disabled={busy} onClick={() => decide("approve")}>Approve, agent sends it</button>
-          : <button type="button" className="btn" disabled={busy} onClick={() => decide("handle")}>I&apos;ll handle it</button>}
+          : <button type="button" className="btn primary" disabled={busy} onClick={() => decide("approve")}>{card.actionType === "CHANGE_PROMISE" ? "Approve, send to the customer" : card.draft ? "Approve and send" : "Approve"}</button>}
+        {card.draft && <button type="button" className="btn" disabled={busy} onClick={() => setMode("edit")}>{call ? "Edit talking points" : "Edit first"}</button>}
+        {!call && !driveOn && <button type="button" className="btn" disabled={busy} onClick={() => decide("handle")}>I&apos;ll handle it</button>}
         <span className="dcard-spacer" />
         <button type="button" className="btn quiet" disabled={busy} onClick={() => { setMode("instruct"); setError("") }}>Tell the agent instead</button>
         <button type="button" className="btn quiet" disabled={busy} onClick={() => { setMode("reject"); setError("") }}>Reject</button>
+      </>}
+      {mode === "confirm" && <>
+        <span className="dcard-confirm">The driver will be told they may drive on, attributed to you. The agent never says this on its own.</span>
+        <button type="button" className="btn danger" disabled={busy} onClick={() => decide("approve")}>Yes, clear them to drive on</button>
+        <button type="button" className="btn quiet" disabled={busy} onClick={() => setMode("idle")}>Cancel</button>
       </>}
       {mode === "edit" && <>
         <button type="button" className="btn primary" disabled={busy} onClick={() => decide(call ? "handle" : "approve")}>{call ? "Save and I'll call" : "Approve edited message"}</button>
@@ -184,9 +204,11 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
 
 /** A card after the decision: one line on what was decided and what happens next. */
 export function DecidedCard({ card }: { card: DecisionCardView }) {
-  const d = card.decision ?? (card.outdated ? { by: "Nobody", at: null, note: null, option: null, nextStep: null, executedAt: null, mode: null, outcome: null } : null)
+  const d = card.decision ?? (card.outdated ? { by: "Nobody", at: null, note: null, option: null, nextStep: null, executedAt: null, mode: null, outcome: null, reconciled: null } : null)
   if (!d) return null
-  const verb = d.mode === "operator" ? "said they would handle it"
+  const verb = d.reconciled === false ? "checked with the other side: it did not happen"
+    : d.reconciled === true ? "checked with the other side: it happened"
+    : d.mode === "operator" ? "said they would handle it"
     : d.mode === "instruction" ? "told the agent what to do instead"
     : d.mode === "refresh" ? "set it aside because facts changed"
     : card.outdated ? "approved it, but it went out of date before it ran"
@@ -219,13 +241,39 @@ export function OutdatedNotice({ card, redrafting }: { card: DecisionCardView; r
   </div>
 }
 
-/** An outside action whose result we do not know. Nothing is retried until someone checks. */
-export function UnknownOutcomeNotice({ card, nextStep }: { card: DecisionCardView; nextStep: string | null }) {
+/** An outside action whose result we do not know. Nothing is retried until someone checks and says whether it exists. */
+export function UnknownOutcomeNotice({ card, caseId, nextStep, onSaved }: { card: DecisionCardView; caseId: string; nextStep: string | null; onSaved: () => void }) {
+  const [note, setNote] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState("")
+  async function reconcile(confirmed: boolean) {
+    if (!note.trim()) { setError("Say how you checked, in one line. It is kept as the evidence."); return }
+    setBusy(true)
+    setError("")
+    try {
+      const body: LogOutcomeRequest = { proposal_id: card.id, text: note.trim(), logged_by: OPERATOR.id, confirmed }
+      const response = await fetch(outcomePath(caseId), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
+      const data = await response.json().catch(() => null) as CaseActionResponse | null
+      if (!response.ok) throw new Error(data?.error ?? "Could not reach the agent service. Nothing was saved.")
+      setNote("")
+      onSaved()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save.")
+    } finally {
+      setBusy(false)
+    }
+  }
   return <div className="notice danger" role="alert">
     <Icon name="alert" size={15} />
-    <div>
-      <b>Outcome unknown: {card.title}.</b> We do not know whether it happened. Nothing will be retried until someone checks with the other side{card.draft ? ` (${card.draft.toName})` : ""}.
+    <div className="notice-body">
+      <b>Outcome unknown: {card.title}.</b> We do not know whether it happened. Nothing will be retried until someone checks with the other side.
       {nextStep && <p><b>Next:</b> {nextStep}</p>}
+      <div className="reconcile">
+        <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Called them: no booking under that reference" aria-label="How you checked" />
+        <button type="button" className="btn" disabled={busy} onClick={() => reconcile(true)}>It exists</button>
+        <button type="button" className="btn" disabled={busy} onClick={() => reconcile(false)}>It does not exist</button>
+      </div>
+      {error && <p className="dcard-error" role="alert">{error}</p>}
     </div>
   </div>
 }

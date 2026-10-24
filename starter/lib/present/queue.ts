@@ -61,14 +61,18 @@ function caseRow(bundle: Bundle, kase: CaseRow, pending: ProposalRow | null, rec
   const waitingOn = plainText(bundle, kase.waitingOn)
   const ask = unknownOutcome ? `Outcome unknown: ${unknownOutcome.title}. Check before anything is retried.`
     : pending ? pending.title
-    : overdue ? plainText(bundle, kase.nextStep) ?? "Follow up now"
-    : kase.status === "NEEDS_DECISION" ? plainText(bundle, kase.nextStep) ?? "The agent handed this over"
+    : overdue ? plainText(bundle, kase.nextAction) ?? "Follow up now"
+    : kase.status === "NEEDS_DECISION" ? plainText(bundle, kase.nextAction) ?? "The agent handed this over"
     : closed ? kase.summary || null
-    : plainText(bundle, kase.nextStep)
+    : plainText(bundle, kase.nextAction)
+  // Records the case took over are part of this row, not extra work (PLAN 4.1, linked records).
+  const linked = new Set(kase.linkedRecords.map((ref) => ref.id))
+  const unlinked = records.filter((item) => !linked.has(item.recordId))
   const extra = [
     CASE_KIND_LABELS[kase.kind] ?? label(kase.kind),
+    linked.size ? `takes over ${linked.size} record${linked.size > 1 ? "s" : ""}` : null,
     others ? `${others} more open case${others > 1 ? "s" : ""}` : null,
-    records.length ? `${records.length} item${records.length > 1 ? "s" : ""} in the records` : null,
+    unlinked.length ? `${unlinked.length} other item${unlinked.length > 1 ? "s" : ""} in the records` : null,
   ].filter(Boolean).join(" · ")
   const tone: Tone = decide ? (overdue ? "warn" : unknownOutcome ? "danger" : urgencyTone(kase.urgency)) : kase.status === "AGENT_WORKING" ? "accent" : closed ? "ok" : "neutral"
   const row: QueueRow = {

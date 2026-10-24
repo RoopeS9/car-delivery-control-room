@@ -7,12 +7,15 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import type { CaseRow, EventRow as CrEventRow, ProposalRow } from "@/lib/cr/queries"
-import { LOCKED_ACTIONS, OPEN_CASE_STATUSES, type ActionType, type DraftMessage, type GpsData, type ObdData, type PhotoData, type SourceRef } from "@/lib/cr/types"
+import {
+  LOCKED_ACTIONS, OPEN_CASE_STATUSES,
+  type ActionType, type AssumptionCheck, type DraftMessage, type GpsData, type ObdData, type PhotoData, type SourceRef,
+} from "@/lib/cr/types"
 import { describeEvent } from "./events"
 import { type Bundle, str } from "./bundle"
 import { label } from "./labels"
-import { minutesBetween, relativeTo } from "./time"
-import type { AttentionItem, CaseView, DecisionCardView, DraftView, SourceChip, TelemetryStripView, TimelineEntry, Tone } from "./types"
+import { fmtClock, fmtDateTime, fmtRange, minutesBetween, relativeTo } from "./time"
+import type { AttentionItem, CaseView, DecisionCardView, DraftView, PromiseView, SourceChip, TelemetryStripView, TimelineEntry, Tone } from "./types"
 
 export const AGENT_NAME = "Road agent"
 
@@ -71,12 +74,9 @@ export const ACTION_LABELS: Record<string, string> = {
   REASSIGN_DRIVER: "Reassign the driver",
   CLEAR_TO_CONTINUE: "Clear the driver to drive on",
   CONTACT_SITE_AS_CUSTOMER: "Contact the site (counts as the customer)",
+  OPERATOR_DECISION: "Your call",
 }
 
-/**
- * PLAN.md 4.1 adds OUTDATED and UNKNOWN_OUTCOME to the proposal statuses.
- * Compare as text so this reads them as soon as the contract carries them.
- */
 export function statusIs(proposal: { status: string }, status: "OUTDATED" | "UNKNOWN_OUTCOME"): boolean {
   return proposal.status === status
 }
@@ -105,6 +105,9 @@ function approvalRule(actionType: string): string {
   if (LOCKED_ACTIONS.includes(actionType as ActionType)) {
     return "Customer contact always needs a person. This can never be switched to automatic."
   }
+  if (actionType === "CHANGE_PROMISE") return "Approving sends the proposal to the customer. The promise changes only when the customer agrees."
+  if (actionType === "CLEAR_TO_CONTINUE") return "The agent may never tell a driver to keep driving. Only a person can, on purpose."
+  if (actionType === "OPERATOR_DECISION") return "The agent needs a person to choose."
   return "Ask first: the agent needs a yes before this kind of change. Levels are on the agent page."
 }
 
@@ -162,7 +165,7 @@ export function caseAttention(bundle: Bundle): AttentionItem[] {
     if (row.status === "WAITING_EXTERNAL" && checkAt && checkAt < bundle.cr.now) {
       items.push({
         kind: "decision", tone: "warn", title: plainText(bundle, `Overdue: ${row.waitingOn ? `waiting on ${row.waitingOn}` : row.title}`),
-        short: "Follow-up overdue", detail: plainText(bundle, row.nextStep ?? row.title), owner: ownerName(bundle, row.owner),
+        short: "Follow-up overdue", detail: plainText(bundle, row.nextAction ?? row.title), owner: ownerName(bundle, row.owner),
         at: checkAt, atLabel: "check was due", section: "case", recordId: row.id,
       })
       continue
@@ -180,7 +183,7 @@ export function caseAttention(bundle: Bundle): AttentionItem[] {
     } else {
       items.push({
         kind: "case", tone: "neutral", title: plainText(bundle, `${caseStatusLabel(row)}: ${row.title}`), short: plainText(bundle, caseStatusLabel(row)),
-        detail: plainText(bundle, row.nextStep ?? (row.summary || null)), owner: ownerName(bundle, row.owner), at: iso(row.updatedAt), atLabel: "updated",
+        detail: plainText(bundle, row.nextAction ?? (row.summary || null)), owner: ownerName(bundle, row.owner), at: iso(row.updatedAt), atLabel: "updated",
         section: "case", recordId: row.id,
       })
     }
@@ -229,7 +232,7 @@ export function decisionCardView(bundle: Bundle, proposal: ProposalRow): Decisio
   const handover = proposal.handover
   const chosen = proposal.chosenOptionId ? proposal.options.find((option) => option.id === proposal.chosenOptionId) : null
   const decided = proposal.status !== "PENDING"
-  const execution = proposal.execution ?? {}
+  const execution = proposal.executionResult ?? {}
   const outcome = typeof execution.outcome === "string" && execution.outcome ? execution.outcome : null
   // The decision event says which button was used (lib/agent/gate.ts records it).
   const decisionEvent = bundle.cr.events.find((event) => event.kind === "decision" && event.data?.proposal_id === proposal.id)
@@ -237,6 +240,8 @@ export function decisionCardView(bundle: Bundle, proposal: ProposalRow): Decisio
   // "I'll handle it" leaves the card approved and not yet carried out until the outcome is logged.
   const awaitingOutcome = (proposal.status === "APPROVED" || proposal.status === "EDITED_AND_APPROVED") && !proposal.executedAt
   const mode = button === "handle" || awaitingOutcome || outcome ? "operator" : button === "instruct" ? "instruction" : button === "refresh" ? "refresh" : null
+  const reconcile = bundle.cr.events.find((event) => event.data?.proposal_id === proposal.id && typeof event.data?.booking_exists === "boolean")
+  const reconciled = reconcile ? reconcile.data.booking_exists === true : null
   return {
     id: proposal.id, caseId: proposal.caseId, actionType: proposal.actionType,
     actionLabel: ACTION_LABELS[proposal.actionType] ?? label(proposal.actionType),
@@ -258,26 +263,40 @@ export function decisionCardView(bundle: Bundle, proposal: ProposalRow): Decisio
     approvalRule: approvalRule(proposal.actionType),
     decision: decided ? {
       by: deciderName(bundle, proposal.decidedBy), at: iso(proposal.decidedAt), note: proposal.decisionNote,
-      option: chosen?.label ?? null, nextStep: plainText(bundle, proposal.nextStep), executedAt: iso(proposal.executedAt), mode, outcome,
+      option: chosen?.label ?? null, nextStep: plainText(bundle, proposal.nextStep), executedAt: iso(proposal.executedAt), mode, outcome, reconciled,
     } : null,
     awaitingOutcome,
     factsChanged: decided ? null : factsChangedSince(bundle, proposal),
     outdated: statusIs(proposal, "OUTDATED") ? { changed: changedAssumptions(proposal) } : null,
     unknownOutcome: statusIs(proposal, "UNKNOWN_OUTCOME"),
+    revision: proposal.revision,
+    replaces: replacedVersion(bundle, proposal),
+    choiceOnly: proposal.actionType === "OPERATOR_DECISION" && proposal.options.length > 0,
   }
 }
 
-/** What an OUTDATED card relied on that changed, as stream A records it on the execution result. */
+/** What a card relied on, in words, for "expected → now". */
+function expectedText(check: AssumptionCheck): string | null {
+  const { assumption } = check
+  if (assumption.kind === "record") return assumption.expected == null ? "empty" : label(String(assumption.expected)) || String(assumption.expected)
+  if (assumption.kind === "no_new_message") return `nothing new from the ${assumption.from}`
+  return assumption.codes.length ? `car reports ${assumption.codes.join(", ")}` : "no trouble codes"
+}
+
+/** What an OUTDATED card relied on that no longer holds (lib/agent/gate.ts stores the checks on the execution result). */
 function changedAssumptions(proposal: ProposalRow): { label: string; expected: string | null; actual: string | null }[] {
-  const holder = proposal as ProposalRow & { executionResult?: unknown }
-  const result = (holder.executionResult ?? proposal.execution ?? null) as { changed?: unknown } | null
-  const list = Array.isArray(result?.changed) ? result.changed : []
-  return list.flatMap((entry) => {
-    const item = entry as { label?: unknown; expected?: unknown; actual?: unknown }
-    if (typeof item.label !== "string") return []
-    const text = (value: unknown) => (value == null ? null : String(value))
-    return [{ label: item.label, expected: text(item.expected), actual: text(item.actual) }]
-  })
+  const checks = proposal.executionResult?.outdated
+  if (!Array.isArray(checks)) return []
+  return (checks as AssumptionCheck[]).filter((check) => !check.holds).map((check) => ({
+    label: check.assumption.label, expected: expectedText(check), actual: check.now,
+  }))
+}
+
+/** A redraft names what changed in the version it replaces. */
+function replacedVersion(bundle: Bundle, proposal: ProposalRow): DecisionCardView["replaces"] {
+  if (!proposal.revisesProposalId) return null
+  const earlier = bundle.cr.proposals.find((row) => row.id === proposal.revisesProposalId)
+  return earlier ? { changed: changedAssumptions(earlier) } : { changed: [] }
 }
 
 /** Who counts as news for a waiting card; the agent's own notes and operator actions do not (as in lib/cr/queries.ts). */
@@ -303,16 +322,25 @@ export function caseViews(bundle: Bundle): CaseView[] {
     .map((row) => {
       const cards = proposals.filter((proposal) => proposal.caseId === row.id).map((proposal) => decisionCardView(bundle, proposal))
       const pending = cards.filter((card) => card.status === "PENDING")
-      const outdated = cards.filter((card) => card.outdated)
+      // An out-of-date card matters until its redraft exists; then the redraft says what it replaces.
+      const redrafted = new Set(proposals.map((proposal) => proposal.revisesProposalId).filter(Boolean))
+      const outdated = cards.filter((card) => card.outdated && !redrafted.has(card.id))
       const unknown = cards.filter((card) => card.unknownOutcome)
+      const checkAt = iso(row.nextCheckAt)
+      const check = checkAt ? relativeTo(checkAt, bundle.cr.now) : null
+      const open = OPEN_CASE_STATUSES.includes(row.status)
       return {
         id: row.id, kind: row.kind, kindLabel: CASE_KIND_LABELS[row.kind] ?? label(row.kind),
         status: row.status, statusLabel: plainText(bundle, caseStatusLabel(row)), tone: caseTone(row, pending.length),
         urgency: row.urgency, urgencyLabel: urgencyLabel(row.urgency),
         title: row.title, summary: plainText(bundle, row.summary), channelLabel: CHANNEL_LABELS[row.channelOpened] ?? label(row.channelOpened),
         openedAt: iso(row.openedAt) ?? "", updatedAt: iso(row.updatedAt) ?? "", resolvedAt: iso(row.resolvedAt),
-        owner: ownerName(bundle, row.owner), waitingOn: plainText(bundle, row.waitingOn), nextStep: plainText(bundle, row.nextStep),
-        sources: row.sourceRefs.map(sourceChip),
+        owner: ownerName(bundle, row.owner), waitingOn: plainText(bundle, row.waitingOn), nextStep: plainText(bundle, row.nextAction),
+        nextCheckAt: open ? checkAt : null,
+        nextCheckLabel: open && checkAt ? `${check?.past ? "check was due" : "next check"} ${fmtClock(checkAt)}${check ? ` (${check.text})` : ""}` : null,
+        overdue: open && !!check?.past && row.status === "WAITING_EXTERNAL",
+        lastRun: row.lastRunStatus ?? null,
+        sources: row.linkedRecords.map(sourceChip),
         pending, outdated, unknown,
         decided: cards.filter((card) => card.status !== "PENDING" && !card.unknownOutcome).reverse(),
       }
@@ -495,5 +523,26 @@ export function telemetryStrip(bundle: Bundle): TelemetryStripView | null {
     mil: data?.mil ?? null, values, codes, position,
     simulated: (obd?.simulated ?? true) && (gps?.simulated ?? true),
     electric: fuel?.toLowerCase() === "electric",
+  }
+}
+
+// ---------------------------------------------------------------- promise
+
+/**
+ * The delivery promise as it stands (lib/cr/effective.ts): the dataset window
+ * unless the customer agreed to a change. A proposed change is listed as
+ * pending and never shown as the promise.
+ */
+export function promiseView(bundle: Bundle): PromiseView | null {
+  const promise = bundle.cr.effective?.promise
+  if (!promise || !promise.start_utc) return null
+  const zone = promise.zone
+  const text = promise.end_utc ? fmtRange(promise.start_utc, promise.end_utc, zone) : fmtDateTime(promise.start_utc, zone)
+  const openCase = bundle.cr.cases.find((row) => OPEN_CASE_STATUSES.includes(row.status))
+  return {
+    text, basis: plainText(bundle, promise.basis), source: sourceChip(promise.source), changed: promise.source.kind === "cr_effects",
+    pending: promise.pending.map((item) => ({ effectId: item.effect_id, text: item.text, proposedAt: item.proposed_at, basis: plainText(bundle, item.basis) })),
+    history: promise.history.map((item) => ({ ...item, basis: plainText(bundle, item.basis) })),
+    caseId: openCase?.id ?? bundle.cr.cases[0]?.id ?? null,
   }
 }

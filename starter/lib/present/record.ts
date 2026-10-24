@@ -5,7 +5,7 @@ import { chosenWindows, deriveAttention, deriveKeyDates, latestTracking, stronge
 import {
   type Bundle, type RelatedRow, activePoints, bool, journeyPlan, list, num, obj, recordedAt, refCount, rows, str, strings,
 } from "./bundle"
-import { caseViews, mergedTimeline, telemetryStrip } from "./cases"
+import { caseViews, mergedTimeline, promiseView, telemetryStrip } from "./cases"
 import { describeEvent } from "./events"
 import { humanize, label, labelIn, laneLabel } from "./labels"
 import { dayKey, fmtDateTime, fmtDay, fmtDayHeading, fmtMoney, fmtRange, fmtWeekday, isBefore, relativeTo } from "./time"
@@ -689,9 +689,17 @@ export function buildRecordView(bundle: Bundle): RecordView {
   }
 
   const cases = caseViews(bundle)
+  const promise = promiseView(bundle)
   const timeline = mergedTimeline(bundle)
   const story = buildStory(bundle, keyDates, assignments, offers, journey, attention)
   const tiles = buildTiles(bundle, keyDates, assignments, offers, decisive)
+  // The promise tile shows the effective promise (lib/cr/effective.ts): a change counts only once the customer agreed.
+  if (promise) {
+    const tile = tiles.find((item) => item.label === "Delivery promise")
+    if (tile && promise.changed) Object.assign(tile, { value: promise.text, hint: promise.basis })
+    else if (tile && promise.pending.length) tile.hint = `${tile.hint ? `${tile.hint} · ` : ""}change proposed, awaiting the customer`
+    if (promise.changed) story.detail = `${story.detail ? `${story.detail} ` : ""}The promise has since changed to ${promise.text} (${promise.basis}).`
+  }
 
   const sections = [
     { id: "case", label: "Case", count: cases.length },
@@ -713,7 +721,7 @@ export function buildRecordView(bundle: Bundle): RecordView {
     snapshotAt, story, tiles, header, attention, journey, alerts, workItems, incidents, threads, proofs, documents, custody, siteVisits, notes,
     proposals, notifications, offers, assignments, reservations, options, confirmations, terminalEvents, expenses,
     history, historyTotal: bundle.events.length, inboxHints, otherRecords, sections,
-    cases, timeline, simNow: bundle.cr.now, telemetry: telemetryStrip(bundle),
+    cases, timeline, simNow: bundle.cr.now, telemetry: telemetryStrip(bundle), promise,
   }
 }
 

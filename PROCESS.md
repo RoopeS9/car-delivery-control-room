@@ -509,3 +509,37 @@ Checked / changed / rejected:
 - Tests found two bugs in my own first draft. The "no prices" check flagged
   "Europe/Helsinki". The double-approval race test assumed the first click
   always wins; now either click may win, as long as exactly one executes.
+
+## 2026-10-24 ~13:05 UTC · Claude Code (stream B, cloud instance 2) · adopt contract v2
+
+Asked: merge stream A's contract v2 (renamed columns, new card states,
+customer answers, effective promise, tick) and keep the control room working.
+
+Got: B reads `nextAction`, `linkedRecords` and `executionResult`; out-of-date
+cards list what changed from A's assumption checks; a redraft says which
+version it replaces; unknown outcomes are reconciled with "It exists / It
+does not exist" plus a one-line note; phone-call cards approve as "I'll make
+the call"; "couldn't finish" cards are a plain choice; clearing a driver to
+drive on needs a second, explicit confirmation; and the case page shows the
+delivery promise from `effectiveOrder()` with changes proposed to the
+customer and "Customer agreed / declined" buttons. The record's promise tile
+and headline follow the effective promise, so the original never reads as
+current once the customer agreed to a change.
+
+Checked / changed / rejected:
+- The first typecheck after the merge passed, which was wrong. It turned out
+  the incremental cache (`tsconfig.tsbuildinfo`) hid 12 real errors from
+  the renames. B now typechecks with `--incremental false` after merges.
+- Merging PROCESS.md naively duplicated four of stream A's entries, because
+  A had corrected their times. Compared with A's branch and kept the
+  corrected headings only.
+- Clicked every new action against A's real routes in a browser: reconcile
+  (card ends FAILED, shown as "checked with the other side: it did not
+  happen"), customer agreed (promise, tile and headline move), retry on a
+  "couldn't finish" card (the agent, offline here, stops again and the
+  watchdog raises a new card, which is correct), and drive-on clearance.
+- Review fixes from screenshots: "If you approve / reject" lines removed from
+  pure choice cards; the "Tell the agent" box no longer opens beside an
+  unknown-outcome notice; waiting text no longer repeats on rows that wait
+  for you.
+- Smoke (100 orders agree), build and A's 42 tests pass.

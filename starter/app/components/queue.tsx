@@ -28,7 +28,7 @@ function QueueItem({ row }: { row: QueueRow }) {
         <span className="q-headline">{row.headline}</span>
         {row.ask && <span className="q-ask">{row.statusLabel === "Decision waiting" && <Icon name="proposal" size={13} />}{row.ask}</span>}
         {records && row.reasons.length > 1 && <span className="q-reasons">Also: {row.reasons.slice(1).map((reason) => `${reason.text} (${reason.source.toLowerCase()})`).join(" · ")}{row.more ? ` · ${row.more}` : ""}</span>}
-        {(row.waitingOn || row.nextCheckLabel) && !records && <span className={`q-wait${row.overdue ? " overdue" : ""}`}><Icon name="waiting" size={13} />{row.waitingOn ? `Waiting on ${row.waitingOn}` : "Waiting"}{row.nextCheckLabel ? ` · ${row.nextCheckLabel}` : ""}</span>}
+        {(row.waitingOn || row.nextCheckLabel) && !records && (row.who !== "Waiting for you" || row.overdue) && <span className={`q-wait${row.overdue ? " overdue" : ""}`}><Icon name="waiting" size={13} />{row.waitingOn ? `Waiting on ${row.waitingOn}` : "Waiting"}{row.nextCheckLabel ? ` · ${row.nextCheckLabel}` : ""}</span>}
         {records && row.nextCheckLabel && <span className={`q-wait${row.overdue ? " overdue" : ""}`}><Icon name="waiting" size={13} />{row.nextCheckLabel}</span>}
         <span className="q-foot">
           {records ? <span className="q-origin">From the records · {row.reasons[0]?.source ?? "record"}</span> : row.more && <span className="q-more">{row.more}</span>}

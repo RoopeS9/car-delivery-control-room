@@ -1,6 +1,7 @@
 // One order with everything the projections read, in a shape both the board and
 // the record view can share. The routes build bundles from the database rows.
 
+import type { EffectiveOrder } from "@/lib/cr/effective"
 import type { CaseRow, EventRow as CrEventRow, ProposalRow, TelemetryRow } from "@/lib/cr/queries"
 import type { Directory } from "./actors"
 import type { Row } from "./types"
@@ -13,11 +14,13 @@ export type CrSlice = {
   /** Latest OBD dongle and phone GPS samples (order page only). */
   obd: TelemetryRow | null
   gps: TelemetryRow | null
+  /** The order's current state with our executed effects layered on (order page only). */
+  effective: EffectiveOrder | null
   /** The simulated clock when the slice was loaded, as ISO. */
   now: string
 }
 
-export const emptyCr = (now: string): CrSlice => ({ cases: [], proposals: [], events: [], obd: null, gps: null, now })
+export const emptyCr = (now: string): CrSlice => ({ cases: [], proposals: [], events: [], obd: null, gps: null, effective: null, now })
 
 export type AlertRow = {
   id: string; status: string; severity: string; signal: string; summary: string; triggeredAt: string; details: Row

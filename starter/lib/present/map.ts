@@ -16,11 +16,11 @@ function markerState(bundle: Bundle): { state: MapMarkerState; label: string; to
   const open = bundle.cr.cases.filter((kase) => kase.status !== "RESOLVED" && kase.status !== "HANDLED_BY_AGENT")
   const pending = bundle.cr.proposals.find((proposal) => proposal.status === "PENDING" && open.some((kase) => kase.id === proposal.caseId))
   const decide = pending ? open.find((kase) => kase.id === pending.caseId) : open.find((kase) => kase.status === "NEEDS_DECISION")
-  if (decide) return { state: "decide", label: "Needs your decision", tone: urgencyTone(decide.urgency), caseId: decide.id, caseTitle: decide.title, ask: pending?.title ?? decide.nextStep }
+  if (decide) return { state: "decide", label: "Needs your decision", tone: urgencyTone(decide.urgency), caseId: decide.id, caseTitle: decide.title, ask: pending?.title ?? decide.nextAction }
   const working = open.find((kase) => kase.status === "AGENT_WORKING")
-  if (working) return { state: "agent", label: "Agent working", tone: "accent", caseId: working.id, caseTitle: working.title, ask: working.nextStep }
+  if (working) return { state: "agent", label: "Agent working", tone: "accent", caseId: working.id, caseTitle: working.title, ask: working.nextAction }
   const waiting = open.find((kase) => kase.status === "WAITING_EXTERNAL")
-  if (waiting) return { state: "waiting", label: plainText(bundle, caseStatusLabel(waiting)), tone: "neutral", caseId: waiting.id, caseTitle: waiting.title, ask: plainText(bundle, waiting.nextStep) }
+  if (waiting) return { state: "waiting", label: plainText(bundle, caseStatusLabel(waiting)), tone: "neutral", caseId: waiting.id, caseTitle: waiting.title, ask: plainText(bundle, waiting.nextAction) }
   return { state: "fine", label: "No open case", tone: "ok", caseId: null, caseTitle: null, ask: null }
 }
 

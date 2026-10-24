@@ -564,6 +564,20 @@ export type RecordView = {
   simNow: string
   /** Latest simulated OBD and GPS, when the car has reported. */
   telemetry: TelemetryStripView | null
+  /** The delivery promise as it stands now: the dataset window unless the customer agreed to a change. */
+  promise: PromiseView | null
+}
+
+/** From lib/cr/effective.ts. A proposed change is pending until the customer answers. */
+export type PromiseView = {
+  text: string
+  basis: string
+  source: SourceChip
+  /** The customer agreed to a change, so this is no longer the dataset's window. */
+  changed: boolean
+  pending: { effectId: string; text: string; proposedAt: string; basis: string }[]
+  history: { at: string; text: string; state: string; basis: string }[]
+  caseId: string | null
 }
 
 export type EntityKind = "driver" | "customer" | "site"
@@ -677,6 +691,8 @@ export type DecisionCardView = {
     mode: string | null
     /** The one line the operator logged after handling it. */
     outcome: string | null
+    /** After an unknown outcome: whether the check found that it happened. */
+    reconciled: boolean | null
   } | null
   /** A person said "I'll handle it" and has not logged what happened yet. */
   awaitingOutcome: boolean
@@ -686,6 +702,12 @@ export type DecisionCardView = {
   outdated: { changed: { label: string; expected: string | null; actual: string | null }[] } | null
   /** UNKNOWN_OUTCOME: an outside action may or may not have happened. */
   unknownOutcome: boolean
+  /** 1 for a first draft; later revisions replace a card that went out of date. */
+  revision: number
+  /** What changed in the version this card replaces, when it is a redraft. */
+  replaces: { changed: { label: string; expected: string | null; actual: string | null }[] } | null
+  /** "Choose" cards from the agent (escalations, "couldn't finish"): the option is the decision. */
+  choiceOnly: boolean
 }
 
 export type CaseView = {
@@ -705,7 +727,14 @@ export type CaseView = {
   resolvedAt: string | null
   owner: string | null
   waitingOn: string | null
+  /** What happens next and who does it. */
   nextStep: string | null
+  nextCheckAt: string | null
+  nextCheckLabel: string | null
+  overdue: boolean
+  /** The agent's last run on this case failed or is still running. */
+  lastRun: "RUNNING" | "DONE" | "ERROR" | null
+  /** Dataset records this case takes over (work items, incidents, alerts). */
   sources: SourceChip[]
   pending: DecisionCardView[]
   /** Out-of-date cards the agent is redrafting, and actions whose outcome is unknown. */
