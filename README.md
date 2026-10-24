@@ -24,7 +24,10 @@ npm run dev
 ```
 
 Open http://localhost:3000. Add `OPENROUTER_API_KEY` to `starter/.env` to use the
-real agent and voice interviewer. The model names and effort settings are in
+real agent and voice interviewer. For cheap runs the agent also works on DeepSeek
+through OpenRouter (`AGENT_MODEL=deepseek/deepseek-v4-pro`,
+`DRIVABILITY_MODEL=deepseek/deepseek-v4-flash`, `SIM_DRIVER_MODEL=deepseek/deepseek-v4-flash`);
+the night's end-to-end runs used those. The model names and effort settings are in
 `.env.example`. Without a key, the app remains usable and agent cases hand over
 to a person with an explanation; that fallback is not a real-model demonstration.
 
@@ -56,7 +59,22 @@ the agent continues through the same approval gates.
 
 Scenario C demonstrates a routine keys question. Scenario D exercises site
 scoping. Scenario F leaves the driver silent: advance the clock beyond the
-reply deadlines to see one reminder and then a human handover. Operator pages
+reply deadlines to see one reminder and then a human handover. Scenario G is a
+code that is usually not critical: the agent explains it and asks, an operator
+clears the driver.
+
+Scenario H walks a whole delivery. The clock moves to Kasper Darevik's pickup
+slot in Stockholm; in his phone he reports each step (at the pickup, car and
+keys collected, checked in for the ferry, at the delivery address, handed over
+to a named receiver). The map, the order and the board follow every step, and
+the handover brings operations the customer's delivery confirmation to approve.
+The steps are our own events laid over the unchanged snapshot; reset removes
+them.
+
+The customer's side is messages only. On `/demo`, **The customer writes** sends
+a simulated email from the paying customer of any order; it lands on the order's
+case and conversations, and the agent drafts the answer as a card a person
+approves. A customer-owned delivery desk can also write through `/site`. Operator pages
 poll telemetry and case timers, so the world keeps moving without the driver
 window or demo panel. Reset refuses active calls or in-flight work before
 clearing anything.
