@@ -15,7 +15,7 @@ import { AGENT_ID } from "./config"
 import { contextFor, loadOrderFacts, type End } from "./context"
 import { loadDriverSafetyContext, renderSafetyTemplate, SAFETY_TEMPLATES, screenDriverMessage } from "./drivability"
 import { firstName, localTime, relative, utcTime } from "./format"
-import { checkTool, recordedTravelSelection, submitProposal, validateProposal, type GateContext, type ProposalInput, type ToolName } from "./gate"
+import { checkTool, newFactsSince, recordedTravelSelection, submitProposal, validateProposal, type GateContext, type ProposalInput, type ToolName } from "./gate"
 import { cityCoords, matchWarningLights, playbook, playbooks, troubleCode } from "./knowledge"
 import { findNearbyHelp, searchTravelOptions, type HelpKind, type TravelKind } from "./mocks"
 import { orderTimeline, renderLines } from "./timeline"
@@ -275,17 +275,18 @@ async function sendToDriver(state: TurnState, input: { body: string; channel: "d
  * becomes a CLEAR_TO_CONTINUE card with that text as the draft, so an
  * operator can approve it on purpose (PLAN.md 4.2, drivability screen).
  */
-export async function holdForClearance(state: GateContext, text: string, reason: string | null) {
-  // An operator already said no to clearing this driver: the question is not asked again on this case. The driver
-  // got the fixed "an operator has to confirm" line; the refusal is noted, and the agent reads it in the case notes.
+export async function holdForClearance(state: GateContext, text: string, reason: string | null): Promise<"card" | "noted"> {
+  // An operator already said no to clearing this driver and nothing new has happened since (no message from the
+  // driver, no logged outcome such as a finished repair): the question is not asked again. The driver got the fixed
+  // "an operator has to confirm" line; the refusal is noted, and the agent reads it in the case notes.
   const rejected = (await listProposals({ caseId: state.caseRow.id, statuses: ["REJECTED"] })).filter((row) => row.actionType === "CLEAR_TO_CONTINUE").at(-1)
-  if (rejected) {
+  if (rejected && !(rejected.decidedAt && await newFactsSince(state.caseRow.id, rejected.decidedAt))) {
     await appendEvent({
       caseId: state.caseRow.id, orderId: state.facts.id, actorType: "system", actorId: "gate", kind: "tool_call", channel: "internal",
       body: `Drivability screen held back a message that reads as permission to drive on${reason ? ` (${reason})` : ""}. An operator already rejected clearing the driver on this case (${rejected.decisionNote ?? "no reason given"}), so no new card: the driver stays stopped.`,
       data: { refused: true, rule: "drivability_screen", text, rejected_proposal_id: rejected.id },
     })
-    return
+    return "noted"
   }
   await appendEvent({
     caseId: state.caseRow.id, orderId: state.facts.id, actorType: "system", actorId: "gate", kind: "tool_call", channel: "internal",
@@ -306,6 +307,7 @@ export async function holdForClearance(state: GateContext, text: string, reason:
     next_step_if_approved: "The driver gets this message from the operator and may drive on.",
     next_step_if_rejected: "The driver stays stopped; the agent tells them an operator will confirm.",
   })
+  return "card"
 }
 
 const list = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : [])
@@ -504,8 +506,8 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
     const screen = await screenDriverMessage(str(input.text), { safety: await loadDriverSafetyContext(state.facts, state.caseRow) })
     state.costUsd += screen.costUsd
     if (!screen.allowed) {
-      await holdForClearance(state, str(input.text), screen.reason)
-      return { content: `Not sent: it reads as permission to drive on (${screen.reason}). It is now a CLEAR_TO_CONTINUE card for an operator.`, isError: true, gate: "REFUSED" }
+      const held = await holdForClearance(state, str(input.text), screen.reason)
+      return { content: `Not sent: it reads as permission to drive on (${screen.reason}). ${held === "card" ? "It is now a CLEAR_TO_CONTINUE card for an operator." : "An operator already refused to clear the driver and nothing new has come in since, so the driver stays stopped."} If the message also carried facts the driver needs (a booking, a time, where to wait), send those again with message_driver without telling them to drive, leave or head anywhere; an operator clears the driver to continue.`, isError: true, gate: "REFUSED" }
     }
     await sendToDriver(state, { body: str(input.text), channel: "driver_chat", data: { screened: screen.layer } })
     return { content: `Sent to ${state.driverName ?? "the driver"}.`, log: null }
@@ -552,6 +554,10 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
   },
 
   async wait_for(state, input) {
+    // After hand_over the next step is the operator's card; a wait set now would hide the case from "Needs you".
+    if (state.followUps.some((followUp) => followUp.kind === "analysis")) {
+      return { content: "Not recorded: you handed this case to operations in this turn, and they decide the next step. Do not set a wait now; write your reply.", isError: true, gate: "REFUSED" }
+    }
     const minutes = typeof input.check_in_minutes === "number" ? Math.min(Math.max(Math.round(input.check_in_minutes), 1), 24 * 60) : 30
     const pending = await listProposals({ caseId: state.caseRow.id, statuses: ["PENDING"] })
     const updated = await updateCase(state.caseRow.id, {
@@ -585,7 +591,9 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
       caseId: state.caseRow.id, orderId: state.facts.id, actorType: "agent", actorId: AGENT_ID, kind: "note", channel: "internal",
       body: `Handing over to operations: ${reason}`,
     })
-    return { content: "Operations will get a decision card right after this turn. Tell the person you are talking to what happens next.", log: null }
+    return { content: state.audience === "driver"
+      ? "Operations will get a decision card right after this turn. Now write your reply to the driver: one or two short, plain sentences on what happens next and what they should do meanwhile. Nothing about prices, quotes, cards or internal steps, and no lists or bold."
+      : "Operations will get a decision card right after this turn. Tell the person you are talking to, in a sentence or two, that a colleague will come back to them.", log: null }
   },
 
   async propose_action(state, input) {

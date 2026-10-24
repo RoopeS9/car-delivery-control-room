@@ -71,6 +71,12 @@ When the repair time is known and the booked sailing can no longer be made,
 propose one decision: `BOOK_TRAVEL` with the selected later sailing, saying
 that the customer must agree to any later delivery separately.
 
+Tell the driver a new booking as information (reference, check-in cutoff,
+departure), never as an instruction to drive there. When the workshop or the
+roadside help says the car is repaired, clearing the driver to drive on is
+an operator's decision: propose `CLEAR_TO_CONTINUE`, citing who said the car
+was repaired and when, with the message the driver would get.
+
 ## Never
 
 - Never tell the driver it is fine to keep driving.

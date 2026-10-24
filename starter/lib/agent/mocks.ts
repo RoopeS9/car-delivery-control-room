@@ -83,19 +83,32 @@ export function searchTravelOptions(input: { from: string; to: string; after_utc
   const quotedAt = simNow().toISOString()
   const searchId = `${input.kind}-${base}-${seed(new Date(start).toISOString())}-${seed(quotedAt)}`
   const source: SourceRef = { kind: "mock:travel", id: searchId, label: `${input.kind} quotes (mocked)`, at: quotedAt }
-  const hours = { ferry: [7, 20, 31], train: [1, 3, 5], flight: [4, 9, 26], hotel: [0, 0, 0] }[input.kind]
   const durations = { ferry: 29, train: 4, flight: 3, hotel: 12 }[input.kind]
-  const prices = { ferry: [420, 465, 390], train: [79, 64, 92], flight: [210, 185, 260], hotel: [95, 118, 132] }[input.kind]
-  const providers = {
-    ferry: ["Vela Coast Lines", "Nordbridge Ferries", "Vela Coast Lines"],
-    train: ["Regional rail (fictional)", "Intercity (fictional)", "Night train (fictional)"],
-    flight: ["Skylark Air (fictional)", "Baltic Wings (fictional)", "Skylark Air (fictional)"],
-    hotel: ["Hotel Lindenhof (fictional)", "Terminal Inn (fictional)", "Harbour Rooms (fictional)"],
-  }[input.kind]
-  const options = [0, 1, 2].map((index) => {
-    const departs = new Date(start + (hours[index] * 60 + (base % 50)) * 60000)
+  // A fixed daily timetable per route (minutes after midnight UTC, provider, base fare): the same sailing keeps its
+  // time, provider and price however often or late it is searched. Only departures whose check-in is still open count.
+  const timetable: Record<TravelKind, [number, string, number][]> = {
+    ferry: [[3 * 60, "Vela Coast Lines", 420], [17 * 60 + 30, "Nordbridge Ferries", 465]],
+    train: [[6 * 60 + 10, "Regional rail (fictional)", 64], [11 * 60 + 40, "Intercity (fictional)", 79], [16 * 60 + 25, "Intercity (fictional)", 79], [21 * 60 + 5, "Night train (fictional)", 92]],
+    flight: [[7 * 60 + 15, "Skylark Air (fictional)", 185], [13 * 60 + 50, "Baltic Wings (fictional)", 210], [19 * 60 + 35, "Skylark Air (fictional)", 260]],
+    hotel: [[0, "Hotel Lindenhof (fictional)", 95], [0, "Terminal Inn (fictional)", 118], [0, "Harbour Rooms (fictional)", 132]],
+  }
+  const leadMs = input.kind === "ferry" ? 2 * 3600000 : 0
+  const departures: { departs: Date; provider: string; amount: number }[] = []
+  if (input.kind === "hotel") {
+    for (const [, provider, fare] of timetable.hotel) departures.push({ departs: new Date(start), provider, amount: fare + (base % 30) })
+  } else {
+    const firstDay = Math.floor(start / 86400000) * 86400000
+    for (let day = 0; departures.length < 3 && day < 7; day++) {
+      for (const [minute, provider, fare] of timetable[input.kind]) {
+        const departs = new Date(firstDay + day * 86400000 + (minute + (base % 20)) * 60000)
+        if (departs.getTime() - leadMs <= start || departures.length >= 3) continue
+        departures.push({ departs, provider, amount: fare + ((base + Math.floor(departs.getTime() / 86400000) * 7) % 30) })
+      }
+    }
+  }
+  const providers = departures.map((entry) => entry.provider)
+  const options = departures.map(({ departs, amount }, index) => {
     const arrives = new Date(departs.getTime() + durations * 3600000)
-    const amount = prices[index] + (base % 30)
     const selection: BookingSelection = {
       quote_id: `${searchId}-${index}`, quote_source: source, quoted_at: quotedAt, kind: input.kind,
       provider: providers[index], from: input.from, to: input.to,

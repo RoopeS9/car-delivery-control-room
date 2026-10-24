@@ -318,6 +318,15 @@ async function anchorAssumptions(ctx: GateContext, assumptions: Assumption[]): P
   })
 }
 
+/**
+ * Something a person said or did on the case after `at`: a driver's or site's message, or an outcome an operator
+ * logged. A rejection answers the facts in front of the operator then; once new ones arrive, the agent may ask again.
+ */
+export async function newFactsSince(caseId: string, at: Date): Promise<boolean> {
+  return (await listEvents({ caseId, since: at })).some((event) => event.at.getTime() > at.getTime()
+    && (((event.actorType === "driver" || event.actorType === "site") && event.kind === "message") || (event.actorType === "operator" && event.kind === "effect")))
+}
+
 export async function submitProposal(ctx: GateContext, input: ProposalInput): Promise<{ proposal: ProposalRow; level: AutonomyLevel; executed: boolean }> {
   // A booking with an unknown outcome blocks every new booking card first, even one that repeats a pending card.
   await requireReconciledBookings(ctx.facts.id, input.action_type)
@@ -329,7 +338,7 @@ export async function submitProposal(ctx: GateContext, input: ProposalInput): Pr
   const pendingTwin = existing.find((row) => row.status === "PENDING" && twinOf(row))
   if (pendingTwin) return { proposal: pendingTwin, level: "ASK_FIRST", executed: false }
   const rejectedTwin = existing.filter((row) => row.status === "REJECTED" && twinOf(row)).at(-1)
-  if (rejectedTwin && rejectedTwin.decidedAt && simNow().getTime() - rejectedTwin.decidedAt.getTime() < 4 * 3600_000) {
+  if (rejectedTwin && rejectedTwin.decidedAt && simNow().getTime() - rejectedTwin.decidedAt.getTime() < 4 * 3600_000 && !(await newFactsSince(ctx.caseRow.id, rejectedTwin.decidedAt))) {
     throw new DecisionError(409, `An operator rejected "${rejectedTwin.title}" on this case${rejectedTwin.decisionNote ? ` (${rejectedTwin.decisionNote})` : ""}. Do not propose it again: work out a different next step from their reason, or put the case into a wait with wait_for.`)
   }
   if (input.action_type === "BOOK_TRAVEL" && input.draft_message) throw new DecisionError(400, "A travel booking card approves its selected quote. Propose a customer message separately.")
