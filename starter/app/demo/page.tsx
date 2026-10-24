@@ -13,12 +13,12 @@ type FleetRow = {
   reference: string; orderId: string; vehicleTitle: string; driverName: string; driverId: string
   phone: "LIVE" | "STALE" | "NONE"; state: string; placeLabel: string; speedKmh: number; fault: string | null; quietFrom: string | null
 }
-type FleetState = { now: string; start: string; cars: FleetRow[] }
+type FleetState = { now: string; start: string; spend: { dollars: number; runs: number }; cars: FleetRow[] }
 
 const STATE_WORDS: Record<string, string> = {
   DRIVING: "Driving", AT_TERMINAL: "At the ferry terminal", ON_FERRY: "On the ferry", ARRIVED: "Near delivery", PARKED: "Stopped",
   LIMPING: "Reduced power", STOPPING: "Pulling over", STOPPED_IDLING: "Stopped, engine running", STOPPED_ENGINE_OFF: "Stopped, engine off",
-  UNKNOWN: "Position unknown", LAST_SEEN: "Not reporting",
+  OVERHEATING: "Overheating", UNKNOWN: "Position unknown", LAST_SEEN: "Not reporting",
 }
 
 const clock = (iso: string) => new Date(iso).toISOString().slice(11, 19)
@@ -68,6 +68,20 @@ export default function DemoPage() {
     }
   }
 
+  async function jump(minutes: number) {
+    setBusy(`jump-${minutes}`)
+    try {
+      const response = await fetch("/api/sim/clock", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ minutes }) })
+      const result = (await response.json()) as { now?: string; error?: string; caseTimers?: string }
+      const timers = result.caseTimers === "ran" ? "Due follow-ups ran." : "The agent's case timers are not available yet."
+      setLog((items) => [{ at: new Date().toISOString(), ok: response.ok,
+        text: response.ok && result.now ? `Clock jumped ${minutes} min to ${clock(result.now).slice(0, 5)} UTC. ${timers}` : result.error ?? "The clock did not move." }, ...items].slice(0, 8))
+    } finally {
+      setBusy(null)
+      void refresh()
+    }
+  }
+
   const reset = scenarios?.find((scenario) => scenario.name === "reset")
   const stories = scenarios?.filter((scenario) => scenario.name !== "reset") ?? []
   const attention = fleet?.cars.filter((car) => car.fault || car.phone !== "LIVE") ?? []
@@ -77,12 +91,16 @@ export default function DemoPage() {
       <div>
         <p className={styles.eyebrow}>Presenter only · not part of the control room</p>
         <h1>Demo controls</h1>
+        {fleet && <p className={styles.spend}>Agent spend so far: <b className="num">${fleet.spend.dollars.toFixed(2)}</b> over {fleet.spend.runs} run{fleet.spend.runs === 1 ? "" : "s"}</p>}
       </div>
       <div className={styles.headRight}>
         <div className={styles.clock} aria-live="polite">
           <span>Sim time</span>
           <b className="num">{fleet ? clock(fleet.now) : "--:--:--"}</b>
-          <span>UTC · 21 Oct</span>
+          <span>UTC · {fleet ? new Date(fleet.now).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }) : "21 Oct"}</span>
+        </div>
+        <div className={styles.jumps} role="group" aria-label="Jump the sim clock forward">
+          {[5, 15, 60].map((minutes) => <button key={minutes} type="button" disabled={busy !== null} onClick={() => void jump(minutes)}>+{minutes} min</button>)}
         </div>
         <button type="button" className={styles.danger} disabled={busy !== null} onClick={() => void run("reset")}
           title={reset?.description}>

@@ -9,9 +9,10 @@ import { simNow } from "@/lib/cr/clock"
 import { crDb } from "@/lib/cr/db"
 import { appendEvent, insertTelemetry, openCaseForOrder } from "@/lib/cr/queries"
 import { crEvents } from "@/lib/cr/schema"
-import type { GpsData, ObdData, SourceRef } from "@/lib/cr/types"
+import type { GpsData, SourceRef } from "@/lib/cr/types"
 import { fleetCar, type FleetCar } from "./fleet"
 import { pointAlong, polylineKm } from "./geo"
+import type { SimObd } from "./motion"
 import { roughWhere } from "./places"
 
 type StoredFault = {
@@ -31,9 +32,9 @@ type StoredFault = {
 const STORED: Record<string, StoredFault> = {
   // Dataset: "A red warning came on and the car felt different when accelerating", stop reported 08:04.
   "CD-420322": {
-    codes: ["P0217", "P0299"],
+    codes: ["P0217"],
     freezeAt: "2026-10-21T08:02:00Z",
-    freezeValues: { speed_kmh: 112, rpm: 2480, engine_load_pct: 81, throttle_pct: 46, coolant_c: 124, fuel_trim_short_pct: 3.1, fuel_trim_long_pct: 1.6, battery_v: 14.1 },
+    freezeValues: { speed_kmh: 112, coolant_c: 124, battery_v: 14.1 },
     stoppedAt: "2026-10-21T08:04:00Z",
     stopShare: 0.86,
     serviceArea: "Heidmoor Süd",
@@ -79,8 +80,8 @@ export async function reconnectCar(reference: string): Promise<ReconnectResult> 
   const now = simNow()
   const minutesOff = Math.max(0, (now.getTime() - Date.parse(stored.stoppedAt)) / 60_000)
   const coolant = Math.round(9 + (stored.freezeValues.coolant_c - 9) * Math.exp(-minutesOff / 50))
-  const obd: ObdData = {
-    speed_kmh: 0, rpm: 0, engine_load_pct: 0, throttle_pct: 0, coolant_c: coolant, battery_v: 12.3,
+  const obd: SimObd = {
+    speed_kmh: 0, coolant_c: coolant, battery_v: 12.3, engine_on: false,
     mil: "ON", dtcs: stored.codes, freeze_frame: { code: stored.codes[0], at: stored.freezeAt, values: stored.freezeValues },
   }
   const place = placeOf(car, stored)
@@ -98,7 +99,7 @@ export async function reconnectCar(reference: string): Promise<ReconnectResult> 
   const openCase = await openCaseForOrder(car.orderId)
   const event = await appendEvent({
     caseId: openCase?.id ?? null, orderId: car.orderId, at: now, actorType: "obd", actorId: `obd-${car.vehicleId}`, kind: "dtc", channel: "telemetry",
-    body: `OBD dongle reconnected with the ignition on and the engine off. Stored trouble codes ${stored.codes.join(" and ")}; ` +
+    body: `OBD dongle reconnected with the ignition on and the engine off. Stored trouble code${stored.codes.length > 1 ? "s" : ""} ${stored.codes.join(" and ")}; ` +
       `freeze frame from ${freezeTime} UTC: coolant ${stored.freezeValues.coolant_c} °C at ${stored.freezeValues.speed_kmh} km/h. Coolant now ${coolant} °C.`,
     data: { codes: stored.codes, mil: "ON", freeze_frame: obd.freeze_frame, telemetry_id: obdRow.id, simulated: true, reconnect: { place: place.label } },
     sourceRefs: sources,

@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { FeedMessage, GpsData, ObdData } from "@/lib/cr/types"
+import type { SimObd } from "@/lib/sim/motion"
 import { fmtDateTime, fmtRange } from "@/lib/present/time"
 import { Icon } from "../components/icons"
 import { fetchFeed, sendMessage, shrinkImage, uploadPhoto } from "./channel"
@@ -12,7 +13,7 @@ import styles from "./driver.module.css"
 type Readings = {
   now: string
   phone: "LIVE" | "STALE" | "NONE"
-  obd: { at: string; data: ObdData } | null
+  obd: { at: string; data: SimObd } | null
   gps: { at: string; data: GpsData } | null
   codes: string[]
   mil: ObdData["mil"]
@@ -255,13 +256,17 @@ function CarBar({ readings, onConnect }: { readings: Readings | null; onConnect:
   if (!readings) return <div className={styles.carBar}><span className={styles.carState}>Connecting to the car…</span></div>
   const obd = readings.obd
   const age = obd ? Math.max(0, Math.round((Date.parse(readings.now) - Date.parse(obd.at)) / 1000)) : null
-  const asleep = !obd || (age !== null && age > 90)
+  const quiet = age !== null && age > 90
   const warn = readings.mil !== "OFF"
-  const state = !obd ? "Car not connected" : asleep ? "Engine off" : (obd.data.speed_kmh ?? 0) > 0 ? "Driving" : "Engine running"
+  const state = !obd ? "No car data"
+    : !obd.data.engine_on ? "Engine off"
+    : quiet ? `No signal from the car since ${obd.at.slice(11, 16)} UTC`
+    : (obd.data.speed_kmh ?? 0) > 0 ? "Driving" : "Engine running"
+  const ago = age === null ? "" : age < 60 ? `${age} s ago` : age < 3600 ? `${Math.round(age / 60)} min ago` : `${Math.round(age / 3600)} h ago`
   return <div className={`${styles.carBar}${warn ? ` ${styles.carWarn}` : ""}`}>
     <div className={styles.carTop}>
       <span className={styles.carState}><span className={styles.carDot} aria-hidden="true" />{state}</span>
-      <span className={styles.carSource}>Simulated OBD{age !== null ? ` · ${age < 60 ? `${age} s` : `${Math.round(age / 60)} min`} ago` : ""}</span>
+      {obd && <span className={styles.carSource}>Simulated OBD · {ago}</span>}
     </div>
     {readings.canConnect && <div className={styles.connect}>
       <p>Plug the OBD dongle in and switch the ignition on (engine off) so Bahn can read the car.</p>
@@ -273,14 +278,12 @@ function CarBar({ readings, onConnect }: { readings: Readings | null; onConnect:
       <EngineIcon /> Check-engine light {readings.mil === "FLASHING" ? "flashing" : "on"}
       {readings.codes.length > 0 && <span className="mono"> · {readings.codes.join(" ")}</span>}
     </p>}
-    {obd && !asleep && <dl className={styles.carValues}>
+    {obd && <dl className={`${styles.carValues}${quiet || !obd.data.engine_on ? ` ${styles.carValuesOld}` : ""}`} title={quiet ? `Last reading at ${obd.at.slice(11, 19)} UTC` : undefined}>
       {obd.data.speed_kmh !== undefined && <div><dt>Speed</dt><dd className="num">{obd.data.speed_kmh}<small> km/h</small></dd></div>}
-      {obd.data.rpm !== undefined && <div><dt>Engine</dt><dd className="num">{obd.data.rpm}<small> rpm</small></dd></div>}
       {obd.data.coolant_c !== undefined && <div><dt>Coolant</dt><dd className="num">{Math.round(obd.data.coolant_c)}<small> °C</small></dd></div>}
-      {obd.data.soc_pct !== undefined && <div><dt>Battery</dt><dd className="num">{obd.data.soc_pct}<small> %</small></dd></div>}
-      {obd.data.battery_v !== undefined && obd.data.soc_pct === undefined && <div><dt>12 V</dt><dd className="num">{obd.data.battery_v}<small> V</small></dd></div>}
+      {obd.data.battery_v !== undefined && <div><dt>Battery</dt><dd className="num">{obd.data.battery_v}<small> V</small></dd></div>}
     </dl>}
-    {readings.gps?.data.place_label && <p className={styles.carPlace}><Icon name="pin" size={13} /> {readings.gps.data.place_label} <span>· simulated GPS</span></p>}
+    {readings.gps?.data.place_label && <p className={styles.carPlace}><Icon name="pin" size={13} /> {readings.gps.data.place_label} <span>· simulated GPS, {readings.gps.at.slice(11, 16)} UTC</span></p>}
   </div>
 }
 

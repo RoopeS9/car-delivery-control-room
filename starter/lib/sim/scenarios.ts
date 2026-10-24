@@ -10,12 +10,12 @@ import { crDb } from "@/lib/cr/db"
 import { appendEvent, insertTelemetry, resetCrData } from "@/lib/cr/queries"
 import type { DriverMessageRequest, SiteMessageRequest, SourceRef, TelemetryTriggerRequest } from "@/lib/cr/types"
 import { orders, relatedRecords } from "@/lib/schema"
-import { fleetCar, type FleetCar } from "./fleet"
-import { baseMotion, faultMotion, freezeFrame, type FaultPlan } from "./motion"
+import { fleetCar, loadFleet, type FleetCar } from "./fleet"
+import { baseMotion, faultMotion, freezeFrame, type MisfirePlan, type OverheatPlan } from "./motion"
 import { roughWhere } from "./places"
 import { activeFaults, syncTelemetry } from "./sync"
 
-export type ScenarioName = "warning-light-584" | "catch-up-322" | "driver-keys-145" | "site-question-442" | "reset"
+export type ScenarioName = "warning-light-584" | "catch-up-322" | "driver-keys-145" | "site-eta-442" | "driver-silent-537" | "reset"
 
 export type ScenarioInfo = {
   name: ScenarioName
@@ -51,12 +51,20 @@ export const SCENARIOS: ScenarioInfo[] = [
     links: [{ label: "Kasper Carvell's driver app", href: "/driver?driver=drv-130" }],
   },
   {
-    name: "site-question-442",
+    name: "site-eta-442",
     title: "D. Pickup desk asks about the driver",
     orderRef: "CD-420442",
     description: "Uma Aldermere at the Orvendin Cars Stockholm desk (not the customer) asks if the driver is still coming tomorrow morning. " +
       "The agent answers only about this order and says what it does not know.",
     links: [{ label: "Site chat as Uma Aldermere", href: "/site?contact=ep-xf3ba5412ec8d619e" }],
+  },
+  {
+    name: "driver-silent-537",
+    title: "F. The driver goes silent",
+    orderRef: "CD-420537",
+    description: "The Bentley from Cologne to Copenhagen: the app last reported at 08:02. Now the OBD dongle shows the coolant climbing, sets P0217, " +
+      "and stops reporting while the car still moves. The agent messages the driver; nobody answers. Jump the clock to pass the reply deadline.",
+    links: [{ label: "William Mervalen's driver app (do not answer)", href: "/driver?driver=drv-250" }],
   },
   {
     name: "reset",
@@ -85,7 +93,7 @@ export type ScenarioResult = {
   actions?: SimAction[]
 }
 
-export async function runScenario(name: string): Promise<ScenarioResult> {
+export async function runScenario(name: string, origin: string): Promise<ScenarioResult> {
   switch (name) {
     case "reset": return reset()
     case "warning-light-584": return warningLight584()
@@ -93,8 +101,9 @@ export async function runScenario(name: string): Promise<ScenarioResult> {
       "Still waiting at the service area with the Bentley. Has anyone decided who is collecting the car? I need to know if I should stay.")
     case "driver-keys-145": return driverWrites("driver-keys-145", "CD-420145",
       "Hi, I'm about 40 minutes from Helsinki with the Porsche. Where do I leave the car and the keys at Kavornia?")
-    case "site-question-442": return siteWrites("site-question-442", "CD-420442", "PICKUP",
+    case "site-eta-442": return siteWrites("site-eta-442", "CD-420442", "PICKUP",
       "Hi, this is Uma at the Orvendin Cars desk. Is your driver still coming tomorrow morning for the Bentley?")
+    case "driver-silent-537": return driverSilent537(origin)
     default: return { ok: false, name: name as ScenarioName, message: `There is no scenario called "${name}".` }
   }
 }
@@ -102,6 +111,7 @@ export async function runScenario(name: string): Promise<ScenarioResult> {
 async function reset(): Promise<ScenarioResult> {
   await resetCrData()
   resetSimClock()
+  await loadFleet({ fresh: true })
   await syncTelemetry()
   return { ok: true, name: "reset", message: `Demo reset. Sim clock back at ${simNow().toISOString().slice(11, 16)} UTC.` }
 }
@@ -128,7 +138,7 @@ async function warningLight584(): Promise<ScenarioResult> {
   const detectedAt = new Date(frame.at)
   const [snapshot] = await insertTelemetry([{
     orderId: car.orderId, vehicleId: car.vehicleId, source: "OBD", at: detectedAt, simulated: true,
-    data: { ...frame.values, misfire_count: 19, mil: "FLASHING", dtcs: plan.codes, freeze_frame: frame },
+    data: { ...frame.values, engine_on: true, mil: "FLASHING", dtcs: plan.codes, freeze_frame: frame },
   }])
   const sources: SourceRef[] = [{ kind: "cr_telemetry", id: snapshot.id, label: "OBD dongle (simulated)", at: detectedAt.toISOString() }]
   const event = await appendEvent({
@@ -140,7 +150,7 @@ async function warningLight584(): Promise<ScenarioResult> {
     kind: "dtc",
     channel: "telemetry",
     body: `Check-engine light flashing. New trouble codes ${plan.codes.join(" and ")}. ` +
-      `Freeze frame stored at ${frame.values.speed_kmh} km/h and ${frame.values.rpm} rpm.`,
+      `Freeze frame stored at ${frame.values.speed_kmh} km/h, coolant ${frame.values.coolant_c} °C.`,
     data: { codes: plan.codes, mil: "FLASHING", freeze_frame: frame, telemetry_id: snapshot.id, simulated: true, sim: plan },
     sourceRefs: sources,
   })
@@ -155,8 +165,8 @@ async function warningLight584(): Promise<ScenarioResult> {
   }
 }
 
-function misfirePlan(car: FleetCar, startedAt: Date, km: number, speed: number, detectAfterSeconds: number): FaultPlan {
-  const draft: FaultPlan = {
+function misfirePlan(car: FleetCar, startedAt: Date, km: number, speed: number, detectAfterSeconds: number): MisfirePlan {
+  const draft: MisfirePlan = {
     profile: "misfire",
     startedAt: startedAt.toISOString(),
     kmAtStart: km,
@@ -173,6 +183,36 @@ function misfirePlan(car: FleetCar, startedAt: Date, km: number, speed: number, 
   const stopAt = new Date(startedAt.getTime() + (draft.limpSeconds + draft.rampSeconds + 1) * 1000)
   const stop = faultMotion(car, draft, stopAt)
   return { ...draft, stopLabel: `${SERVICE_AREA} service area on the motorway ${roughWhere(stop.point, car.fromCity, car.toCity)}` }
+}
+
+// ---------------------------------------------------------------- F
+
+async function driverSilent537(origin: string): Promise<ScenarioResult> {
+  const name = "driver-silent-537"
+  const car = await fleetCar("CD-420537")
+  if (!car) return { ok: false, name, message: "CD-420537 is not moving in this dataset." }
+  if ((await activeFaults()).has(car.orderId)) return { ok: false, name, message: "CD-420537 is already overheating. Reset the demo to run it again." }
+  const now = simNow()
+  await syncTelemetry(now)
+  const before = baseMotion(car, now)
+  if (before.state !== "DRIVING") return { ok: false, name, message: "CD-420537 is not on the road at this sim time. Reset the demo first." }
+  // The coolant starts climbing now. The sync sets P0217 when it comes due and tells the agent;
+  // a minute after that the dongle stops reporting while the car still moves.
+  const plan: OverheatPlan = {
+    profile: "overheat", startedAt: now.toISOString(), kmAtStart: before.km, speedAtStart: before.speedKmh,
+    codes: ["P0217"], detectAfterSeconds: 90, coolantStart: 97, coolantPerMinute: 13, silentAfterSeconds: 150, notifyOrigin: origin,
+  }
+  const event = await appendEvent({
+    caseId: null, orderId: car.orderId, at: now, actorType: "obd", actorId: `obd-${car.vehicleId}`, kind: "telemetry_snapshot", channel: "telemetry",
+    body: `Coolant temperature ${plan.coolantStart} °C and climbing. No warning light yet.`,
+    data: { simulated: true, sim: plan },
+  })
+  await syncTelemetry()
+  return {
+    ok: true, name, orderId: car.orderId, eventId: event.id,
+    message: "CD-420537: coolant climbing. In 90 s of sim time the dongle sets P0217 and the agent contacts the driver; a minute later the dongle goes quiet. " +
+      "Do not answer as the driver. Jump the clock to pass the reply deadline.",
+  }
 }
 
 // ---------------------------------------------------------------- B, C: a driver writes

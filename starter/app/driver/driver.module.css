@@ -57,8 +57,9 @@
 @media (prefers-reduced-motion: reduce) { .carWarn .carDot { animation: none; } }
 .carSource { font-size: 11px; color: var(--subtle); white-space: nowrap; }
 .carAlert { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px; font-weight: 600; color: var(--orange-ink); }
-.carValues { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
+.carValues { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 8px; }
 .carValues div { min-width: 0; }
+.carValuesOld { opacity: 0.55; }
 .carValues dt { font-size: 10.5px; color: var(--subtle); }
 .carValues dd { font-size: 15px; font-weight: 600; white-space: nowrap; }
 .carValues small { font-size: 10.5px; font-weight: 500; color: var(--muted); }

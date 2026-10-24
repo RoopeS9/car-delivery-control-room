@@ -56,6 +56,8 @@ export type FleetCar = {
   cruiseKmh: number
   /** For a few cars the phone goes quiet during the demo, on purpose. */
   quietFrom: Date | null
+  /** Has a simulated OBD dongle. Only the scenario cars do (PLAN.md 4.5); the dongle reports on its own, not through the phone. */
+  obd: boolean
 }
 
 type Row = Record<string, unknown>
@@ -68,12 +70,25 @@ const STALE_AFTER_MS = 3 * 60 * 60 * 1000
 /** Phones that go quiet a few minutes into the demo, so the map shows "last seen n min ago". */
 const GOES_QUIET: Record<string, number> = { "CD-420710": 4, "CD-420576": 11 }
 
-const holder = globalThis as unknown as { __simFleet?: { at: number; cars: FleetCar[] } }
+/**
+ * Phones that have said nothing since their last report in the dataset.
+ * CD-420537 (scenario F) last reported at 08:02, an hour before the snapshot.
+ */
+const SILENT_SINCE_LAST_REPORT = new Set(["CD-420537"])
+
+/** Cars with a simulated OBD dongle: the ones the demo scenarios look at. */
+export const OBD_CARS = new Set(["CD-420584", "CD-420145", "CD-420537"])
+
+const holder = globalThis as unknown as { __simFleet?: { at: number; version: number; cars: FleetCar[] } }
+
+/** Bump when FleetCar changes shape, so a running dev server does not keep serving old cached cars. */
+const FLEET_VERSION = 2
 
 export async function loadFleet(options: { fresh?: boolean } = {}): Promise<FleetCar[]> {
-  if (!options.fresh && holder.__simFleet && Date.now() - holder.__simFleet.at < 10 * 60 * 1000) return holder.__simFleet.cars
+  const cached = holder.__simFleet
+  if (!options.fresh && cached && cached.version === FLEET_VERSION && Date.now() - cached.at < 10 * 60 * 1000) return cached.cars
   const cars = await readFleet()
-  holder.__simFleet = { at: Date.now(), cars }
+  holder.__simFleet = { at: Date.now(), version: FLEET_VERSION, cars }
   return cars
 }
 
@@ -159,6 +174,9 @@ async function readFleet(): Promise<FleetCar[]> {
     } else if (gapAlert) {
       phone = "STALE"
       phoneNote = "No new position from the driver app since the last report (open tracking-gap alert)."
+    } else if (SILENT_SINCE_LAST_REPORT.has(order.reference)) {
+      phone = "STALE"
+      phoneNote = `No position from the driver app since its last report at ${lastObservation.at.toISOString().slice(11, 16)} UTC.`
     } else if (snapshot.getTime() - lastObservation.at.getTime() > STALE_AFTER_MS) {
       phone = "STALE"
       phoneNote = "The driver app has not reported for several hours."
@@ -185,6 +203,7 @@ async function readFleet(): Promise<FleetCar[]> {
       stoppedNote: safetyStop || openWarning ? "The driver reported a safety stop; the car is not moving." : null,
       cruiseKmh: 78 + (hash(order.id) % 15),
       quietFrom: phone === "LIVE" && quietMinutes ? new Date(snapshot.getTime() + quietMinutes * 60_000) : null,
+      obd: OBD_CARS.has(order.reference),
     })
   }
   return cars.sort((a, b) => a.reference.localeCompare(b.reference))

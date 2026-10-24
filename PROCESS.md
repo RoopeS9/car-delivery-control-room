@@ -341,3 +341,47 @@ Checked / changed / rejected:
   signals, simulated driver for the video only. Kept the map and voice.
 - Reserved 40 s of the video for the process story.
 
+
+## 2026-10-24 ~13:30 UTC · Claude Code (stream C) · scenarios B–F, site chat, plan update
+
+Asked: scenarios B, C, D and the site chat; mid-way, pull the revised plan
+(4.5: OBD cut to decision signals, new `site-eta-442` and
+`driver-silent-537`, clock jumps on `/demo`, simulated driver last and for
+the video only) and follow it.
+
+Got: every scenario on `/demo` (A, B, C, D, F) plus reset, clock jumps
+(+5/+15/+60) and the agent's running spend. B, C and D send their opening
+message through the real channel routes after the scenario responds, so the
+demo exercises the path a phone or browser uses. `/site` lets a pickup or
+delivery desk write about one order. Checked each in the running app against
+stream A's routes (stub mode: no model key here).
+
+Checked / changed / rejected:
+- OBD now carries only speed, coolant, battery voltage, engine on/off, the
+  light and codes with a freeze frame; rpm, load, trims and misfire counts are
+  gone, and electric cars drop coolant too. `engine_on` is not in the shared
+  `ObdData` type, so the simulator writes it as an extra key (`SimObd` in
+  `lib/sim/motion.ts`). **For streams A and B:** add `engine_on?: boolean` to
+  `ObdData` and read it; stream B's strip still looks for `rpm`.
+- Only the scenario cars (584, 145, 537) carry a dongle now, and it reports on
+  its own rather than through the phone: scenario F needs coolant readings
+  from a car whose driver app is silent.
+- Scenario F's first draft started the coolant climb "90 s ago" so the code
+  could fire at once. The trend then showed 90 °C right up to a 116 °C jump,
+  because samples for those 90 s already existed. Now the climb starts at the
+  click, the sync sets P0217 when it comes due (also inside a clock jump),
+  writes the `dtc` event and calls the agent then. A minute later the dongle
+  goes quiet while the car still moves at 78 km/h, so "is it still moving" is
+  honestly unknown. CD-420537's app stays silent since its 08:02 report,
+  as in the data.
+- Scenario B keeps one stored code (P0217), not P0217 + P0299, so it depends
+  on fewer entries in the trimmed trouble-code list.
+- In stub mode a customer-owned desk got neither a reply nor
+  `heldForApproval`, so the site chat showed nothing. It now says "Bahn has
+  your message. A colleague will answer here shortly" whenever no answer
+  streams back, and never tells the desk about internal approval.
+- The clock jump calls stream A's `POST /api/cases/tick`, which does not exist
+  yet; the panel says so instead of claiming follow-ups ran.
+- A running dev server kept serving its cached fleet after the code changed
+  shape; the cache is now versioned and reset reloads it.
+- Not built yet, on purpose: the LLM simulated driver (video only, last).

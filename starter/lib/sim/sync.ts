@@ -6,10 +6,11 @@
 import { and, eq, sql } from "drizzle-orm"
 import { simNow } from "@/lib/cr/clock"
 import { crDb } from "@/lib/cr/db"
-import { insertTelemetry, type NewTelemetry } from "@/lib/cr/queries"
+import { appendEvent, insertTelemetry, type NewTelemetry } from "@/lib/cr/queries"
 import { crEvents } from "@/lib/cr/schema"
 import { loadFleet, simStart, type FleetCar } from "./fleet"
-import { gpsSample, motionAt, obdSample, type FaultPlan } from "./motion"
+import { notifyAgent } from "./agent-hooks"
+import { freezeFrame, gpsSample, motionAt, obdSample, obdSilentFrom, type FaultPlan, type OverheatPlan } from "./motion"
 
 const GPS_EVERY_S = 60
 const GPS_EVERY_FAULT_S = 15
@@ -34,15 +35,15 @@ export function syncTelemetry(now: Date = simNow()): Promise<SyncResult> {
   return holder.__simSyncing
 }
 
-/** Faults injected by scenarios, newest per order. */
+/** Faults injected by scenarios, newest per order. The plan rides on the scenario's OBD event. */
 export async function activeFaults(): Promise<Map<string, FaultPlan>> {
   const rows = await crDb().select({ orderId: crEvents.orderId, data: crEvents.data, at: crEvents.at }).from(crEvents)
-    .where(and(eq(crEvents.kind, "dtc"), eq(crEvents.actorType, "obd"), sql`${crEvents.data} ? 'sim'`))
+    .where(and(eq(crEvents.actorType, "obd"), sql`${crEvents.data} ? 'sim'`))
     .orderBy(crEvents.at)
   const plans = new Map<string, FaultPlan>()
   for (const row of rows) {
     const plan = row.data.sim as FaultPlan | undefined
-    if (plan?.profile === "misfire") plans.set(row.orderId, plan)
+    if (plan?.profile === "misfire" || plan?.profile === "overheat") plans.set(row.orderId, plan)
   }
   return plans
 }
@@ -82,7 +83,35 @@ async function runSync(now: Date): Promise<SyncResult> {
     for (const sample of obdDue(car, plan, latest.obd.get(car.orderId) ?? null, now)) { rows.push(sample); obd += 1 }
   }
   for (let index = 0; index < rows.length; index += 500) await insertTelemetry(rows.slice(index, index + 500))
+  for (const car of fleet) {
+    const plan = faults.get(car.orderId)
+    if (plan?.profile === "overheat") await setCodeWhenDue(car, plan, now)
+  }
   return { at: now.toISOString(), gps, obd }
+}
+
+/**
+ * An overheating car sets its code a while after the coolant starts climbing.
+ * When that moment has passed, write the `dtc` event once and tell the agent,
+ * exactly as scenario A does at its start.
+ */
+async function setCodeWhenDue(car: FleetCar, plan: OverheatPlan, now: Date): Promise<void> {
+  const detectedAt = new Date(Date.parse(plan.startedAt) + plan.detectAfterSeconds * 1000)
+  if (now < detectedAt) return
+  const [existing] = await crDb().select({ id: crEvents.id }).from(crEvents)
+    .where(and(eq(crEvents.orderId, car.orderId), eq(crEvents.kind, "dtc"), sql`${crEvents.data}->>'fault_started_at' = ${plan.startedAt}`)).limit(1)
+  if (existing) return
+  const frame = freezeFrame(car, plan)
+  const event = await appendEvent({
+    caseId: null, orderId: car.orderId, at: detectedAt, actorType: "obd", actorId: `obd-${car.vehicleId}`, kind: "dtc", channel: "telemetry",
+    body: `Engine temperature warning on. Trouble code ${plan.codes.join(", ")}. Coolant ${frame.values.coolant_c} °C and rising; ` +
+      `the car was moving at ${frame.values.speed_kmh} km/h.`,
+    data: { codes: plan.codes, mil: "ON", freeze_frame: frame, simulated: true, fault_started_at: plan.startedAt },
+  })
+  // Not awaited: the agent's first turn can take a while, and the caller may be a page poll.
+  void notifyAgent(plan.notifyOrigin, {
+    orderRef: car.reference, codes: plan.codes, mil: "ON", note: "engine temperature warning, coolant rising", eventId: event.id,
+  })
 }
 
 function fastWindow(plan: FaultPlan | null, at: Date): boolean {
@@ -111,9 +140,10 @@ function gpsDue(car: FleetCar, plan: FaultPlan | null, last: Date | null, now: D
 
 function obdDue(car: FleetCar, plan: FaultPlan | null, last: Date | null, now: Date) {
   const base = { orderId: car.orderId, vehicleId: car.vehicleId, source: "OBD" as const, simulated: true }
-  // The dongle reports through the driver app, so it goes silent with the phone.
-  if (car.stoppedNote || car.phone !== "LIVE") return []
-  const until = car.quietFrom && car.quietFrom < now ? car.quietFrom : now
+  // Only scenario cars carry a dongle; a parked car's dongle sleeps until the driver reconnects it.
+  if (!car.obd || car.stoppedNote) return []
+  const silent = obdSilentFrom(plan)
+  const until = silent && silent < now ? silent : now
   const from = new Date(Math.max(last?.getTime() ?? 0, until.getTime() - BACKFILL_S * 1000))
   const every = fastWindow(plan, until) ? OBD_EVERY_FAULT_S : OBD_EVERY_S
   const samples = []
