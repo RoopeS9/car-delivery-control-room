@@ -184,11 +184,12 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
 
 /** A card after the decision: one line on what was decided and what happens next. */
 export function DecidedCard({ card }: { card: DecisionCardView }) {
-  const d = card.decision
+  const d = card.decision ?? (card.outdated ? { by: "Nobody", at: null, note: null, option: null, nextStep: null, executedAt: null, mode: null, outcome: null } : null)
   if (!d) return null
   const verb = d.mode === "operator" ? "said they would handle it"
     : d.mode === "instruction" ? "told the agent what to do instead"
     : d.mode === "refresh" ? "set it aside because facts changed"
+    : card.outdated ? "approved it, but it went out of date before it ran"
     : card.status === "REJECTED" ? "rejected it"
     : card.status === "EDITED_AND_APPROVED" ? "approved it with changes"
     : card.status === "FAILED" ? "approved it, but it failed"
@@ -202,5 +203,29 @@ export function DecidedCard({ card }: { card: DecisionCardView }) {
     {d.note && <p className="decided-note">“{d.note}”</p>}
     {d.outcome && <p>What happened: {d.outcome}</p>}
     {d.nextStep && !d.outcome && <p className="decided-next"><b>Next:</b> {d.nextStep}</p>}
+  </div>
+}
+
+/** An approved card that did not run because the facts it relied on changed (PLAN 4.2b). */
+export function OutdatedNotice({ card, redrafting }: { card: DecisionCardView; redrafting: boolean }) {
+  const changed = card.outdated?.changed ?? []
+  return <div className="notice warn" role="status">
+    <Icon name="alert" size={15} />
+    <div>
+      <b>Out of date: {card.title}.</b> Nothing was carried out. {changed.length ? "It relied on facts that changed:" : "The facts it relied on changed since it was drafted."}
+      {changed.length > 0 && <ul className="notice-list">{changed.map((item, index) => <li key={index}>{item.label}: <span className="before">{item.expected ?? "not recorded"}</span> → <b>{item.actual ?? "not recorded"}</b></li>)}</ul>}
+      <p>{redrafting ? "The agent is drafting a new version from the current facts." : "A new version follows below."}</p>
+    </div>
+  </div>
+}
+
+/** An outside action whose result we do not know. Nothing is retried until someone checks. */
+export function UnknownOutcomeNotice({ card, nextStep }: { card: DecisionCardView; nextStep: string | null }) {
+  return <div className="notice danger" role="alert">
+    <Icon name="alert" size={15} />
+    <div>
+      <b>Outcome unknown: {card.title}.</b> We do not know whether it happened. Nothing will be retried until someone checks with the other side{card.draft ? ` (${card.draft.toName})` : ""}.
+      {nextStep && <p><b>Next:</b> {nextStep}</p>}
+    </div>
   </div>
 }

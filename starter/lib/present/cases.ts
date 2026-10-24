@@ -262,7 +262,22 @@ export function decisionCardView(bundle: Bundle, proposal: ProposalRow): Decisio
     } : null,
     awaitingOutcome,
     factsChanged: decided ? null : factsChangedSince(bundle, proposal),
+    outdated: statusIs(proposal, "OUTDATED") ? { changed: changedAssumptions(proposal) } : null,
+    unknownOutcome: statusIs(proposal, "UNKNOWN_OUTCOME"),
   }
+}
+
+/** What an OUTDATED card relied on that changed, as stream A records it on the execution result. */
+function changedAssumptions(proposal: ProposalRow): { label: string; expected: string | null; actual: string | null }[] {
+  const holder = proposal as ProposalRow & { executionResult?: unknown }
+  const result = (holder.executionResult ?? proposal.execution ?? null) as { changed?: unknown } | null
+  const list = Array.isArray(result?.changed) ? result.changed : []
+  return list.flatMap((entry) => {
+    const item = entry as { label?: unknown; expected?: unknown; actual?: unknown }
+    if (typeof item.label !== "string") return []
+    const text = (value: unknown) => (value == null ? null : String(value))
+    return [{ label: item.label, expected: text(item.expected), actual: text(item.actual) }]
+  })
 }
 
 /** Who counts as news for a waiting card; the agent's own notes and operator actions do not (as in lib/cr/queries.ts). */
@@ -287,7 +302,9 @@ export function caseViews(bundle: Bundle): CaseView[] {
       || b.updatedAt.getTime() - a.updatedAt.getTime())
     .map((row) => {
       const cards = proposals.filter((proposal) => proposal.caseId === row.id).map((proposal) => decisionCardView(bundle, proposal))
-      const pending = cards.filter((card) => card.pending)
+      const pending = cards.filter((card) => card.status === "PENDING")
+      const outdated = cards.filter((card) => card.outdated)
+      const unknown = cards.filter((card) => card.unknownOutcome)
       return {
         id: row.id, kind: row.kind, kindLabel: CASE_KIND_LABELS[row.kind] ?? label(row.kind),
         status: row.status, statusLabel: plainText(bundle, caseStatusLabel(row)), tone: caseTone(row, pending.length),
@@ -296,8 +313,8 @@ export function caseViews(bundle: Bundle): CaseView[] {
         openedAt: iso(row.openedAt) ?? "", updatedAt: iso(row.updatedAt) ?? "", resolvedAt: iso(row.resolvedAt),
         owner: ownerName(bundle, row.owner), waitingOn: plainText(bundle, row.waitingOn), nextStep: plainText(bundle, row.nextStep),
         sources: row.sourceRefs.map(sourceChip),
-        pending,
-        decided: cards.filter((card) => !card.pending).reverse(),
+        pending, outdated, unknown,
+        decided: cards.filter((card) => card.status !== "PENDING" && !card.unknownOutcome).reverse(),
       }
     })
 }

@@ -417,3 +417,38 @@ Checked / changed / rejected:
   message time explicitly.
 - Noted for later: PLAN 4.6 now asks B for a call transcript block on the case
   page once voice's `cr_calls` tables exist.
+
+## 2026-10-24 ~12:35 UTC · Claude Code (stream B, cloud instance 2) · one queue, outdated and unknown cards
+
+Asked: rebuild "Needs you" as one queue for every order that needs a person
+(PLAN 4.7, revised): three sections, "From the records" rows, and waiting
+rows with who we wait on and the next check; plus the new card states in 4.2b.
+
+Got: one row per order. *Needs your decision* holds the agent's cards,
+escalations, overdue follow-ups, unknown outcomes and records rows with an
+urgent reason. Then *Agent working* and *Waiting* (who, next check, sorted by
+soonest check), with a passed check moving the row up as Overdue. Handled
+cases and a quiet-order count close the page. On the case page, an
+`OUTDATED` card shows what it relied on (expected → actual) and that nothing
+ran; an `UNKNOWN_OUTCOME` card shows that nothing is retried until someone
+checks.
+
+Checked / changed / rejected:
+- Counted first: 43 orders carry starter attention items (9 danger, 10 warn,
+  1 accent, 22 neutral, 2 only waiting). Listing all 43 at full height buried
+  the two agent cards, so neutral-only records rows are folded under the
+  decision section ("22 more from the records with routine open items").
+  They are still one click away and still searchable. This is a judgement
+  call, raised with the team.
+- First screenshot: records rows were about 170 px tall with red detail text.
+  Now one neutral detail line plus one "Also:" line, about 140 px.
+- Waiting rows said who we wait on twice (side label and wait line); kept the
+  wait line only.
+- The new statuses (`OUTDATED`, `UNKNOWN_OUTCOME`), the tick route and the
+  "what changed" field are not in stream A's contract yet. Built against them
+  as plain strings, tested by setting statuses directly in the local
+  database, and sent A the exact shapes B reads.
+- A hydration error during review turned out to be the dev server serving
+  stale modules (third time this session). Restarting fixed it; the code
+  was fine.
+- Smoke (100 orders agree), build and A's 31 tests pass.

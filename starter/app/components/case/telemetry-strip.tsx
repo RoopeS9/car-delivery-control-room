@@ -20,7 +20,7 @@ export function TelemetryStrip({ telemetry }: { telemetry: TelemetryStripView })
       {telemetry.at && <>OBD dongle, simulated · <span className={telemetry.stale ? "stale" : undefined}>{telemetry.stale ? `last reading ${telemetry.ageLabel}` : telemetry.ageLabel}</span></>}
       {telemetry.position && <>{telemetry.at && " · "}<Icon name="pin" size={12} />{telemetry.position.label} <span className="muted">(phone GPS, simulated{telemetry.position.ageLabel ? `, ${telemetry.position.ageLabel}` : ""})</span></>}
       {telemetry.electric && <> · Electric car: standard OBD data is thin.</>}
-      {" "}A code is a signal from the car, not a diagnosis.
     </p>
+    <p className="tstrip-note">A code is a signal from the car, not a diagnosis.</p>
   </section>
 }

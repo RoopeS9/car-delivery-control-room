@@ -8,7 +8,7 @@ import {
 import type { CaseView, RecordView } from "@/lib/present/types"
 import { Icon } from "../icons"
 import { When } from "../ui"
-import { DecidedCard, DecisionCard, Sources } from "./decision-card"
+import { DecidedCard, DecisionCard, OutdatedNotice, Sources, UnknownOutcomeNotice } from "./decision-card"
 import { OPERATOR } from "./operator"
 import { TelemetryStrip } from "./telemetry-strip"
 import { Timeline } from "./timeline"
@@ -136,9 +136,11 @@ function CaseBlock({ kase, view, onChange }: { kase: CaseView; view: RecordView;
     {kase.sources.length > 0 && <p className="case-sources">Builds on: <Sources sources={kase.sources} /></p>}
     {open && view.telemetry && VEHICLE_KINDS.has(kase.kind) && <TelemetryStrip telemetry={view.telemetry} />}
 
+    {kase.unknown.map((card) => <UnknownOutcomeNotice key={card.id} card={card} nextStep={kase.nextStep} />)}
+    {open && kase.outdated.slice(-1).map((card) => <OutdatedNotice key={card.id} card={card} redrafting={kase.pending.length === 0} />)}
     {kase.pending.map((card) => <DecisionCard key={card.id} card={card} onDecided={onChange} />)}
     {awaiting.map((card) => <OutcomeBox key={card.id} kase={kase} proposalId={card.id} title={card.title} onSaved={onChange} />)}
-    {kase.pending.length === 0 && awaiting.length === 0 && kase.nextStep && open && <div className="decided-line"><Icon name="waiting" size={16} /><div><b>Next:</b> {kase.nextStep}</div></div>}
+    {kase.pending.length === 0 && awaiting.length === 0 && kase.unknown.length === 0 && kase.nextStep && open && <div className="decided-line"><Icon name="waiting" size={16} /><div><b>Next:</b> {kase.nextStep}</div></div>}
     {kase.pending.length === 0 && awaiting.length === 0 && open && <TellAgent caseId={kase.id} onSent={onChange} startOpen={kase.status === "NEEDS_DECISION"} />}
     {kase.decided.length > 0 && <div className="case-history">
       <h3>Decisions on this case</h3>

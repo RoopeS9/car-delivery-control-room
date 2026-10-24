@@ -682,6 +682,10 @@ export type DecisionCardView = {
   awaitingOutcome: boolean
   /** Something new came in from outside (driver, site, customer, car) after this card was drafted. */
   factsChanged: { at: string; what: string } | null
+  /** OUTDATED: the records the card relied on changed before it could run (PLAN 4.2b). */
+  outdated: { changed: { label: string; expected: string | null; actual: string | null }[] } | null
+  /** UNKNOWN_OUTCOME: an outside action may or may not have happened. */
+  unknownOutcome: boolean
 }
 
 export type CaseView = {
@@ -704,6 +708,9 @@ export type CaseView = {
   nextStep: string | null
   sources: SourceChip[]
   pending: DecisionCardView[]
+  /** Out-of-date cards the agent is redrafting, and actions whose outcome is unknown. */
+  outdated: DecisionCardView[]
+  unknown: DecisionCardView[]
   decided: DecisionCardView[]
 }
 

@@ -952,6 +952,17 @@ a.source:hover { border-color: var(--sand); color: var(--ink); }
 .tstrip-source { display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; font-size: 12px; color: var(--subtle); }
 .tstrip-source .stale { color: var(--orange-ink); }
 .tstrip-source .muted { color: var(--subtle); }
+.tstrip-note { margin-top: -6px; font-size: 12px; color: var(--subtle); }
 .tl-photo { display: block; width: fit-content; margin-top: 6px; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px var(--hair); }
 .tl-photo img { display: block; width: 220px; max-width: 100%; height: auto; }
 @media (prefers-reduced-motion: reduce) { .mil-flashing .mil-dot { animation: none; } }
+
+/* Card notices: out of date, outcome unknown (team Random) */
+.notice { display: flex; gap: 10px; align-items: flex-start; margin-top: 18px; padding: 14px 16px; border-radius: 12px; font-size: 14px; line-height: 1.5; }
+.notice .icon { margin-top: 3px; flex: none; }
+.notice.warn { background: var(--orange-bg); color: var(--orange-ink); }
+.notice.danger { background: var(--red-bg); color: var(--red-ink); }
+.notice b { font-weight: 600; }
+.notice p { margin-top: 4px; }
+.notice-list { margin-top: 6px; display: grid; gap: 2px; padding-left: 18px; list-style: disc; }
+.notice-list .before { text-decoration: line-through; opacity: 0.8; }
