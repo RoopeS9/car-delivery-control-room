@@ -32,7 +32,9 @@ if [ "$APP_DIR" != "$HERE" ]; then
   git -C "$APP_DIR" fetch -q "$HERE" HEAD
   git -C "$APP_DIR" checkout -q --detach FETCH_HEAD
 fi
-( cd "$APP_DIR/starter" && npm ci --no-audit --no-fund --silent && npm run -s typecheck && npm run -s build > /tmp/bahn-build.log 2>&1 ) || { tail -40 /tmp/bahn-build.log; exit 1; }
+# The previous build's generated route types would fail the typecheck after a route was removed: start clean.
+rm -rf "$APP_DIR/starter/.next/types" "$APP_DIR/starter/.next/dev/types"
+( cd "$APP_DIR/starter" && npm ci --no-audit --no-fund --silent && npm run -s typecheck && npm run -s build > /tmp/bahn-build.log 2>&1 ) || { tail -40 /tmp/bahn-build.log 2>/dev/null; exit 1; }
 systemctl --user restart "$APP_UNIT"
 for i in $(seq 1 20); do curl -sf -o /dev/null 127.0.0.1:8797/api/sim/state && break; sleep 1; done
 
