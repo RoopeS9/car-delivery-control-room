@@ -25,8 +25,8 @@ export function ActionStrip({ orderId, compact = false }: { orderId: string; com
       : <p className="as-route"><b>{strip.from}</b><Icon name="arrow" size={13} /><b>{strip.to}</b>{strip.when && <span> · {strip.when}</span>}</p>}
     {strip.actions.length > 0 && <div className="as-actions">
       {strip.actions.map((action) => action.agentMay && action.cardUrl
-        ? <button type="button" key={action.label} className="as-btn as-agent" title={`Mira, Bahn's assistant, calls ${action.who ?? "them"} on the VoiceChat line; you answer as them`}
-          onClick={() => setCall({ orderRef: strip.reference, purpose: action.purpose ?? "CALL", cardUrl: action.cardUrl, calleeName: "Mira from Bahn", purposeLabel: action.label,
+        ? <button type="button" key={action.label} className="as-btn as-agent" title={`Mira, Bahn's assistant, calls ${action.who ?? "them"} on the Road Desk line; you answer as them`}
+          onClick={() => setCall({ orderRef: strip.reference, purpose: action.purpose ?? "CALL", calleeName: "Mira from Bahn", purposeLabel: action.label,
             youAre: `You answer as ${action.who ?? "the other party"}. Mira, Bahn's assistant, is calling you.` })}>
           <Icon name="phone" size={13} />{action.label}
         </button>

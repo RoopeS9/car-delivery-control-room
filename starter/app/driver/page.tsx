@@ -41,7 +41,7 @@ export default async function DriverPage({ searchParams }: { searchParams: Searc
       <Picker drivers={drivers} current={driverId} />
       <div className="driver-stage">
         <div className={styles.phone}>{phone}</div>
-        <p className="driver-note">Call Road Desk is a live call with Road Desk&apos;s assistant on the VoiceChat line. Allow the microphone when asked.</p>
+        <p className="driver-note">Call Road Desk is a live call with Road Desk&apos;s assistant on the Road Desk line (local speech recognition, the dossier model, a synthetic voice). Allow the microphone when asked.</p>
       </div>
     </main>
   </AppFrame>

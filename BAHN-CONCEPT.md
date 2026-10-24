@@ -137,4 +137,4 @@ slots: DRIVER_SAFE=true (t2), CURRENT_LOCATION="Service area, A1 near Osnabrueck
 tool calls: ESCALATE_TO_OPERATOR(URGENT WARNING_LIGHT: DRIVER_SAFE=true, CURRENT_LOCATION="Service area, A1 near Osnabrueck...)
 
 4/4 simulated calls produced valid CallRecords.
-- The live voice line (VoiceChat llama.cpp fork, duplex phone) runs outside this repo; the app talks to it through a reverse proxy at /line/*. Without it the call screens report the line unavailable; the simulator and the dossier service still work.
+- The live voice line is the duplex phone's `roaddesk` contact, which runs outside this repo: local Whisper (WhisperLive) for the caller's speech, the dossier model (DeepSeek v4 pro over OpenRouter) holding the order's whole dossier from the call service's `/context` route, ElevenLabs for Mira's voice. The app talks to it through a reverse proxy at /line/*. Without it the call screens report the line unavailable; the simulator and the dossier service still work. VoiceChat (the full-duplex 11B model) was tried and set aside.

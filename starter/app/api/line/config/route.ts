@@ -2,8 +2,7 @@ import { NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic"
 
-/** Which phone contact places Road Desk's calls: LINE_CALLER, default roaddesk (turn-based); voicechat stays selectable. */
+/** The phone contact that places Road Desk's calls. There is one: roaddesk, the turn-based line (Whisper, the dossier model, ElevenLabs). */
 export function GET() {
-  const caller = process.env.LINE_CALLER === "voicechat" ? "voicechat" : "roaddesk"
-  return NextResponse.json({ caller, callers: ["roaddesk", "voicechat"] })
+  return NextResponse.json({ caller: "roaddesk" })
 }

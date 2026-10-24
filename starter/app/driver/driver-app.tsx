@@ -34,7 +34,7 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow, onJob }
   serverNow: string
 }) {
   const [thread, setThread] = useState<ThreadMessage[]>(initialThread)
-  // A live call on the VoiceChat line replaces the app until it ends.
+  // A live call on the Road Desk line replaces the app until it ends.
   const [calling, setCalling] = useState(false)
   const [draft, setDraft] = useState("")
   const [streaming, setStreaming] = useState<string | null>(null)
@@ -156,7 +156,7 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow, onJob }
         <b>{driver.name}</b>
         {!onJob && <Link href="/driver">Switch driver</Link>}
       </div>
-      {job && <button type="button" className={styles.callButton} onClick={() => setCalling(true)} title="A live call with Road Desk's assistant on the VoiceChat line">
+      {job && <button type="button" className={styles.callButton} onClick={() => setCalling(true)} title="A live call with Road Desk's assistant on the turn-based line">
         <PhoneIcon /> Call Road Desk
       </button>}
     </header>

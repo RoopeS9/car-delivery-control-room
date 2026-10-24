@@ -157,7 +157,6 @@ export function CallSimulator({ scenarios, stored, orderIds, callees, drivers, o
           <div className="call-run">
             {!scenario.inbound && <button type="button" className="btn" disabled={!!running || !!live} title="A live call: Mira from Bahn calls, and you answer as the desk"
               onClick={() => setLive({ orderRef: scenario.orderRef, purpose: scenario.purpose, calleeName: "Mira from Bahn", purposeLabel: words(PURPOSE_WORDS, scenario.purpose),
-                cardUrl: `http://127.0.0.1:8799/card/${scenario.orderRef}/${scenario.purpose}?by=model`,
                 youAre: `You are ${callees[scenario.id] ?? "the pickup desk"}. Mira from Bahn calls you about this collection; answer as the desk would.` })}>
               Simulate outbound call (you answer)
             </button>}

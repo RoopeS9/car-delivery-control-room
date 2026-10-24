@@ -18,7 +18,7 @@ function clock(iso: string, zone: string | null): string {
 /**
  * The operator action strip for one order: from and to with the time that
  * matters, and the calls an operator is there to make. When the agent may
- * place a call, the button opens a live call on the VoiceChat line in the app; when it may not (a
+ * place a call, the button opens a live call on the Road Desk line in the app; when it may not (a
  * customer), it leads the person to the conversation on the order page.
  */
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {

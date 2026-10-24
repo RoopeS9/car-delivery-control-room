@@ -45,7 +45,4 @@
 .cs-turn-listening i { background: var(--ink); }
 @keyframes cs-pulse { 50% { opacity: 0.3; transform: scale(0.8); } }
 @media (prefers-reduced-motion: reduce) { .cs-turn i { animation: none !important; } }
-.cs-line { display: inline-flex; margin-top: 8px; padding: 2px; border-radius: 999px; background: var(--hair-soft); }
-.cs-line button { border: 0; background: none; padding: 4px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
-.cs-line button[aria-pressed="true"] { background: var(--birch); color: var(--ink); box-shadow: 0 1px 2px var(--shadow-lift); }
 .cs-claims .slot-list li { display: grid; grid-template-columns: 1fr; gap: 1px; }

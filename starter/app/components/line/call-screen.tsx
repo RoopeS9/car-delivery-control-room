@@ -7,21 +7,21 @@ import type { CallRecord, CallReview } from "@/lib/present/call-types"
 import "./call-screen.css"
 
 // A live call inside Road Desk. Only the voice backend is shared with the phone
-// server, reached same-origin under /line/ (Caddy adds the auth). Two contacts
-// can place the call: roaddesk (turn-based: Whisper in, a model holding the
-// whole dossier, a synthetic voice out; 1.5 to 3 s to each reply) and
-// voicechat (full-duplex). Audio both ways is PCM16 mono at 24 kHz in 20 ms frames.
+// server, reached same-origin under /line/ (Caddy adds the auth). One contact
+// places every call: roaddesk, the turn-based line (local Whisper in, a model
+// holding the whole order dossier, ElevenLabs out; 1.5 to 3 s to each reply).
+// Audio both ways is PCM16 mono at 24 kHz in 20 ms frames.
 
 const LINE = "/line/api"
+const CALLER = "roaddesk"
+const CALLER_WORDS = "Road Desk line"
 const FRAME_BYTES = 960
 const SILENCE = new ArrayBuffer(FRAME_BYTES)
 const QUIET_MS = 5000
 
 type Phase = "idle" | "checking" | "composing" | "connecting" | "live" | "ending" | "ended" | "failed"
-type Caller = "roaddesk" | "voicechat"
 /** Whose turn it is, so a pause before a reply reads as thinking rather than a dropped line. */
 type Turn = "listening" | "thinking" | "speaking"
-const CALLER_WORDS: Record<Caller, string> = { roaddesk: "Road Desk line", voicechat: "VoiceChat line" }
 type Caption = { role: "model" | "user"; text: string; final: boolean; t: number }
 type Line = { t: number; role: string; text: string }
 
@@ -36,8 +36,6 @@ export type CallTarget = {
   youAre: string
   /** The call in words: "Pickup readiness", "Driver calls in". */
   purposeLabel: string
-  /** A card URL from the call service; built from orderRef and purpose when absent. */
-  cardUrl?: string | null
 }
 
 function clock(seconds: number): string {
@@ -62,16 +60,7 @@ export function CallScreen({ target, onClose, autoStart = false, onResult }: {
   const [transcript, setTranscript] = useState<Line[] | null>(null)
   const [linked, setLinked] = useState<string | null>(null)
   const [result, setResult] = useState<LiveResult | null>(null)
-  const [caller, setCaller] = useState<Caller>("roaddesk")
   const [turn, setTurn] = useState<Turn>("listening")
-  const usedCaller = useRef<Caller>("roaddesk")
-  useEffect(() => {
-    let saved: Caller | null = null
-    try { const value = sessionStorage.getItem("rd:line:caller"); if (value === "roaddesk" || value === "voicechat") saved = value } catch { /* storage unavailable */ }
-    if (saved) { setCaller(saved); return }
-    fetch("/api/line/config", { cache: "no-store" }).then((response) => response.json()).then((config: { caller?: Caller }) => { if (config.caller) setCaller(config.caller) }).catch(() => undefined)
-  }, [])
-  const chooseCaller = (value: Caller) => { setCaller(value); try { sessionStorage.setItem("rd:line:caller", value) } catch { /* storage unavailable */ } }
   const [extracting, setExtracting] = useState(false)
   const [extractError, setExtractError] = useState<string | null>(null)
   const call = useRef<{
@@ -180,7 +169,7 @@ export function CallScreen({ target, onClose, autoStart = false, onResult }: {
       const response = await fetch("/api/line/link", {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ orderRef: target.orderRef, callId: current.id, purpose: target.purpose, who: target.calleeName, duration: record?.duration ?? null,
-          started: record?.started ?? null, ended: record?.ended ?? null, transcript: record?.transcript ?? [], caller: usedCaller.current }),
+          started: record?.started ?? null, ended: record?.ended ?? null, transcript: record?.transcript ?? [], caller: CALLER }),
       })
       const linkedBody = (await response.json().catch(() => null)) as { ingested?: LiveResult | null; ingestError?: string | null } | null
       if (response.ok) setLinked(target.orderRef)
@@ -255,31 +244,26 @@ export function CallScreen({ target, onClose, autoStart = false, onResult }: {
       const book = await fetch(`${LINE}/phonebook`, { cache: "no-store" }).then((response) => response.ok ? response.json() : null) as { busy?: unknown; contacts?: { id: string; status: string; detail?: string }[] } | null
       if (!book) throw new Error("The phone line is not reachable.")
       if (book.busy) throw new Error("The line is busy with another call. Try again in a moment.")
-      usedCaller.current = caller
-      const contact = book.contacts?.find((item) => item.id === caller)
-      if (!contact) throw new Error(`The ${CALLER_WORDS[caller]} is not on the phone yet.`)
-      if (contact.status !== "awake") setStatus(`The ${CALLER_WORDS[caller]} is asleep; waking it takes a little while…`)
+      const contact = book.contacts?.find((item) => item.id === CALLER)
+      if (!contact) throw new Error(`The ${CALLER_WORDS} is not on the phone yet.`)
+      if (contact.status !== "awake") setStatus(`The ${CALLER_WORDS} is asleep; waking it takes a little while…`)
       if (!navigator.mediaDevices) throw new Error("This page cannot use the microphone (it needs https).")
       await ctx.audioWorklet.addModule("/audio/pcm-capture.js")
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } })
-      // roaddesk holds the whole dossier (/context/…, composed by the model); voicechat gets the brief (/card/…).
-      const cardUrl = caller === "roaddesk"
-        ? `http://127.0.0.1:8799/context/${target.orderRef}/${target.purpose}?by=model`
-        : target.cardUrl ?? `http://127.0.0.1:8799/card/${target.orderRef}/${target.purpose}`
-      // A model-composed card takes 5 to 10 s the first time: compose it before placing the call, and stop here if the
-      // agent may not make this call at all.
-      if (cardUrl.includes("by=model")) {
-        setPhase("composing")
-        setStatus("Composing Mira's brief…")
-        const began = Date.now()
-        const ticker = window.setInterval(() => setStatus(`Composing Mira's brief… ${Math.round((Date.now() - began) / 1000)} s`), 1000)
-        const warm = await fetch(`/api/line/warm?ref=${encodeURIComponent(target.orderRef)}&purpose=${encodeURIComponent(target.purpose)}&by=model${caller === "roaddesk" ? "&kind=context" : ""}`, { cache: "no-store" })
-        const warmed = await warm.json().catch(() => null) as { ok?: boolean; error?: string } | null
-        window.clearInterval(ticker)
-        if (!warm.ok || !warmed?.ok) { stream.getTracks().forEach((track) => track.stop()); throw new Error(warmed?.error ? `No call: ${warmed.error}.` : "Mira's brief could not be composed.") }
-        setStatus("Connecting…")
-      }
-      const response = await fetch(`${LINE}/calls`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caller_id: caller, card_url: cardUrl }) })
+      // The line's system prompt: the model-composed brief plus the whole dossier (/context/…), fetched by the phone
+      // server from the call service. Composing takes 5 to 10 s the first time, so it is warmed before the call is placed,
+      // which also stops here when the agent may not make this call at all.
+      const cardUrl = `http://127.0.0.1:8799/context/${target.orderRef}/${target.purpose}?by=model`
+      setPhase("composing")
+      setStatus("Composing Mira's brief…")
+      const began = Date.now()
+      const ticker = window.setInterval(() => setStatus(`Composing Mira's brief… ${Math.round((Date.now() - began) / 1000)} s`), 1000)
+      const warm = await fetch(`/api/line/warm?ref=${encodeURIComponent(target.orderRef)}&purpose=${encodeURIComponent(target.purpose)}`, { cache: "no-store" })
+      const warmed = await warm.json().catch(() => null) as { ok?: boolean; error?: string } | null
+      window.clearInterval(ticker)
+      if (!warm.ok || !warmed?.ok) { stream.getTracks().forEach((track) => track.stop()); throw new Error(warmed?.error ? `No call: ${warmed.error}.` : "Mira's brief could not be composed.") }
+      setStatus("Connecting…")
+      const response = await fetch(`${LINE}/calls`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caller_id: CALLER, card_url: cardUrl }) })
       if (!response.ok) { stream.getTracks().forEach((track) => track.stop()); throw new Error(response.status === 409 ? "The line is busy with another call." : `The line refused the call (${response.status}).`) }
       const placed = (await response.json()) as { call_id: string; ws: string; name?: string }
       const node = new AudioWorkletNode(ctx, "pcm-capture")
@@ -312,7 +296,7 @@ export function CallScreen({ target, onClose, autoStart = false, onResult }: {
       setPhase("failed")
       setStatus(error instanceof Error ? (error.name === "NotAllowedError" ? "The microphone was not allowed. Allow it in the browser and try again." : error.message) : "The call could not start.")
     }
-  }, [target, openSocket, finish, caller])
+  }, [target, openSocket, finish])
 
   const hangUp = useCallback(async () => {
     const current = call.current
@@ -346,9 +330,6 @@ export function CallScreen({ target, onClose, autoStart = false, onResult }: {
       <span className="cs-status">{phase === "live" && startedAt ? clock((Date.now() - startedAt) / 1000) : status || (phase === "idle" ? "Ready to call" : "")}</span>
       {phase === "live" && <span className={`cs-turn cs-turn-${turn}`} aria-live="polite"><i aria-hidden="true" />{turn === "speaking" ? `${target.calleeName.split(" ")[0]} is speaking` : turn === "thinking" ? "Thinking…" : "Listening"}</span>}
       {phase === "live" && status && <span className="cs-note">{status}</span>}
-      {(phase === "idle" || phase === "failed") && <span className="cs-line" role="group" aria-label="Which line places the call">
-        {(["roaddesk", "voicechat"] as Caller[]).map((value) => <button key={value} type="button" aria-pressed={caller === value} onClick={() => chooseCaller(value)}>{value === "roaddesk" ? "Road Desk (turn-based)" : "VoiceChat (full-duplex)"}</button>)}
-      </span>}
     </header>
 
     {phase !== "ended" && <div className="cs-captions" aria-label="Live captions">
@@ -366,7 +347,7 @@ export function CallScreen({ target, onClose, autoStart = false, onResult }: {
       {transcript && transcript.length > 0 ? <ol>{transcript.map((line, index) => <li key={index} className={`cs-${line.role === "model" ? "model" : "user"}`}>
         <small>{clock(line.t)}</small><span>{line.text}</span>
       </li>)}</ol> : <p className="cs-hint">The phone recorded no words for this call.</p>}
-      <p className="cs-fine">Transcript of the {CALLER_WORDS[usedCaller.current]}&apos;s recording. A spoken answer is a claim, not a scan or a signed record.</p>
+      <p className="cs-fine">Transcript of the {CALLER_WORDS}&apos;s recording. A spoken answer is a claim, not a scan or a signed record.</p>
     </div>}
 
     <footer className="cs-controls">

@@ -18,7 +18,6 @@ export function DealerDesk({ site, collections, asks, callable }: {
     reference: item.reference,
     target: {
       orderRef: item.reference, purpose: "PICKUP_READINESS", calleeName: "Mira from Bahn", purposeLabel: "Pickup readiness",
-      cardUrl: `http://127.0.0.1:8799/card/${item.reference}/PICKUP_READINESS?by=model`,
       youAre: `You are the desk at ${site.name}. Mira from Bahn is calling about the ${item.vehicle}${item.slot ? ` collected ${item.slot}` : ""}. Answer as the desk would.`,
     },
   }) }

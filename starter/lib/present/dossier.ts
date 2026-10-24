@@ -225,7 +225,7 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
     behind.push(item)
     recent.push({ id: item.id, at: call.startedAt, text: `${call.driverName} on a call: ${call.directionLabel.toLowerCase()}${call.urgencyLabel ? `, ${call.urgencyLabel.toLowerCase()}` : ""}` })
   }
-  // Live calls on the VoiceChat line, linked by the in-app call screen with the phone's transcript. When the call
+  // Live calls on the Road Desk line, linked by the in-app call screen with the phone's transcript. When the call
   // service read the transcript, the line shows its claims and review; that record is not listed twice.
   const ingestedIds = new Set<string>()
   for (const event of bundle.cr.events) {
@@ -236,7 +236,7 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
     const who = typeof data.who === "string" ? data.who : "the other party"
     const seconds = typeof data.duration_s === "number" ? data.duration_s : null
     const inbound = data.purpose === "DRIVER_INBOUND"
-    const line = data.caller === "voicechat" ? "VoiceChat line" : data.caller === "roaddesk" ? "Road Desk line" : "VoiceChat line"
+    const line = data.caller === "voicechat" ? "VoiceChat line (retired)" : "Road Desk line"
     const title = `${inbound ? "Driver called Road Desk" : `Live call: ${labelIn(String(data.purpose ?? "call")).toLowerCase()}`} on the ${line}${seconds != null ? `, ${Math.max(1, Math.round(seconds / 60))} min` : ""}`
     const ingested = typeof data.ingested_call_id === "string" ? robo.find((call) => call.id === data.ingested_call_id) ?? null : null
     if (typeof data.ingested_call_id === "string") ingestedIds.add(data.ingested_call_id)
