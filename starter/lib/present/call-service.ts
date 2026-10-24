@@ -31,11 +31,11 @@ export function serviceDossier(reference: string): Promise<ServiceDossier | null
   return get<ServiceDossier>(`/dossier/${encodeURIComponent(reference)}`, 1500)
 }
 
-/** Runs one simulated call. It can take a while: the service plays both sides. */
-export async function runCall(personaId: string): Promise<{ ok: true; call: CallRecord } | { ok: false; error: string }> {
+/** Runs one simulated call. The model plays both sides from the dossier by default (20 to 60 s); `scripted` is the fast rule-based run. */
+export async function runCall(personaId: string, mode?: "llm" | "scripted"): Promise<{ ok: true; call: CallRecord } | { ok: false; error: string }> {
   try {
     const response = await fetch(`${BASE}/calls/run`, {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ personaId }),
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(mode ? { personaId, mode } : { personaId }),
       cache: "no-store", signal: AbortSignal.timeout(180_000),
     })
     const text = await response.text()

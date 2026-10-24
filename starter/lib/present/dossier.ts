@@ -431,7 +431,7 @@ function roboCallItem(call: CallRecord): DossierItem {
     id: `robo-${call.id}`, at: call.startedAt, kind: "call",
     title: `${inbound ? `${callee} called in` : `Robo-call to ${callee}`}${purpose ? ` (${purpose})` : ""}${triage?.urgency ? `, ${String(triage.urgency).toLowerCase()}` : ""}: ${outcome}`,
     detail: call.retryAfter ? `Tries again ${call.retryAfter.slice(11, 16)} UTC.` : null,
-    strength: "recorded", source: "Simulated call, transcript", tone: escalation ? "danger" : call.outcome === "COMPLETED" ? "ok" : "warn",
+    strength: "recorded", source: call.engine === "SIMULATED_LLM" ? "Model-simulated call, transcript" : "Scripted simulated call, transcript", tone: escalation ? "danger" : call.outcome === "COMPLETED" ? "ok" : "warn",
     turns: call.turns.map((turn) => ({ speaker: speaker(turn), text: turn.text, at: turn.startedAt })),
     slots: call.slots.map((slot) => ({ label: slotLabel(slot.value.slot), value: slotValue(slot.value.value), quote: slot.quote, turn: slot.turnSeq })),
     missing, escalated: escalation ? readToolArgument(escalation.argument) : null,

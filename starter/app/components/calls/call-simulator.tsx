@@ -33,6 +33,15 @@ export function CallSimulator({ scenarios, stored, orderIds, callees, drivers, o
   const [shown, setShown] = useState<Record<string, string>>({})
   const [fresh, setFresh] = useState<string | null>(null)
   const [live, setLive] = useState<CallTarget | null>(null)
+  // The model plays both sides by default (20 to 60 s); the scripted run is quick.
+  const [mode, setMode] = useState<"llm" | "scripted">("llm")
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    if (!running) { setElapsed(0); return }
+    const started = Date.now()
+    const timer = setInterval(() => setElapsed(Math.round((Date.now() - started) / 1000)), 1000)
+    return () => clearInterval(timer)
+  }, [running])
   // The chosen scenario survives switching roles and back.
   useEffect(() => { const saved = recall<string>("calls:selected"); if (saved && scenarios?.some((item) => item.id === saved)) setSelected(saved) }, [scenarios])
   useEffect(() => { if (selected) remember("calls:selected", selected) }, [selected])
@@ -45,7 +54,7 @@ export function CallSimulator({ scenarios, stored, orderIds, callees, drivers, o
     setRunning(item.id)
     setError(null)
     try {
-      const response = await fetch("/api/calls/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ personaId: item.id }) })
+      const response = await fetch("/api/calls/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ personaId: item.id, mode }) })
       const body = (await response.json()) as CallRecord | { error: string }
       if (!response.ok || "error" in body) throw new Error("error" in body ? body.error : "The call did not run.")
       setCalls((current) => ({ ...current, [item.orderRef]: [body, ...(current[item.orderRef] ?? []).filter((known) => known.id !== body.id)] }))
@@ -111,13 +120,20 @@ export function CallSimulator({ scenarios, stored, orderIds, callees, drivers, o
           <div className="call-run">
             {!scenario.inbound && <button type="button" className="btn" disabled={!!running || !!live} title="A live call: Mira from Bahn calls, and you answer as the desk"
               onClick={() => setLive({ orderRef: scenario.orderRef, purpose: scenario.purpose, calleeName: "Mira from Bahn", purposeLabel: words(PURPOSE_WORDS, scenario.purpose),
+                cardUrl: `http://127.0.0.1:8799/card/${scenario.orderRef}/${scenario.purpose}?by=model`,
                 youAre: `You are ${callees[scenario.id] ?? "the pickup desk"}. Mira from Bahn calls you about this collection; answer as the desk would.` })}>
               Simulate outbound call (you answer)
             </button>}
+            <div className="call-mode" role="group" aria-label="How both sides are played">
+              <button type="button" aria-pressed={mode === "llm"} onClick={() => setMode("llm")} disabled={!!running}>Model</button>
+              <button type="button" aria-pressed={mode === "scripted"} onClick={() => setMode("scripted")} disabled={!!running}>Scripted</button>
+            </div>
             <button type="button" className="btn primary" onClick={() => void run(scenario)} disabled={!!running} aria-busy={running === scenario.id}>
               {running === scenario.id ? <><span className="spinner" aria-hidden="true" />Simulating…</> : "Simulate call"}
             </button>
-            {running === scenario.id && <span className="call-running" aria-live="polite">Calling {callees[scenario.id] ?? "the other party"}</span>}
+            {running === scenario.id && <span className="call-running" aria-live="polite">
+              {scenario.inbound ? `${callees[scenario.id] ?? "The driver"} is talking to Road Desk…` : `Mira is talking to ${callees[scenario.id] ?? "the other party"}…`} {elapsed}s{mode === "llm" ? " · the model plays both sides; this takes 20 to 60 s" : ""}
+            </span>}
             {error && <span className="call-error" role="alert">{error}</span>}
           </div>
         </div>
@@ -151,7 +167,7 @@ function CallRecordView({ call }: { call: CallRecord }) {
     <div className="call-facts">
       <span className={`chip tone-${call.outcome === "COMPLETED" ? "ok" : call.outcome === "ESCALATED" ? "danger" : "warn"}`}>{labelIn(call.outcome)}</span>
       {triage && <span className={`chip triage triage-${String(triage.urgency ?? "").toLowerCase()}`}>Triage: {labelIn(String(triage.urgency ?? "unknown"))}{triage.situation ? `, ${labelIn(String(triage.situation)).toLowerCase()}` : ""}</span>}
-      <span className="calls-quiet">{fmtDateTime(call.startedAt)}{call.endedAt ? ` to ${fmtDateTime(call.endedAt).split(" ").slice(-2).join(" ")}` : ""} · {call.engine === "SIMULATED" ? "simulated call" : "call"} · attempt {call.attempt ?? 1}</span>
+      <span className="calls-quiet">{fmtDateTime(call.startedAt)}{call.endedAt ? ` to ${fmtDateTime(call.endedAt).split(" ").slice(-2).join(" ")}` : ""} · {call.engine === "SIMULATED_LLM" ? "Model-simulated" : call.engine === "SIMULATED" ? "Scripted" : "Call"} · attempt {call.attempt ?? 1}</span>
     </div>
     {triage?.quote && <p className="call-quote">Triage rests on turn {String(triage.turnSeq ?? "")}: <q>{String(triage.quote)}</q></p>}
 
@@ -187,7 +203,7 @@ function CallRecordView({ call }: { call: CallRecord }) {
           </li>)}</ul>
         </>}
         {call.brief && <details className="call-brief">
-          <summary>The brief the caller was given</summary>
+          <summary>The brief the caller was given{call.engine === "SIMULATED_LLM" ? " (composed by the model)" : ""}</summary>
           {call.brief.mayState?.length ? <><h4>May say</h4><ul>{call.brief.mayState.map((line) => <li key={line}>{line}</li>)}</ul></> : null}
           {call.brief.mustNot?.length ? <><h4>Must not</h4><p>{call.brief.mustNot.map((code) => labelIn(code).toLowerCase()).join(", ")}</p></> : null}
         </details>}
