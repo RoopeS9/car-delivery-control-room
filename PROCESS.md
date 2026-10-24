@@ -821,7 +821,7 @@ Got: merged stream C's branch (scenarios B–F, driver app, site chat) into B's,
 set up Postgres and the app, and ran all five scenarios through the browser
 with the real agent: queue, case page, every decision button, the Ask box, map
 and agent page, in light and dark mode and at 390 px. Typecheck, 65 tests
-(7 new in B's folders, 1 new gate test), production build and smoke pass.
+(11 new in B's folders, 1 new gate test), production build and smoke pass.
 Eight problems found, all fixed and shown in the browser:
 
 - **The control room showed a frozen world.** The simulator moves only when
