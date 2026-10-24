@@ -804,3 +804,35 @@ export type MapView = {
   unplaced: { orderId: string; reference: string; vehicle: string; route: string }[]
   staleAfterMinutes: number
 }
+
+// ---------------------------------------------------------------- agent page
+
+/** A run of text in a playbook line. Tool names and codes are already in plain words. */
+export type InlineRun = { text: string; bold?: boolean; italic?: boolean; term?: boolean }
+export type PlaybookBlock =
+  | { type: "h2"; text: string }
+  | { type: "p"; runs: InlineRun[] }
+  | { type: "ol" | "ul"; items: InlineRun[][] }
+
+export type PlaybookView = { slug: string; title: string; intro: string | null; blocks: PlaybookBlock[] }
+
+export type AutonomyView = {
+  actionType: string
+  label: string
+  meaning: string
+  level: string
+  levelLabel: string
+  locked: boolean
+  updatedBy: string | null
+  updatedAt: string | null
+}
+
+export type ActivityView = { id: string; at: string; orderId: string; reference: string; text: string; kind: string; channelLabel: string | null }
+
+export type AgentPageView = {
+  simNow: string
+  playbooks: PlaybookView[]
+  autonomy: AutonomyView[]
+  activity: ActivityView[]
+  runs: { count: number; toolCalls: number; costUsd: number | null; lastAt: string | null }
+}

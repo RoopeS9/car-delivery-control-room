@@ -846,3 +846,61 @@ a.source:hover { border-color: var(--sand); color: var(--ink); }
   .map-canvas { height: 62dvh; }
   .map-side { border-left: 0; border-top: 1px solid var(--hair); }
 }
+
+/* ── Agent page (team Random) ──────────────────────────────────────────── */
+.agent-page { max-width: 1040px; }
+.agent-head h1 { font-family: var(--font-display); font-weight: 600; font-size: 28px; letter-spacing: -0.02em; line-height: 1.1; }
+.agent-head p { margin-top: 10px; font-size: 15.5px; color: var(--brown); max-width: 68ch; }
+.agent-rules { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 26px; }
+.rule-col { padding: 16px 18px; border-radius: var(--radius-lg); background: var(--canvas); }
+.rule-col h2 { display: flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 600; }
+.rule-col h2 .icon { color: var(--green-ink); }
+.rule-col:nth-child(2) h2 .icon { color: var(--teal-ink); }
+.rule-col.never h2 .icon { color: var(--red-ink); }
+.rule-col ul { margin-top: 10px; display: grid; gap: 6px; font-size: 13.5px; color: var(--brown); }
+.rule-col li { padding-left: 12px; position: relative; }
+.rule-col li::before { content: ""; position: absolute; left: 0; top: 0.6em; width: 4px; height: 4px; border-radius: 50%; background: var(--subtle); }
+.autonomy { display: grid; }
+.autonomy-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 20px; align-items: center; padding: 12px 0; border-top: 1px solid var(--hair-soft); }
+.autonomy-row:first-child { border-top: 0; }
+.autonomy-main b { display: block; font-size: 14.5px; font-weight: 500; }
+.autonomy-main small { display: block; margin-top: 1px; font-size: 12.5px; color: var(--muted); }
+.autonomy-level { display: grid; justify-items: end; gap: 4px; }
+.levels { display: inline-flex; padding: 2px; border-radius: 999px; background: var(--canvas); }
+.level { padding: 4px 11px; border-radius: 999px; font-size: 12px; color: var(--subtle); white-space: nowrap; }
+.level.on { background: var(--birch); color: var(--ink); font-weight: 500; box-shadow: 0 0 0 1px var(--hair), 0 1px 2px var(--shadow-soft); }
+.locked { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
+.activity { display: grid; }
+.activity-row { display: grid; grid-template-columns: 48px 96px minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--hair-soft); font-size: 13.5px; }
+.activity-row:first-child { border-top: 0; }
+.activity-row time { font-size: 12.5px; color: var(--subtle); font-variant-numeric: tabular-nums; }
+.activity-row .ref-link { justify-self: start; }
+.activity-text { color: var(--ink); }
+.activity-text small { color: var(--subtle); font-size: 12px; }
+.activity-row.kind-safety .activity-text { color: var(--red-ink); }
+.activity-row.kind-lookup .activity-text { color: var(--muted); }
+.rulebook { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 28px; align-items: start; }
+.rulebook-nav { position: sticky; top: 16px; display: grid; gap: 2px; }
+.rulebook-nav a { padding: 7px 10px; border-radius: 8px; font-size: 13.5px; color: var(--brown); text-decoration: none; }
+.rulebook-nav a:hover { background: var(--canvas); color: var(--ink); }
+.rulebook-nav a.on { background: var(--hair-soft); color: var(--ink); font-weight: 500; }
+.playbook { max-width: 72ch; }
+.playbook h3 { font-family: var(--font-display); font-weight: 600; font-size: 22px; letter-spacing: -0.015em; }
+.playbook-intro { margin-top: 8px; font-size: 15px; color: var(--brown); }
+.playbook h4 { margin: 22px 0 6px; font-size: 14px; font-weight: 600; }
+.playbook p { margin-top: 6px; font-size: 14px; line-height: 1.6; color: var(--ink); }
+.playbook .pb-ol, .playbook .pb-ul { display: grid; gap: 6px; margin-top: 6px; padding-left: 22px; font-size: 14px; line-height: 1.55; }
+.playbook .pb-ol { list-style: decimal; }
+.playbook .pb-ul { list-style: disc; }
+.playbook li::marker { color: var(--subtle); }
+.playbook b { font-weight: 600; }
+.term { padding: 0 3px; border-radius: 4px; background: var(--canvas); font-size: 0.95em; color: var(--teal-ink); white-space: nowrap; }
+@media (max-width: 900px) {
+  .agent-rules { grid-template-columns: 1fr; }
+  .autonomy-row { grid-template-columns: 1fr; }
+  .autonomy-level { justify-items: start; }
+  .activity-row { grid-template-columns: 44px minmax(0, 1fr); }
+  .activity-text { grid-column: 1 / -1; }
+  .rulebook { grid-template-columns: 1fr; }
+  .rulebook-nav { position: static; display: flex; flex-wrap: wrap; }
+}
