@@ -194,7 +194,7 @@ ul, ol { padding: 0; list-style: none; }
 .app-rail:not(.rail-open) .nav-sub .icon { display: inline; width: 13px; height: 13px; }
 .app-rail:not(.rail-open) .nav-count { position: absolute; top: 1px; right: 3px; margin: 0; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--hair-soft); font-size: 10.5px; line-height: 17px; text-align: center; }
 .app-rail:not(.rail-open) .nav-count.hot { background: var(--red); color: #fff; }
-.app-rail:not(.rail-open) .sidebar-foot { padding: 0; display: flex; justify-content: center; }
+.app-rail:not(.rail-open) .sidebar-foot { padding: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .app-rail:not(.rail-open) .theme-toggle { margin: 0; padding: 6px; }
 .app-rail.rail-open .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 320px; padding: 20px 14px 18px; overflow-y: auto; box-shadow: 0 0 0 1px var(--hair), 0 12px 40px var(--shadow-lift); }
 .rail-scrim { position: fixed; inset: 0; z-index: 1090; border: 0; padding: 0; background: rgba(18, 17, 14, 0.18); cursor: default; }

@@ -195,7 +195,7 @@ export function ChartHome({ initial }: { initial: ChartView }) {
     tiles.current?.marks.remove()
     tiles.current = {
       base: leaflet.tileLayer(TILES[theme], { attribution: ATTRIBUTION, maxZoom: 16, maxNativeZoom: 16 }).addTo(map.current),
-      marks: leaflet.tileLayer(TILES.seamarks, { minZoom: 9, maxZoom: 16, opacity: 0.35 }).addTo(map.current),
+      marks: leaflet.tileLayer(TILES.seamarks, { minZoom: 9, maxZoom: 16, opacity: 0.22, className: "seamarks" }).addTo(map.current),
     }
   }, [ready, theme])
 

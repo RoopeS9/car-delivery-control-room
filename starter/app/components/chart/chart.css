@@ -11,7 +11,7 @@
   --c-soft: var(--brown);
   --c-quiet: var(--subtle);
   --c-fine: var(--brown);
-  --c-decide: var(--red);
+  --c-decide: color-mix(in srgb, var(--red) 88%, var(--brown));
   --c-agent: var(--teal);
   --c-waiting: var(--orange);
   --c-ok: var(--green);
@@ -103,11 +103,11 @@
 .v-stale path, .v-stale circle { fill: transparent; stroke: var(--c-fine); stroke-width: 1.6; }
 .v-stale.v-decide path, .v-stale.v-decide circle { stroke: var(--c-decide); }
 .v-sel::after, .b-sel::after { content: ""; position: absolute; inset: -6px; border: 1.5px solid var(--c-ink); border-radius: 50%; }
-.v-label { position: absolute; left: 25px; top: 5px; font-family: var(--font-mono); font-size: 11px; color: var(--brown); white-space: nowrap;
+.v-label { position: absolute; left: 25px; top: 5px; font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap;
   text-shadow: 0 0 3px var(--c-glow), 0 0 3px var(--c-glow); display: none; pointer-events: none; }
 .z-high .v-label, .v-decide .v-label, .v-sel .v-label { display: block; }
 .z-low .v-decide .v-label { display: none; }
-.b { position: relative; display: block; width: 100%; height: 100%; border-radius: 50%; background: var(--c-berth); box-shadow: 0 0 0 1.5px var(--c-glow); }
+.b { position: relative; display: block; width: 100%; height: 100%; border-radius: 50%; background: var(--c-berth); box-shadow: 0 0 0 1.5px var(--birch), 0 1px 2px var(--shadow-lift); }
 .b-decide { background: var(--c-decide); }
 .b-agent { background: var(--c-agent); }
 .b-waiting { background: var(--c-waiting); }
@@ -119,12 +119,12 @@
 .hb i { position: absolute; top: -5px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--c-decide); color: #fff;
   font-style: normal; font-size: 10.5px; font-weight: 600; line-height: 16px; text-align: center; }
 .pt { display: block; position: relative; }
-.pt-terminal { width: 22px; height: 22px; border-radius: 5px; background: var(--c-panel); box-shadow: inset 0 0 0 1px var(--c-port); }
-.pt-terminal svg { width: 16px; height: 16px; margin: 3px; fill: none; stroke: var(--c-port); stroke-width: 1.4; stroke-linecap: round; }
+.pt-terminal { width: 22px; height: 22px; border-radius: 7px; background: var(--birch); box-shadow: 0 0 0 1px var(--hair), 0 1px 2px var(--shadow-soft); }
+.pt-terminal svg { width: 16px; height: 16px; margin: 3px; fill: none; stroke: var(--muted); stroke-width: 1.4; stroke-linecap: round; }
 .pt-label { position: absolute; left: 27px; top: 3px; white-space: nowrap; font-size: 12px; color: var(--brown);
   text-shadow: 0 0 3px var(--c-glow), 0 0 3px var(--c-glow); pointer-events: none; }
 .z-low .pt-label { display: none; }
-.pt-dealer, .pt-yard { width: 8px; height: 8px; border: 1.2px solid var(--c-port); background: var(--c-bg); opacity: 0.8; }
+.pt-dealer, .pt-yard { width: 7px; height: 7px; border: 1px solid var(--sand); background: var(--birch); border-radius: 2px; }
 .pt-yard { transform: rotate(45deg); }
 .z-low .pt-dealer, .z-low .pt-yard { display: none; }
 
@@ -350,3 +350,6 @@
 .fault-codes small { color: var(--muted); }
 .fault-line { color: var(--brown); }
 .fault-note { font-size: 12px; color: var(--subtle); }
+
+/* Seamarks are a texture, not information: kept faint and desaturated. */
+.seamarks { filter: grayscale(1); }
