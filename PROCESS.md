@@ -260,3 +260,54 @@ Checked / changed / rejected:
   converter") in the latency test: the interviewer prompt must hold to
   safety-only advice.
 
+## 2026-10-24 ~14:15 UTC · Claude Code (stream A agent) · M1 acceptance tests
+
+Asked: prove in code that customer contact cannot happen without approval
+(M1), and get scenario A ready to run end to end.
+
+Got: `npm test` with 30 tests. `gate.test.ts` covers the approval rules against
+the real database, no model needed. `loop.test.ts` covers the loop wiring,
+using a scripted stand-in for the model. `npm run agent:scenario-a` runs
+scenario A with the real model, a rule-based driver and the operator's "I'll
+handle it", and saves every run plus a readable `timeline.md` under `traces/`.
+The dashboard photo in the fixture is drawn with code, not photographed.
+
+Checked / changed / rejected:
+- The customer rule is tested the hard way. AUTO is written straight into the
+  autonomy table, past `setAutonomy`'s own check, and the proposal still waits.
+  Neither the agent nor an operator can execute it while it is pending. After
+  approval it runs once, attributed to the operator, and a second click gets
+  409 and changes nothing.
+- The loop tests failed on the first run. It was not the code: open cases left
+  over from my manual stub-mode calls were being reused, which is correct
+  behaviour. I moved the loop tests to a quiet order (CD-420366) that no demo
+  scenario uses, and clear it first, rather than wiping the whole table under
+  teammates.
+- Did not mock the model inside the real loop. The test hook only swaps the
+  client, so the prompts, gates and delivery code that run are the real ones.
+- Still open: a real-model run and its trace. `OPENROUTER_API_KEY` is not
+  visible to this session.
+
+## 2026-10-24 ~14:40 UTC · Claude Code (stream A agent) · plan re-check, out-of-date cards
+
+Asked: pull, re-read PLAN.md 4.2–4.2c and 6, push the contract and channel
+stubs first, then continue toward M1 (telemetry trigger, 4.2b decisions).
+
+Got: main had nothing newer than the plan already merged. Checked the plan
+line by line against what is built: contract and stub routes were already
+pushed and both other streams had merged them and built against them (B's case
+panel calls the routes; C's simulator posts to `/api/agent/telemetry`).
+Neither touched stream A's folders. Built the one missing 4.2b item: "Facts
+changed since this was drafted". `GET /api/cases/{id}` lists out-of-date cards,
+and `POST …/proposals/{id}/refresh` sets one aside and has the agent draft a
+fresh one.
+
+Checked / changed / rejected:
+- Only outside facts count as "changed" (driver, site, customer, car, phone).
+  The agent's own notes and operators' actions do not, or every card would be
+  stale the moment the agent logs anything. A test covers both sides.
+- Refresh is refused (409) when nothing new came in, so it cannot be used to
+  silently discard a card.
+- Still blocked: the real-model M1 trace. `OPENROUTER_API_KEY` is not visible
+  in this session.
+

@@ -176,6 +176,25 @@ export async function transitionProposal(
   return row ?? null
 }
 
+/** Who brings new facts to a case. Our own agent's and operators' events do not count. */
+const OUTSIDE_ACTORS = ["driver", "site", "customer", "obd", "phone"] as const
+
+/**
+ * Pending proposals drafted before something new came in from outside (a
+ * driver or site message, a photo, new telemetry): the card may be out of
+ * date ("Facts changed since this was drafted", PLAN.md 4.2b). Returns the
+ * proposal ids, each with the time of the newest such event.
+ */
+export async function proposalsWithChangedFacts(caseId: string): Promise<{ proposalId: string; changedAt: Date }[]> {
+  const pending = await listProposals({ caseId, statuses: ["PENDING"] })
+  if (pending.length === 0) return []
+  const [latest] = await crDb().select({ at: crEvents.at }).from(crEvents)
+    .where(and(eq(crEvents.caseId, caseId), inArray(crEvents.actorType, [...OUTSIDE_ACTORS])))
+    .orderBy(desc(crEvents.at)).limit(1)
+  if (!latest) return []
+  return pending.filter((proposal) => latest.at > proposal.createdAt).map((proposal) => ({ proposalId: proposal.id, changedAt: latest.at }))
+}
+
 // ---------------------------------------------------------------- telemetry
 
 export async function insertTelemetry(rows: (Omit<NewTelemetry, "id" | "at"> & { at?: Date })[]): Promise<TelemetryRow[]> {
