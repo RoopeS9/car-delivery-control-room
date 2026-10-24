@@ -18,7 +18,7 @@ import { clearDemoData } from "./routine"
 import { resetSimDriver } from "./sim-driver"
 import { activeFaults, syncTelemetry } from "./sync"
 
-export type ScenarioName = "warning-light-584" | "catch-up-322" | "driver-keys-145" | "site-eta-442" | "driver-silent-537" | "reset"
+export type ScenarioName = "warning-light-584" | "catch-up-322" | "driver-keys-145" | "site-eta-442" | "driver-silent-537" | "sensor-light-439" | "reset"
 
 export type ScenarioInfo = {
   name: ScenarioName
@@ -70,6 +70,14 @@ export const SCENARIOS: ScenarioInfo[] = [
     links: [{ label: "William Mervalen's driver app (do not answer)", href: "/driver?driver=drv-250" }],
   },
   {
+    name: "sensor-light-439",
+    title: "G. A light that is usually not critical",
+    orderRef: "CD-420439",
+    description: "The Ferrari on its way to Lahti reports P0135 (oxygen sensor heater) with a steady check-engine light, and the driver asks what it means. " +
+      "A monitor-level code: on chat the agent may explain it and ask a few diagnostic questions, but an operator still confirms whether the driver continues.",
+    links: [{ label: "Karin Calverick's driver app", href: "/driver?driver=drv-231" }],
+  },
+  {
     name: "reset",
     title: "Reset the demo",
     orderRef: null,
@@ -116,6 +124,7 @@ async function prepareScenario(name: string, origin: string, options: { keepRout
     case "site-eta-442": return siteWrites("site-eta-442", "CD-420442", "PICKUP",
       "Hi, this is Uma at the Orvendin Cars desk. Is your driver still coming tomorrow morning for the Bentley?")
     case "driver-silent-537": return driverSilent537(origin)
+    case "sensor-light-439": return sensorLight439()
     default: return { ok: false, name: name as ScenarioName, message: `There is no scenario called "${name}".` }
   }
 }
@@ -230,6 +239,36 @@ async function driverSilent537(origin: string): Promise<ScenarioResult> {
     ok: true, name, orderId: car.orderId, eventId: event.id,
     message: "CD-420537: coolant climbing. In 90 s of sim time the dongle sets P0217 and the agent contacts the driver; a minute later the dongle goes quiet. " +
       "Do not answer as the driver. Jump the clock to pass the reply deadline.",
+  }
+}
+
+// ---------------------------------------------------------------- G: a monitor-level code
+
+async function sensorLight439(): Promise<ScenarioResult> {
+  const name = "sensor-light-439"
+  const car = await fleetCar("CD-420439")
+  if (!car) return { ok: false, name, message: "CD-420439 is not moving in this dataset." }
+  const now = simNow()
+  await syncTelemetry(now)
+  const motion = baseMotion(car, now)
+  if (motion.state !== "DRIVING") return { ok: false, name, message: `CD-420439 is not on the road at this sim time (${motion.placeLabel}). Reset the demo first.` }
+  // One dongle reading with the code; this car has no dongle stream, so it stays the latest reading.
+  const codes = ["P0135"]
+  const [snapshot] = await insertTelemetry([{
+    orderId: car.orderId, vehicleId: car.vehicleId, source: "OBD", at: now, simulated: true,
+    data: { speed_kmh: motion.speedKmh, engine_on: true, mil: "ON", dtcs: codes, freeze_frame: { code: codes[0], at: now.toISOString(), values: { speed_kmh: motion.speedKmh } } },
+  }])
+  const event = await appendEvent({
+    caseId: null, orderId: car.orderId, at: now, actorType: "obd", actorId: `obd-${car.vehicleId}`, kind: "dtc", channel: "telemetry",
+    body: `Check-engine light on, steady. New trouble code ${codes[0]} (oxygen sensor heater).`,
+    data: { codes, mil: "ON", telemetry_id: snapshot.id, simulated: true },
+    sourceRefs: [{ kind: "cr_telemetry", id: snapshot.id, label: "OBD dongle (simulated)", at: now.toISOString() }],
+  })
+  const text = "The orange engine light just came on and it stays on. The car seems to drive normally. What does it mean?"
+  return {
+    ok: true, name, orderId: car.orderId, eventId: event.id,
+    message: `${car.driverName} on CD-420439: steady check-engine light, P0135. They write: "${text}"`,
+    actions: [{ kind: "driver_message", request: { orderRef: car.reference, driverId: car.driverId, text, mode: "chat" } }],
   }
 }
 

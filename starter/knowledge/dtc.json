@@ -1,50 +1,792 @@
 {
   "_about": "Illustrative guidance for the Road Desk agent, not workshop advice. A trouble code is a signal from the car's computer, not a diagnosis. The agent uses this to decide what to ask the driver and how urgent the case is; the car owner (the customer) decides repairs and recovery. Severity: STOP_NOW = stop as soon as it is safe and do not drive on; DRIVE_TO_SAFE_STOP = leave the motorway at the next safe place and wait for an operator; CONTINUE_AND_MONITOR = an operator may clear the driver to continue carefully. Standard OBD2 codes say little about electric drive systems; most EV faults are manufacturer-specific.",
   "codes": [
-    { "code": "P0300", "title": "Random or multiple cylinder misfire", "system": "Ignition / engine", "severity": "STOP_NOW", "drivability": "Do not drive on if the check-engine light is flashing. Unburnt fuel can overheat and damage the catalytic converter within minutes.", "common_causes": ["Ignition coils or spark plugs", "Fuel delivery fault", "Vacuum leak", "Low compression"], "questions_for_driver": ["Is the check-engine light flashing or steady?", "Does the car shake or lose power when you accelerate?", "Any smell of fuel or burning?"], "ev_relevant": false, "note": "Severity drops to DRIVE_TO_SAFE_STOP if the light is steady and the car runs smoothly." },
-    { "code": "P0301", "title": "Cylinder 1 misfire detected", "system": "Ignition / engine", "severity": "STOP_NOW", "drivability": "Do not drive on while the check-engine light flashes.", "common_causes": ["Ignition coil on cylinder 1", "Spark plug", "Injector"], "questions_for_driver": ["Is the check-engine light flashing?", "Is the engine shaking at idle?"], "ev_relevant": false, "note": "A single-cylinder misfire on a V8 or W12 can feel mild while still damaging the catalyst." },
-    { "code": "P0302", "title": "Cylinder 2 misfire detected", "system": "Ignition / engine", "severity": "STOP_NOW", "drivability": "Do not drive on while the check-engine light flashes.", "common_causes": ["Ignition coil on cylinder 2", "Spark plug", "Injector"], "questions_for_driver": ["Is the check-engine light flashing?", "Is the engine shaking at idle?"], "ev_relevant": false, "note": "Often appears together with P0300." },
-    { "code": "P0303", "title": "Cylinder 3 misfire detected", "system": "Ignition / engine", "severity": "STOP_NOW", "drivability": "Do not drive on while the check-engine light flashes.", "common_causes": ["Ignition coil on cylinder 3", "Spark plug", "Injector"], "questions_for_driver": ["Is the check-engine light flashing?"], "ev_relevant": false, "note": "" },
-    { "code": "P0304", "title": "Cylinder 4 misfire detected", "system": "Ignition / engine", "severity": "STOP_NOW", "drivability": "Do not drive on while the check-engine light flashes.", "common_causes": ["Ignition coil on cylinder 4", "Spark plug", "Injector"], "questions_for_driver": ["Is the check-engine light flashing?"], "ev_relevant": false, "note": "" },
-    { "code": "P0305", "title": "Cylinder 5 misfire detected", "system": "Ignition / engine", "severity": "STOP_NOW", "drivability": "Do not drive on while the check-engine light flashes.", "common_causes": ["Ignition coil on cylinder 5", "Spark plug", "Injector"], "questions_for_driver": ["Is the check-engine light flashing?"], "ev_relevant": false, "note": "" },
-    { "code": "P0306", "title": "Cylinder 6 misfire detected", "system": "Ignition / engine", "severity": "STOP_NOW", "drivability": "Do not drive on while the check-engine light flashes.", "common_causes": ["Ignition coil on cylinder 6", "Spark plug", "Injector"], "questions_for_driver": ["Is the check-engine light flashing?"], "ev_relevant": false, "note": "" },
-    { "code": "P0171", "title": "System too lean (bank 1)", "system": "Fuel / air mixture", "severity": "CONTINUE_AND_MONITOR", "drivability": "Usually drivable. An operator may clear the driver to continue if the car runs normally.", "common_causes": ["Vacuum or intake leak", "Dirty air-flow sensor", "Weak fuel pump"], "questions_for_driver": ["Does the car hesitate or lose power?", "Is the check-engine light steady?"], "ev_relevant": false, "note": "" },
-    { "code": "P0172", "title": "System too rich (bank 1)", "system": "Fuel / air mixture", "severity": "CONTINUE_AND_MONITOR", "drivability": "Usually drivable. Watch for fuel smell or black smoke.", "common_causes": ["Leaking injector", "Faulty oxygen or air-flow sensor"], "questions_for_driver": ["Any smell of fuel?", "Any dark smoke from the exhaust?"], "ev_relevant": false, "note": "" },
-    { "code": "P0174", "title": "System too lean (bank 2)", "system": "Fuel / air mixture", "severity": "CONTINUE_AND_MONITOR", "drivability": "Usually drivable.", "common_causes": ["Vacuum or intake leak", "Air-flow sensor"], "questions_for_driver": ["Does the car hesitate or lose power?"], "ev_relevant": false, "note": "" },
-    { "code": "P0420", "title": "Catalyst efficiency below threshold (bank 1)", "system": "Emissions", "severity": "CONTINUE_AND_MONITOR", "drivability": "Drivable. Not urgent on its own; can follow an earlier misfire.", "common_causes": ["Ageing catalytic converter", "Oxygen sensor", "Earlier misfire damage"], "questions_for_driver": ["Is the check-engine light steady?", "Did the car misfire or shake earlier?"], "ev_relevant": false, "note": "" },
-    { "code": "P0430", "title": "Catalyst efficiency below threshold (bank 2)", "system": "Emissions", "severity": "CONTINUE_AND_MONITOR", "drivability": "Drivable.", "common_causes": ["Ageing catalytic converter", "Oxygen sensor"], "questions_for_driver": ["Is the check-engine light steady?"], "ev_relevant": false, "note": "" },
-    { "code": "P0217", "title": "Engine coolant over-temperature", "system": "Cooling", "severity": "STOP_NOW", "drivability": "Stop as soon as it is safe and switch the engine off. Do not open the coolant cap while hot.", "common_causes": ["Coolant leak", "Failed fan or water pump", "Thermostat stuck closed"], "questions_for_driver": ["Is there steam or a sweet smell?", "What does the temperature gauge show?", "Any coolant on the ground under the car?"], "ev_relevant": false, "note": "Driving on can destroy the engine." },
-    { "code": "P0128", "title": "Coolant temperature below thermostat regulating temperature", "system": "Cooling", "severity": "CONTINUE_AND_MONITOR", "drivability": "Drivable. Heater may be weak.", "common_causes": ["Thermostat stuck open", "Coolant temperature sensor"], "questions_for_driver": ["Is the temperature gauge low?"], "ev_relevant": false, "note": "" },
-    { "code": "P0117", "title": "Coolant temperature sensor circuit low", "system": "Cooling / sensors", "severity": "CONTINUE_AND_MONITOR", "drivability": "Usually drivable; the gauge may be wrong, so watch for real overheating signs.", "common_causes": ["Sensor or wiring fault"], "questions_for_driver": ["Is there steam or a sweet smell?"], "ev_relevant": false, "note": "" },
-    { "code": "P0118", "title": "Coolant temperature sensor circuit high", "system": "Cooling / sensors", "severity": "CONTINUE_AND_MONITOR", "drivability": "Usually drivable; the cooling fan may run constantly.", "common_causes": ["Sensor or wiring fault"], "questions_for_driver": ["Is there steam or a sweet smell?"], "ev_relevant": false, "note": "" },
-    { "code": "P0520", "title": "Oil pressure sensor or switch circuit", "system": "Lubrication / sensors", "severity": "DRIVE_TO_SAFE_STOP", "drivability": "Leave the motorway at the next safe place. The car cannot confirm oil pressure, so treat it as possibly low.", "common_causes": ["Sensor or wiring fault", "Actual low oil pressure"], "questions_for_driver": ["Is the red oil-can light on?", "Any knocking or ticking from the engine?"], "ev_relevant": false, "note": "" },
-    { "code": "P0521", "title": "Oil pressure sensor range or performance", "system": "Lubrication", "severity": "STOP_NOW", "drivability": "Stop as soon as it is safe and switch the engine off.", "common_causes": ["Low oil level", "Oil pump wear", "Sensor fault"], "questions_for_driver": ["Is the red oil-can light on?", "Any knocking from the engine?"], "ev_relevant": false, "note": "" },
-    { "code": "P0522", "title": "Oil pressure sensor circuit low voltage", "system": "Lubrication / sensors", "severity": "DRIVE_TO_SAFE_STOP", "drivability": "Leave the motorway at the next safe place.", "common_causes": ["Sensor or wiring fault", "Actual low oil pressure"], "questions_for_driver": ["Is the red oil-can light on?"], "ev_relevant": false, "note": "" },
-    { "code": "P0524", "title": "Engine oil pressure too low", "system": "Lubrication", "severity": "STOP_NOW", "drivability": "Stop as soon as it is safe and switch the engine off. Driving on can seize the engine.", "common_causes": ["Low oil level or leak", "Oil pump failure"], "questions_for_driver": ["Is the red oil-can light on?", "Any oil under the car?"], "ev_relevant": false, "note": "" },
-    { "code": "P0562", "title": "System voltage low", "system": "Charging / electrical", "severity": "DRIVE_TO_SAFE_STOP", "drivability": "Leave the motorway at the next safe place. The car may lose electrical systems and stall.", "common_causes": ["Alternator failure", "Weak 12 V battery", "Loose belt or connection"], "questions_for_driver": ["Is the red battery light on?", "Are lights or screens flickering?"], "ev_relevant": true, "note": "On electric and hybrid cars this is the 12 V system, which still runs locks, screens and brakes." },
-    { "code": "P0563", "title": "System voltage high", "system": "Charging / electrical", "severity": "DRIVE_TO_SAFE_STOP", "drivability": "Leave the motorway at the next safe place.", "common_causes": ["Voltage regulator or alternator fault"], "questions_for_driver": ["Is the red battery light on?", "Any burning smell?"], "ev_relevant": true, "note": "" },
-    { "code": "P0442", "title": "Evaporative emission system small leak", "system": "Emissions / fuel tank", "severity": "CONTINUE_AND_MONITOR", "drivability": "Drivable.", "common_causes": ["Loose or worn fuel cap", "Small hose leak"], "questions_for_driver": ["Was the car refuelled recently?", "Is the fuel cap clicked shut?"], "ev_relevant": false, "note": "" },
-    { "code": "P0455", "title": "Evaporative emission system large leak", "system": "Emissions / fuel tank", "severity": "CONTINUE_AND_MONITOR", "drivability": "Drivable. Check the fuel cap at the next stop.", "common_causes": ["Fuel cap left off or loose"], "questions_for_driver": ["Was the car refuelled recently?", "Is the fuel cap on and clicked shut?"], "ev_relevant": false, "note": "Very often a loose fuel cap after refuelling." },
-    { "code": "P0101", "title": "Mass air-flow sensor range or performance", "system": "Air intake / sensors", "severity": "CONTINUE_AND_MONITOR", "drivability": "Usually drivable, possibly with less power.", "common_causes": ["Dirty or faulty air-flow sensor", "Intake leak"], "questions_for_driver": ["Does the car hesitate when accelerating?"], "ev_relevant": false, "note": "" },
-    { "code": "P0113", "title": "Intake air temperature sensor circuit high", "system": "Air intake / sensors", "severity": "CONTINUE_AND_MONITOR", "drivability": "Drivable.", "common_causes": ["Sensor unplugged or faulty"], "questions_for_driver": ["Does the car run normally?"], "ev_relevant": false, "note": "" },
-    { "code": "P0335", "title": "Crankshaft position sensor circuit", "system": "Engine management", "severity": "DRIVE_TO_SAFE_STOP", "drivability": "Leave the motorway at the next safe place. The engine may stall without warning.", "common_causes": ["Sensor or wiring fault"], "questions_for_driver": ["Has the engine cut out or stuttered?", "Does it restart?"], "ev_relevant": false, "note": "" },
-    { "code": "P0340", "title": "Camshaft position sensor circuit", "system": "Engine management", "severity": "DRIVE_TO_SAFE_STOP", "drivability": "Leave the motorway at the next safe place; the car may run poorly or stall.", "common_causes": ["Sensor or wiring fault", "Timing problem"], "questions_for_driver": ["Is the engine running rough?", "Any rattling noise?"], "ev_relevant": false, "note": "" },
-    { "code": "P0500", "title": "Vehicle speed sensor malfunction", "system": "Sensors", "severity": "CONTINUE_AND_MONITOR", "drivability": "Usually drivable; speedometer or gear changes may misbehave.", "common_causes": ["Wheel or output speed sensor"], "questions_for_driver": ["Does the speedometer work?", "Are gear changes normal?"], "ev_relevant": true, "note": "" },
-    { "code": "P0700", "title": "Transmission control system malfunction", "system": "Transmission", "severity": "DRIVE_TO_SAFE_STOP", "drivability": "Leave the motorway at the next safe place. The gearbox may be stuck in a limp-home gear.", "common_causes": ["Gearbox controller has stored its own fault"], "questions_for_driver": ["Is the car stuck in one gear?", "Any warning message about the gearbox?"], "ev_relevant": false, "note": "The gearbox's own code needs a brand tool to read." },
-    { "code": "P0715", "title": "Transmission input or turbine speed sensor", "system": "Transmission", "severity": "DRIVE_TO_SAFE_STOP", "drivability": "Leave the motorway at the next safe place.", "common_causes": ["Sensor or wiring fault"], "questions_for_driver": ["Are gear changes harsh or missing?"], "ev_relevant": false, "note": "" },
-    { "code": "P0730", "title": "Incorrect gear ratio", "system": "Transmission", "severity": "DRIVE_TO_SAFE_STOP", "drivability": "Leave the motorway at the next safe place.", "common_causes": ["Low gearbox fluid", "Internal gearbox fault"], "questions_for_driver": ["Does the engine rev without the car speeding up?"], "ev_relevant": false, "note": "" },
-    { "code": "P0741", "title": "Torque converter clutch stuck off", "system": "Transmission", "severity": "CONTINUE_AND_MONITOR", "drivability": "Usually drivable, with higher fuel use.", "common_causes": ["Converter clutch solenoid", "Gearbox fluid"], "questions_for_driver": ["Any shudder at motorway speed?"], "ev_relevant": false, "note": "" },
-    { "code": "P0218", "title": "Transmission fluid over-temperature", "system": "Transmission", "severity": "STOP_NOW", "drivability": "Stop as soon as it is safe and let the gearbox cool.", "common_causes": ["Low fluid", "Cooler blocked", "Heavy load"], "questions_for_driver": ["Any burning smell?", "Is there a gearbox temperature warning?"], "ev_relevant": false, "note": "" },
-    { "code": "P0299", "title": "Turbocharger underboost", "system": "Air intake / turbo", "severity": "DRIVE_TO_SAFE_STOP", "drivability": "The car may be in reduced-power mode. Leave the motorway at the next safe place; do not drive in fast traffic with reduced power.", "common_causes": ["Boost leak", "Wastegate fault", "Turbo failure"], "questions_for_driver": ["Does the car feel much weaker than before?", "Any whistling or hissing noise?"], "ev_relevant": false, "note": "" },
-    { "code": "P0234", "title": "Turbocharger overboost", "system": "Air intake / turbo", "severity": "DRIVE_TO_SAFE_STOP", "drivability": "Leave the motorway at the next safe place.", "common_causes": ["Wastegate stuck", "Boost control fault"], "questions_for_driver": ["Did the car surge or go into reduced power?"], "ev_relevant": false, "note": "" },
-    { "code": "P0087", "title": "Fuel rail pressure too low", "system": "Fuel", "severity": "DRIVE_TO_SAFE_STOP", "drivability": "Leave the motorway at the next safe place; the engine may lose power or stall.", "common_causes": ["Fuel pump", "Blocked filter", "Running very low on fuel"], "questions_for_driver": ["How much fuel is in the tank?", "Is the engine stuttering?"], "ev_relevant": false, "note": "" },
-    { "code": "P0401", "title": "Exhaust gas recirculation flow insufficient", "system": "Emissions", "severity": "CONTINUE_AND_MONITOR", "drivability": "Drivable.", "common_causes": ["Blocked EGR valve or passages"], "questions_for_driver": ["Does the car run normally?"], "ev_relevant": false, "note": "" },
-    { "code": "P2002", "title": "Particulate filter efficiency below threshold", "system": "Emissions (diesel)", "severity": "CONTINUE_AND_MONITOR", "drivability": "Drivable.", "common_causes": ["Damaged or removed particulate filter", "Sensor fault"], "questions_for_driver": ["Is the particulate-filter light on?"], "ev_relevant": false, "note": "Diesel only." },
-    { "code": "P242F", "title": "Particulate filter restriction (ash build-up)", "system": "Emissions (diesel)", "severity": "DRIVE_TO_SAFE_STOP", "drivability": "Leave the motorway at the next safe place; the car may go into reduced power.", "common_causes": ["Filter needs cleaning or replacing"], "questions_for_driver": ["Is the particulate-filter light on?", "Is power reduced?"], "ev_relevant": false, "note": "Diesel only." },
-    { "code": "C0035", "title": "Left front wheel speed sensor circuit", "system": "Brakes (ABS / stability control)", "severity": "CONTINUE_AND_MONITOR", "drivability": "Normal brakes still work but ABS and stability control may be off. An operator may clear careful driving, with extra distance in wet conditions.", "common_causes": ["Sensor dirt or damage", "Wiring"], "questions_for_driver": ["Is the ABS or stability light on?", "Is the red brake light on as well?"], "ev_relevant": true, "note": "If the red brake light is also on, treat it as STOP_NOW." },
-    { "code": "U0100", "title": "Lost communication with engine control module", "system": "Electrical / network", "severity": "DRIVE_TO_SAFE_STOP", "drivability": "Leave the motorway at the next safe place; several systems may misbehave.", "common_causes": ["Wiring or connector fault", "Low voltage", "Control unit failure"], "questions_for_driver": ["Are many warning lights on at once?", "Is the engine still running normally?"], "ev_relevant": true, "note": "" },
-    { "code": "P0A80", "title": "Replace hybrid battery pack", "system": "Hybrid high-voltage battery", "severity": "DRIVE_TO_SAFE_STOP", "drivability": "Leave the motorway at the next safe place; power may be limited.", "common_causes": ["Worn hybrid battery cells"], "questions_for_driver": ["Is there a hybrid system warning message?", "Is power reduced?"], "ev_relevant": true, "note": "" },
-    { "code": "P0AA6", "title": "High-voltage system isolation fault", "system": "Hybrid / EV high-voltage system", "severity": "STOP_NOW", "drivability": "Stop as soon as it is safe. Do not touch orange high-voltage cables or open the bonnet. Stay out of the car if there is smoke or a burning smell.", "common_causes": ["Moisture or damage in high-voltage wiring", "Battery or charger insulation fault"], "questions_for_driver": ["Is there smoke, hissing or a burning smell?", "What message does the dashboard show?"], "ev_relevant": true, "note": "Recovery needs a flatbed and an EV-trained provider." },
-    { "code": "P1E00", "title": "Manufacturer-specific code (placeholder)", "system": "Unknown without a brand tool", "severity": "DRIVE_TO_SAFE_STOP", "drivability": "Unknown. Leave the motorway at the next safe place and let an operator decide with the owner.", "common_causes": ["Read with the manufacturer's diagnostic tool"], "questions_for_driver": ["What exactly does the dashboard message say?", "Can you send a photo of the dashboard?"], "ev_relevant": true, "note": "Codes starting P1, P3, B1, C1 or U1 are often manufacturer-specific. A dashboard photo usually tells more than the code." }
+    {
+      "code": "P0300",
+      "title": "Random or multiple cylinder misfire",
+      "system": "Ignition / engine",
+      "severity": "STOP_NOW",
+      "drivability": "Do not drive on if the check-engine light is flashing. Unburnt fuel can overheat and damage the catalytic converter within minutes.",
+      "common_causes": [
+        "Ignition coils or spark plugs",
+        "Fuel delivery fault",
+        "Vacuum leak",
+        "Low compression"
+      ],
+      "questions_for_driver": [
+        "Is the check-engine light flashing or steady?",
+        "Does the car shake or lose power when you accelerate?",
+        "Any smell of fuel or burning?"
+      ],
+      "ev_relevant": false,
+      "note": "Severity drops to DRIVE_TO_SAFE_STOP if the light is steady and the car runs smoothly."
+    },
+    {
+      "code": "P0301",
+      "title": "Cylinder 1 misfire detected",
+      "system": "Ignition / engine",
+      "severity": "STOP_NOW",
+      "drivability": "Do not drive on while the check-engine light flashes.",
+      "common_causes": [
+        "Ignition coil on cylinder 1",
+        "Spark plug",
+        "Injector"
+      ],
+      "questions_for_driver": [
+        "Is the check-engine light flashing?",
+        "Is the engine shaking at idle?"
+      ],
+      "ev_relevant": false,
+      "note": "A single-cylinder misfire on a V8 or W12 can feel mild while still damaging the catalyst."
+    },
+    {
+      "code": "P0302",
+      "title": "Cylinder 2 misfire detected",
+      "system": "Ignition / engine",
+      "severity": "STOP_NOW",
+      "drivability": "Do not drive on while the check-engine light flashes.",
+      "common_causes": [
+        "Ignition coil on cylinder 2",
+        "Spark plug",
+        "Injector"
+      ],
+      "questions_for_driver": [
+        "Is the check-engine light flashing?",
+        "Is the engine shaking at idle?"
+      ],
+      "ev_relevant": false,
+      "note": "Often appears together with P0300."
+    },
+    {
+      "code": "P0303",
+      "title": "Cylinder 3 misfire detected",
+      "system": "Ignition / engine",
+      "severity": "STOP_NOW",
+      "drivability": "Do not drive on while the check-engine light flashes.",
+      "common_causes": [
+        "Ignition coil on cylinder 3",
+        "Spark plug",
+        "Injector"
+      ],
+      "questions_for_driver": [
+        "Is the check-engine light flashing?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0304",
+      "title": "Cylinder 4 misfire detected",
+      "system": "Ignition / engine",
+      "severity": "STOP_NOW",
+      "drivability": "Do not drive on while the check-engine light flashes.",
+      "common_causes": [
+        "Ignition coil on cylinder 4",
+        "Spark plug",
+        "Injector"
+      ],
+      "questions_for_driver": [
+        "Is the check-engine light flashing?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0305",
+      "title": "Cylinder 5 misfire detected",
+      "system": "Ignition / engine",
+      "severity": "STOP_NOW",
+      "drivability": "Do not drive on while the check-engine light flashes.",
+      "common_causes": [
+        "Ignition coil on cylinder 5",
+        "Spark plug",
+        "Injector"
+      ],
+      "questions_for_driver": [
+        "Is the check-engine light flashing?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0306",
+      "title": "Cylinder 6 misfire detected",
+      "system": "Ignition / engine",
+      "severity": "STOP_NOW",
+      "drivability": "Do not drive on while the check-engine light flashes.",
+      "common_causes": [
+        "Ignition coil on cylinder 6",
+        "Spark plug",
+        "Injector"
+      ],
+      "questions_for_driver": [
+        "Is the check-engine light flashing?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0171",
+      "title": "System too lean (bank 1)",
+      "system": "Fuel / air mixture",
+      "severity": "CONTINUE_AND_MONITOR",
+      "drivability": "Usually drivable. An operator may clear the driver to continue if the car runs normally.",
+      "common_causes": [
+        "Vacuum or intake leak",
+        "Dirty air-flow sensor",
+        "Weak fuel pump"
+      ],
+      "questions_for_driver": [
+        "Does the car hesitate or lose power?",
+        "Is the check-engine light steady?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0172",
+      "title": "System too rich (bank 1)",
+      "system": "Fuel / air mixture",
+      "severity": "CONTINUE_AND_MONITOR",
+      "drivability": "Usually drivable. Watch for fuel smell or black smoke.",
+      "common_causes": [
+        "Leaking injector",
+        "Faulty oxygen or air-flow sensor"
+      ],
+      "questions_for_driver": [
+        "Any smell of fuel?",
+        "Any dark smoke from the exhaust?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0174",
+      "title": "System too lean (bank 2)",
+      "system": "Fuel / air mixture",
+      "severity": "CONTINUE_AND_MONITOR",
+      "drivability": "Usually drivable.",
+      "common_causes": [
+        "Vacuum or intake leak",
+        "Air-flow sensor"
+      ],
+      "questions_for_driver": [
+        "Does the car hesitate or lose power?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0420",
+      "title": "Catalyst efficiency below threshold (bank 1)",
+      "system": "Emissions",
+      "severity": "CONTINUE_AND_MONITOR",
+      "drivability": "Drivable. Not urgent on its own; can follow an earlier misfire.",
+      "common_causes": [
+        "Ageing catalytic converter",
+        "Oxygen sensor",
+        "Earlier misfire damage"
+      ],
+      "questions_for_driver": [
+        "Is the check-engine light steady?",
+        "Did the car misfire or shake earlier?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0430",
+      "title": "Catalyst efficiency below threshold (bank 2)",
+      "system": "Emissions",
+      "severity": "CONTINUE_AND_MONITOR",
+      "drivability": "Drivable.",
+      "common_causes": [
+        "Ageing catalytic converter",
+        "Oxygen sensor"
+      ],
+      "questions_for_driver": [
+        "Is the check-engine light steady?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0217",
+      "title": "Engine coolant over-temperature",
+      "system": "Cooling",
+      "severity": "STOP_NOW",
+      "drivability": "Stop as soon as it is safe and switch the engine off. Do not open the coolant cap while hot.",
+      "common_causes": [
+        "Coolant leak",
+        "Failed fan or water pump",
+        "Thermostat stuck closed"
+      ],
+      "questions_for_driver": [
+        "Is there steam or a sweet smell?",
+        "What does the temperature gauge show?",
+        "Any coolant on the ground under the car?"
+      ],
+      "ev_relevant": false,
+      "note": "Driving on can destroy the engine."
+    },
+    {
+      "code": "P0128",
+      "title": "Coolant temperature below thermostat regulating temperature",
+      "system": "Cooling",
+      "severity": "CONTINUE_AND_MONITOR",
+      "drivability": "Drivable. Heater may be weak.",
+      "common_causes": [
+        "Thermostat stuck open",
+        "Coolant temperature sensor"
+      ],
+      "questions_for_driver": [
+        "Is the temperature gauge low?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0117",
+      "title": "Coolant temperature sensor circuit low",
+      "system": "Cooling / sensors",
+      "severity": "CONTINUE_AND_MONITOR",
+      "drivability": "Usually drivable; the gauge may be wrong, so watch for real overheating signs.",
+      "common_causes": [
+        "Sensor or wiring fault"
+      ],
+      "questions_for_driver": [
+        "Is there steam or a sweet smell?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0118",
+      "title": "Coolant temperature sensor circuit high",
+      "system": "Cooling / sensors",
+      "severity": "CONTINUE_AND_MONITOR",
+      "drivability": "Usually drivable; the cooling fan may run constantly.",
+      "common_causes": [
+        "Sensor or wiring fault"
+      ],
+      "questions_for_driver": [
+        "Is there steam or a sweet smell?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0520",
+      "title": "Oil pressure sensor or switch circuit",
+      "system": "Lubrication / sensors",
+      "severity": "DRIVE_TO_SAFE_STOP",
+      "drivability": "Leave the motorway at the next safe place. The car cannot confirm oil pressure, so treat it as possibly low.",
+      "common_causes": [
+        "Sensor or wiring fault",
+        "Actual low oil pressure"
+      ],
+      "questions_for_driver": [
+        "Is the red oil-can light on?",
+        "Any knocking or ticking from the engine?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0521",
+      "title": "Oil pressure sensor range or performance",
+      "system": "Lubrication",
+      "severity": "STOP_NOW",
+      "drivability": "Stop as soon as it is safe and switch the engine off.",
+      "common_causes": [
+        "Low oil level",
+        "Oil pump wear",
+        "Sensor fault"
+      ],
+      "questions_for_driver": [
+        "Is the red oil-can light on?",
+        "Any knocking from the engine?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0522",
+      "title": "Oil pressure sensor circuit low voltage",
+      "system": "Lubrication / sensors",
+      "severity": "DRIVE_TO_SAFE_STOP",
+      "drivability": "Leave the motorway at the next safe place.",
+      "common_causes": [
+        "Sensor or wiring fault",
+        "Actual low oil pressure"
+      ],
+      "questions_for_driver": [
+        "Is the red oil-can light on?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0524",
+      "title": "Engine oil pressure too low",
+      "system": "Lubrication",
+      "severity": "STOP_NOW",
+      "drivability": "Stop as soon as it is safe and switch the engine off. Driving on can seize the engine.",
+      "common_causes": [
+        "Low oil level or leak",
+        "Oil pump failure"
+      ],
+      "questions_for_driver": [
+        "Is the red oil-can light on?",
+        "Any oil under the car?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0562",
+      "title": "System voltage low",
+      "system": "Charging / electrical",
+      "severity": "DRIVE_TO_SAFE_STOP",
+      "drivability": "Leave the motorway at the next safe place. The car may lose electrical systems and stall.",
+      "common_causes": [
+        "Alternator failure",
+        "Weak 12 V battery",
+        "Loose belt or connection"
+      ],
+      "questions_for_driver": [
+        "Is the red battery light on?",
+        "Are lights or screens flickering?"
+      ],
+      "ev_relevant": true,
+      "note": "On electric and hybrid cars this is the 12 V system, which still runs locks, screens and brakes."
+    },
+    {
+      "code": "P0563",
+      "title": "System voltage high",
+      "system": "Charging / electrical",
+      "severity": "DRIVE_TO_SAFE_STOP",
+      "drivability": "Leave the motorway at the next safe place.",
+      "common_causes": [
+        "Voltage regulator or alternator fault"
+      ],
+      "questions_for_driver": [
+        "Is the red battery light on?",
+        "Any burning smell?"
+      ],
+      "ev_relevant": true,
+      "note": ""
+    },
+    {
+      "code": "P0442",
+      "title": "Evaporative emission system small leak",
+      "system": "Emissions / fuel tank",
+      "severity": "CONTINUE_AND_MONITOR",
+      "drivability": "Drivable.",
+      "common_causes": [
+        "Loose or worn fuel cap",
+        "Small hose leak"
+      ],
+      "questions_for_driver": [
+        "Was the car refuelled recently?",
+        "Is the fuel cap clicked shut?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0455",
+      "title": "Evaporative emission system large leak",
+      "system": "Emissions / fuel tank",
+      "severity": "CONTINUE_AND_MONITOR",
+      "drivability": "Drivable. Check the fuel cap at the next stop.",
+      "common_causes": [
+        "Fuel cap left off or loose"
+      ],
+      "questions_for_driver": [
+        "Was the car refuelled recently?",
+        "Is the fuel cap on and clicked shut?"
+      ],
+      "ev_relevant": false,
+      "note": "Very often a loose fuel cap after refuelling."
+    },
+    {
+      "code": "P0101",
+      "title": "Mass air-flow sensor range or performance",
+      "system": "Air intake / sensors",
+      "severity": "CONTINUE_AND_MONITOR",
+      "drivability": "Usually drivable, possibly with less power.",
+      "common_causes": [
+        "Dirty or faulty air-flow sensor",
+        "Intake leak"
+      ],
+      "questions_for_driver": [
+        "Does the car hesitate when accelerating?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0113",
+      "title": "Intake air temperature sensor circuit high",
+      "system": "Air intake / sensors",
+      "severity": "CONTINUE_AND_MONITOR",
+      "drivability": "Drivable.",
+      "common_causes": [
+        "Sensor unplugged or faulty"
+      ],
+      "questions_for_driver": [
+        "Does the car run normally?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0335",
+      "title": "Crankshaft position sensor circuit",
+      "system": "Engine management",
+      "severity": "DRIVE_TO_SAFE_STOP",
+      "drivability": "Leave the motorway at the next safe place. The engine may stall without warning.",
+      "common_causes": [
+        "Sensor or wiring fault"
+      ],
+      "questions_for_driver": [
+        "Has the engine cut out or stuttered?",
+        "Does it restart?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0340",
+      "title": "Camshaft position sensor circuit",
+      "system": "Engine management",
+      "severity": "DRIVE_TO_SAFE_STOP",
+      "drivability": "Leave the motorway at the next safe place; the car may run poorly or stall.",
+      "common_causes": [
+        "Sensor or wiring fault",
+        "Timing problem"
+      ],
+      "questions_for_driver": [
+        "Is the engine running rough?",
+        "Any rattling noise?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0500",
+      "title": "Vehicle speed sensor malfunction",
+      "system": "Sensors",
+      "severity": "CONTINUE_AND_MONITOR",
+      "drivability": "Usually drivable; speedometer or gear changes may misbehave.",
+      "common_causes": [
+        "Wheel or output speed sensor"
+      ],
+      "questions_for_driver": [
+        "Does the speedometer work?",
+        "Are gear changes normal?"
+      ],
+      "ev_relevant": true,
+      "note": ""
+    },
+    {
+      "code": "P0700",
+      "title": "Transmission control system malfunction",
+      "system": "Transmission",
+      "severity": "DRIVE_TO_SAFE_STOP",
+      "drivability": "Leave the motorway at the next safe place. The gearbox may be stuck in a limp-home gear.",
+      "common_causes": [
+        "Gearbox controller has stored its own fault"
+      ],
+      "questions_for_driver": [
+        "Is the car stuck in one gear?",
+        "Any warning message about the gearbox?"
+      ],
+      "ev_relevant": false,
+      "note": "The gearbox's own code needs a brand tool to read."
+    },
+    {
+      "code": "P0715",
+      "title": "Transmission input or turbine speed sensor",
+      "system": "Transmission",
+      "severity": "DRIVE_TO_SAFE_STOP",
+      "drivability": "Leave the motorway at the next safe place.",
+      "common_causes": [
+        "Sensor or wiring fault"
+      ],
+      "questions_for_driver": [
+        "Are gear changes harsh or missing?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0730",
+      "title": "Incorrect gear ratio",
+      "system": "Transmission",
+      "severity": "DRIVE_TO_SAFE_STOP",
+      "drivability": "Leave the motorway at the next safe place.",
+      "common_causes": [
+        "Low gearbox fluid",
+        "Internal gearbox fault"
+      ],
+      "questions_for_driver": [
+        "Does the engine rev without the car speeding up?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0741",
+      "title": "Torque converter clutch stuck off",
+      "system": "Transmission",
+      "severity": "CONTINUE_AND_MONITOR",
+      "drivability": "Usually drivable, with higher fuel use.",
+      "common_causes": [
+        "Converter clutch solenoid",
+        "Gearbox fluid"
+      ],
+      "questions_for_driver": [
+        "Any shudder at motorway speed?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0218",
+      "title": "Transmission fluid over-temperature",
+      "system": "Transmission",
+      "severity": "STOP_NOW",
+      "drivability": "Stop as soon as it is safe and let the gearbox cool.",
+      "common_causes": [
+        "Low fluid",
+        "Cooler blocked",
+        "Heavy load"
+      ],
+      "questions_for_driver": [
+        "Any burning smell?",
+        "Is there a gearbox temperature warning?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0299",
+      "title": "Turbocharger underboost",
+      "system": "Air intake / turbo",
+      "severity": "DRIVE_TO_SAFE_STOP",
+      "drivability": "The car may be in reduced-power mode. Leave the motorway at the next safe place; do not drive in fast traffic with reduced power.",
+      "common_causes": [
+        "Boost leak",
+        "Wastegate fault",
+        "Turbo failure"
+      ],
+      "questions_for_driver": [
+        "Does the car feel much weaker than before?",
+        "Any whistling or hissing noise?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0234",
+      "title": "Turbocharger overboost",
+      "system": "Air intake / turbo",
+      "severity": "DRIVE_TO_SAFE_STOP",
+      "drivability": "Leave the motorway at the next safe place.",
+      "common_causes": [
+        "Wastegate stuck",
+        "Boost control fault"
+      ],
+      "questions_for_driver": [
+        "Did the car surge or go into reduced power?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0087",
+      "title": "Fuel rail pressure too low",
+      "system": "Fuel",
+      "severity": "DRIVE_TO_SAFE_STOP",
+      "drivability": "Leave the motorway at the next safe place; the engine may lose power or stall.",
+      "common_causes": [
+        "Fuel pump",
+        "Blocked filter",
+        "Running very low on fuel"
+      ],
+      "questions_for_driver": [
+        "How much fuel is in the tank?",
+        "Is the engine stuttering?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P0401",
+      "title": "Exhaust gas recirculation flow insufficient",
+      "system": "Emissions",
+      "severity": "CONTINUE_AND_MONITOR",
+      "drivability": "Drivable.",
+      "common_causes": [
+        "Blocked EGR valve or passages"
+      ],
+      "questions_for_driver": [
+        "Does the car run normally?"
+      ],
+      "ev_relevant": false,
+      "note": ""
+    },
+    {
+      "code": "P2002",
+      "title": "Particulate filter efficiency below threshold",
+      "system": "Emissions (diesel)",
+      "severity": "CONTINUE_AND_MONITOR",
+      "drivability": "Drivable.",
+      "common_causes": [
+        "Damaged or removed particulate filter",
+        "Sensor fault"
+      ],
+      "questions_for_driver": [
+        "Is the particulate-filter light on?"
+      ],
+      "ev_relevant": false,
+      "note": "Diesel only."
+    },
+    {
+      "code": "P242F",
+      "title": "Particulate filter restriction (ash build-up)",
+      "system": "Emissions (diesel)",
+      "severity": "DRIVE_TO_SAFE_STOP",
+      "drivability": "Leave the motorway at the next safe place; the car may go into reduced power.",
+      "common_causes": [
+        "Filter needs cleaning or replacing"
+      ],
+      "questions_for_driver": [
+        "Is the particulate-filter light on?",
+        "Is power reduced?"
+      ],
+      "ev_relevant": false,
+      "note": "Diesel only."
+    },
+    {
+      "code": "C0035",
+      "title": "Left front wheel speed sensor circuit",
+      "system": "Brakes (ABS / stability control)",
+      "severity": "CONTINUE_AND_MONITOR",
+      "drivability": "Normal brakes still work but ABS and stability control may be off. An operator may clear careful driving, with extra distance in wet conditions.",
+      "common_causes": [
+        "Sensor dirt or damage",
+        "Wiring"
+      ],
+      "questions_for_driver": [
+        "Is the ABS or stability light on?",
+        "Is the red brake light on as well?"
+      ],
+      "ev_relevant": true,
+      "note": "If the red brake light is also on, treat it as STOP_NOW."
+    },
+    {
+      "code": "U0100",
+      "title": "Lost communication with engine control module",
+      "system": "Electrical / network",
+      "severity": "DRIVE_TO_SAFE_STOP",
+      "drivability": "Leave the motorway at the next safe place; several systems may misbehave.",
+      "common_causes": [
+        "Wiring or connector fault",
+        "Low voltage",
+        "Control unit failure"
+      ],
+      "questions_for_driver": [
+        "Are many warning lights on at once?",
+        "Is the engine still running normally?"
+      ],
+      "ev_relevant": true,
+      "note": ""
+    },
+    {
+      "code": "P0A80",
+      "title": "Replace hybrid battery pack",
+      "system": "Hybrid high-voltage battery",
+      "severity": "DRIVE_TO_SAFE_STOP",
+      "drivability": "Leave the motorway at the next safe place; power may be limited.",
+      "common_causes": [
+        "Worn hybrid battery cells"
+      ],
+      "questions_for_driver": [
+        "Is there a hybrid system warning message?",
+        "Is power reduced?"
+      ],
+      "ev_relevant": true,
+      "note": ""
+    },
+    {
+      "code": "P0AA6",
+      "title": "High-voltage system isolation fault",
+      "system": "Hybrid / EV high-voltage system",
+      "severity": "STOP_NOW",
+      "drivability": "Stop as soon as it is safe. Do not touch orange high-voltage cables or open the bonnet. Stay out of the car if there is smoke or a burning smell.",
+      "common_causes": [
+        "Moisture or damage in high-voltage wiring",
+        "Battery or charger insulation fault"
+      ],
+      "questions_for_driver": [
+        "Is there smoke, hissing or a burning smell?",
+        "What message does the dashboard show?"
+      ],
+      "ev_relevant": true,
+      "note": "Recovery needs a flatbed and an EV-trained provider."
+    },
+    {
+      "code": "P1E00",
+      "title": "Manufacturer-specific code (placeholder)",
+      "system": "Unknown without a brand tool",
+      "severity": "DRIVE_TO_SAFE_STOP",
+      "drivability": "Unknown. Leave the motorway at the next safe place and let an operator decide with the owner.",
+      "common_causes": [
+        "Read with the manufacturer's diagnostic tool"
+      ],
+      "questions_for_driver": [
+        "What exactly does the dashboard message say?",
+        "Can you send a photo of the dashboard?"
+      ],
+      "ev_relevant": true,
+      "note": "Codes starting P1, P3, B1, C1 or U1 are often manufacturer-specific. A dashboard photo usually tells more than the code."
+    },
+    {
+      "code": "P0135",
+      "title": "Oxygen sensor heater circuit (bank 1, sensor 1)",
+      "system": "Emissions / sensors",
+      "severity": "CONTINUE_AND_MONITOR",
+      "drivability": "Drivable. Not urgent on its own; fuel use may rise until the sensor is replaced.",
+      "common_causes": [
+        "Failed oxygen sensor heater",
+        "Wiring or fuse to the sensor"
+      ],
+      "questions_for_driver": [
+        "Is the check-engine light steady or flashing?",
+        "Does the car drive any differently than before?",
+        "Any unusual smell or sound?"
+      ],
+      "ev_relevant": false,
+      "note": "Usually non-critical; a workshop replaces the sensor."
+    },
+    {
+      "code": "P0457",
+      "title": "Evaporative emission system leak (fuel cap loose or off)",
+      "system": "Emissions / fuel tank",
+      "severity": "CONTINUE_AND_MONITOR",
+      "drivability": "Drivable. Check the fuel cap at the next stop.",
+      "common_causes": [
+        "Fuel cap loose or missing after refuelling"
+      ],
+      "questions_for_driver": [
+        "Was the car refuelled recently?",
+        "Is the fuel cap on and clicked shut?"
+      ],
+      "ev_relevant": false,
+      "note": "Almost always the fuel cap."
+    }
   ]
 }

@@ -83,3 +83,20 @@ test("without a model the safety screen remains closed for unknown onward instru
   assert.equal(held.layer, "fail_closed")
   assert.equal((await screenDriverMessage("Please send a photo of the dashboard.")).allowed, true)
 })
+
+test("monitor-level codes allow diagnosis on chat but never clearance", async () => {
+  const sensor = driverSafetyFromEvidence({ ...evidence(), telemetry: { at: new Date(), data: { mil: "ON", dtcs: ["P0135"] } } })
+  assert.equal(sensor.mode, "restricted", "a monitor code is still not routine")
+  assert.deepEqual(sensor.diagnostic, { codes: ["P0135"] })
+  assert.equal(driverSafetyFromEvidence({ ...evidence(), telemetry: { at: new Date(), data: { mil: "FLASHING", dtcs: ["P0135"] } } }).diagnostic, undefined, "a flashing light is not monitor-level")
+  assert.equal(driverSafetyFromEvidence({ ...evidence(), telemetry: { at: new Date(), data: { mil: "ON", dtcs: ["P0135", "P0300"] } } }).diagnostic, undefined, "one stop-now code keeps safety-only")
+  assert.equal(driverSafetyFromEvidence({ ...evidence(), caseKind: "VEHICLE_WARNING", telemetry: { at: new Date(), data: { mil: "ON", dtcs: ["P0135"] } } }).diagnostic, undefined, "other restrictions keep safety-only")
+  useTestLlm(null)
+  const question = "P0135 is the oxygen sensor heater and is usually not critical. Is the light steady, and does the car drive any differently than before? An operator confirms whether you continue."
+  assert.equal((await screenDriverMessage(question, { safety: sensor })).allowed, true)
+  assert.equal((await screenDriverMessage(question, { safety: stopped })).allowed, false, "without monitor-only codes the same text is held")
+  const cleared = await screenDriverMessage("It's only the oxygen sensor, so you can keep driving.", { safety: sensor })
+  assert.equal(cleared.allowed, false)
+  assert.equal(cleared.layer, "pattern")
+  assert.equal((await screenDriverMessage("It is only the sensor; head to the ferry.", { safety: sensor })).allowed, false)
+})

@@ -12,6 +12,7 @@
 // from fixed templates.
 
 import { llm, usageCost } from "./client"
+import { troubleCode } from "./knowledge"
 import { latestTelemetry, listEvents, type CaseRow, type EventRow, type TelemetryRow } from "@/lib/cr/queries"
 import type { OrderFacts } from "./context"
 
@@ -58,7 +59,23 @@ export function findClearance(text: string): string | null {
 const DRIVING_WORDS = /\b(driv\w*|continu\w*|carry on|keep going|go on|head (?:to|on|off|for)|move on|restart\w*|journey|on your way|get going|set off)\b/i
 const MOVEMENT_DIRECTION = /\b(use|take|enter|head|go|proceed|drive)\b[^.!?\n]{0,70}\b(gate|entrance|courtyard|ferry|terminal|site|motorway|road)\b/i
 
-export type DriverSafetyContext = { mode: "routine" | "restricted" | "unknown"; reasons: string[] }
+export type DriverSafetyContext = {
+  mode: "routine" | "restricted" | "unknown"
+  reasons: string[]
+  /**
+   * Set when every active trouble code is CONTINUE_AND_MONITOR in the code guide and the light is not flashing.
+   * On chat the agent may then explain the codes and ask diagnostic questions. It never makes the context routine:
+   * clearing the driver to continue still needs an operator.
+   */
+  diagnostic?: { codes: string[] }
+}
+
+/** The codes when all of them are CONTINUE_AND_MONITOR and the light is not flashing; otherwise null. */
+export function monitorOnlyCodes(data: Record<string, unknown> | null | undefined): string[] | null {
+  const codes = Array.isArray(data?.dtcs) ? data.dtcs.filter((code): code is string => typeof code === "string") : []
+  if (!codes.length || data?.mil === "FLASHING") return null
+  return codes.every((code) => troubleCode(code)?.severity === "CONTINUE_AND_MONITOR") ? codes : null
+}
 type SafetyEvidence = {
   caseKind: string
   activeAssignment: boolean
@@ -79,7 +96,15 @@ export function driverSafetyFromEvidence(input: SafetyEvidence): DriverSafetyCon
   if (input.alerts.some((row) => ["OPEN", "ACKNOWLEDGED"].includes(String(row.status)) && FAULT_SIGNAL.test(String(row.signal ?? row.kind ?? "")))) reasons.push("An active vehicle or safety alert remains.")
   const data = input.telemetry?.data
   if (data && (Array.isArray(data.dtcs) && data.dtcs.length > 0 || data.mil === "FLASHING" || data.mil === "ON")) reasons.push("The latest OBD reading reports a warning or trouble code.")
-  if (input.events.some((event) => event.channel === "safety" && (event.data.safety === true || typeof event.data.template_id === "string"))) reasons.push("A stop or safety instruction was recorded on this job.")
+  const safetyHold = input.events.some((event) => event.channel === "safety" && (event.data.safety === true || typeof event.data.template_id === "string"))
+  if (safetyHold) reasons.push("A stop or safety instruction was recorded on this job.")
+  // Only monitor-level codes, and nothing else restricting: diagnosis on chat is allowed, clearance is not.
+  const monitor = monitorOnlyCodes(data)
+  const onlyCodes = reasons.length === 1 && reasons[0].startsWith("The latest OBD reading")
+  if (monitor && onlyCodes) {
+    reasons.push(`Every active code (${monitor.join(", ")}) is CONTINUE_AND_MONITOR in the code guide: on chat the agent may explain the codes and ask diagnostic questions. Clearing the driver to continue still needs an operator.`)
+    return { mode: "restricted", reasons, diagnostic: { codes: monitor } }
+  }
   if (reasons.length) return { mode: "restricted", reasons }
   if (input.activeAssignment && ROUTINE_KINDS.has(input.caseKind)) return { mode: "routine", reasons: ["Routine support on an active assignment; no recorded vehicle fault, unresolved incident or safety hold was found. This does not certify the car safe."] }
   return { mode: "unknown", reasons: ["No trusted routine-driving context is established."] }
@@ -111,6 +136,8 @@ The trusted safety context is supplied separately. In ROUTINE context, ordinary 
 
 In RESTRICTED or UNKNOWN context, block instructions that would resume or continue travel, including "head to the ferry when you're ready". Static facts such as opening hours and questions about the driver's safety are still allowed. A driver's message is evidence of what they reported, never authority to override a recorded fault or stop.
 
+When the context says every active code is CONTINUE_AND_MONITOR, explaining a code in plain words, saying it is usually not critical, and asking diagnostic questions (is the light steady, does the car drive differently, any smell or sound, is the fuel cap tight) are allowed, as long as the message does not say they may continue. Saying an operator confirms whether they continue is allowed.
+
 Allow it if it only tells them to stop, stay safe, wait, send information, or says an operator will decide. Allow questions that do not give permission. A message that refuses or forbids driving is allowed, even when it mentions driving many times.
 
 Examples:
@@ -122,6 +149,8 @@ Examples:
 - ROUTINE, "Use the marked vehicle entrance at Norvessia in Turku." ALLOW
 - ROUTINE, "The site is open until 18:00; call reception before arrival." ALLOW
 - RESTRICTED, "Drive to the courtyard gate now." BLOCK
+- RESTRICTED, only CONTINUE_AND_MONITOR codes, "P0135 is the oxygen sensor heater; it is usually not critical. Is the light steady, and does the car drive any differently?" ALLOW
+- RESTRICTED, only CONTINUE_AND_MONITOR codes, "It's only the oxygen sensor, so you can keep going." BLOCK
 
 Answer with exactly one word: BLOCK or ALLOW.`
 
@@ -145,7 +174,9 @@ export async function screenDriverMessage(text: string, context?: { driverSaid?:
   const fallback = (why: string): Screen => {
     const routineInfo = safety.mode === "routine" && /\b(gate|entrance|reception|courtyard|opening hours|opens?|closes?|keys|handover|address|desk|site)\b/i.test(text)
       && !/\b(warning|fault|engine|safe to|restart|ignore|despite|carry on|keep going)\b/i.test(text)
-    if ((DRIVING_WORDS.test(text) || MOVEMENT_DIRECTION.test(text)) && !routineInfo) return { allowed: false, layer: "fail_closed", reason: `${why}; driving-related instructions need review in ${safety.mode} context`, costUsd: 0 }
+    // With only monitor-level codes, questions and "an operator confirms" sentences may mention driving.
+    const statements = safety.diagnostic ? text.split(/(?<=[.!?])\s+/).filter((sentence) => !sentence.trim().endsWith("?") && !/\b(operator|operations)\b/i.test(sentence)).join(" ") : text
+    if ((DRIVING_WORDS.test(statements) || MOVEMENT_DIRECTION.test(statements)) && !routineInfo) return { allowed: false, layer: "fail_closed", reason: `${why}; driving-related instructions need review in ${safety.mode} context`, costUsd: 0 }
     return { allowed: true, layer: "none", reason: null, costUsd: 0 }
   }
   const client = llm()
