@@ -88,7 +88,7 @@ export function Composer({ to, channelLabel, suggest, send, onSent, autoFocus = 
       {draft.internalNote && <p className="drafts-note"><b>Note for the desk:</b> {draft.internalNote} <button type="button" className="link-btn" onClick={takeNote}>File it</button></p>}
     </div>}
     <textarea ref={area} className="composer-text" rows={internal ? 3 : 4} value={text} onChange={(event) => setText(event.target.value)} onKeyDown={onKey}
-      placeholder={internal ? "What the desk should know about this thread. The other party never sees this." : openingPrompt ? "Why the desk is writing, and what you need from them." : `Write to ${to ?? "them"}, or ask for drafts first.`}
+      placeholder={internal ? "What the desk should know about this thread. The other party never sees this." : openingPrompt ? "Why the desk is writing, and what you need from them." : `Write to ${to ?? "them"}, or ask for a suggested reply first.`}
       aria-label={internal ? "Internal note" : "Reply"} disabled={sending} />
     <div className="composer-foot">
       <button type="button" className="btn" onClick={() => void askDrafts()} disabled={drafting || sending} title="Replies suggested from this order's dossier and the thread. You pick, edit and send.">
