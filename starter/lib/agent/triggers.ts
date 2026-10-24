@@ -153,6 +153,42 @@ export async function handleSiteMessage(prepared: PreparedSiteMessage, onText?: 
   })
 }
 
+// ---------------------------------------------------------------- customer
+
+/**
+ * The paying customer writes (a simulated email in this prototype). The message lands on the case that waits for
+ * them or wrote to them, else on a new one, and in the order's conversations. The agent never answers a customer
+ * itself: an operator-side turn drafts the reply as a card a person approves, and the person who chose to wait is
+ * pinged.
+ */
+export async function handleCustomerMessage(request: { orderRef: string; text: string }): Promise<{ caseId: string; followUps: FollowUp[] }> {
+  return withRuntimeWork("customer message handling", async () => {
+    const order = request.orderRef ? await resolveOrder(request.orderRef) : null
+    if (!order) throw new ChannelError(404, `No order ${request.orderRef}.`)
+    const text = request.text?.trim().slice(0, 4000)
+    if (!text) throw new ChannelError(400, "Write the customer's message.")
+    const facts = await loadOrderFacts(order.id)
+    if (!facts) throw new ChannelError(404, "Order not found.")
+    const contacted = new Set((await Promise.all((await listCases({ orderId: facts.id, statuses: [...OPEN_CASE_STATUSES] })).map(async (row) =>
+      (await listProposals({ caseId: row.id })).some((p) => p.actionType === "CONTACT_CUSTOMER" || p.actionType === "CHANGE_PROMISE") ? row.id : null))).filter((id): id is string => Boolean(id)))
+    const name = facts.customer.name
+    const caseRow = await openCase(facts.id, (row) => (row.status === "WAITING_EXTERNAL" && row.waitingFor === "customer") || contacted.has(row.id) || row.kind === "CUSTOMER_MESSAGE", () => createCase({
+      orderId: facts.id, kind: "CUSTOMER_MESSAGE", status: "AGENT_WORKING", urgency: "NORMAL", title: `Message from ${name}`,
+      summary: text.slice(0, 200), channelOpened: "customer_email", owner: "agent", driverId: activeDriverId(facts),
+    }))
+    const event = await appendEvent({
+      caseId: caseRow.id, orderId: facts.id, actorType: "customer", actorId: facts.customer.id, kind: "message", channel: "customer_email",
+      recipientType: "agent", recipientId: AGENT_ID, body: text, data: { name, simulated: true },
+    })
+    try {
+      const { recordInboundCustomer } = await import("@/lib/present/helpdesk")
+      await recordInboundCustomer({ orderId: facts.id, caseKind: caseRow.kind, customerId: facts.customer.id, customerName: name, at: event.at.toISOString(), body: text })
+    } catch (error) { console.error("Road Desk: the customer's message could not be filed in the conversations", error) }
+    await pingOnAwaitedReply(caseRow, name, text, ["customer"])
+    return { caseId: caseRow.id, followUps: [{ kind: "analysis", caseId: caseRow.id, reason: `${name} (the customer) wrote by email: "${text.slice(0, 600)}". Read it against the case and the records. Do first what needs no approval (tell the driver if it changes what they do). Then draft the reply to the customer as a CONTACT_CUSTOMER card for an operator to approve: answer what they asked from the records, say what is not known, and promise no updates nobody is set to send. If what they need (a time, a buyer waiting, a document) does not fit the records, say so plainly in the rationale and the reply. If they agreed to or declined a proposed new date, say so in the card: an operator records their answer.` }] }
+  })
+}
+
 // ---------------------------------------------------------------- photos
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024

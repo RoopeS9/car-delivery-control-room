@@ -4,9 +4,9 @@
 // phone or a browser would send them. `reset` puts the demo back to the
 // start: no cases, no events, a fresh sim clock at the snapshot time.
 
-import { and, eq } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 import { beginRuntimeReset, RuntimeBusyError, withRuntimeWork } from "@/lib/cr/activity"
-import { resetSimClock, simNow } from "@/lib/cr/clock"
+import { advanceSimClock, resetSimClock, simNow } from "@/lib/cr/clock"
 import { crDb } from "@/lib/cr/db"
 import { appendEvent, insertTelemetry } from "@/lib/cr/queries"
 import type { DriverMessageRequest, SiteMessageRequest, SourceRef, TelemetryTriggerRequest } from "@/lib/cr/types"
@@ -18,7 +18,7 @@ import { clearDemoData } from "./routine"
 import { resetSimDriver } from "./sim-driver"
 import { activeFaults, markClockCaughtUp, syncTelemetry } from "./sync"
 
-export type ScenarioName = "warning-light-584" | "catch-up-322" | "driver-keys-145" | "site-eta-442" | "driver-silent-537" | "sensor-light-439" | "reset"
+export type ScenarioName = "warning-light-584" | "catch-up-322" | "driver-keys-145" | "site-eta-442" | "driver-silent-537" | "sensor-light-439" | "pickup-to-handover-442" | "reset"
 
 export type ScenarioInfo = {
   name: ScenarioName
@@ -78,6 +78,15 @@ export const SCENARIOS: ScenarioInfo[] = [
     links: [{ label: "Karin Calverick's driver app", href: "/driver?driver=drv-231" }],
   },
   {
+    name: "pickup-to-handover-442",
+    title: "H. From pickup to handover",
+    orderRef: "CD-420442",
+    description: "The next morning in Stockholm: the clock moves to the start of Kasper Darevik's pickup slot at Orvendin Cars. " +
+      "In his phone he reports each step: at the pickup, car and keys collected, checked in for the ferry, at the delivery address in Tampere, handed over. " +
+      "The map, the order and the board follow each step; the handover brings operations the customer's delivery confirmation to approve. Jump the clock between steps to watch the car drive.",
+    links: [{ label: "Kasper Darevik's driver app", href: "/driver?driver=drv-165&job=CD-420442" }],
+  },
+  {
     name: "reset",
     title: "Reset the demo",
     orderRef: null,
@@ -125,6 +134,7 @@ async function prepareScenario(name: string, origin: string, options: { keepRout
       "Hi, this is Uma at the Orvendin Cars desk. Is your driver still coming tomorrow morning for the Bentley?")
     case "driver-silent-537": return driverSilent537(origin)
     case "sensor-light-439": return sensorLight439()
+    case "pickup-to-handover-442": return pickupToHandover442()
     default: return { ok: false, name: name as ScenarioName, message: `There is no scenario called "${name}".` }
   }
 }
@@ -270,6 +280,25 @@ async function sensorLight439(): Promise<ScenarioResult> {
     ok: true, name, orderId: car.orderId, eventId: event.id,
     message: `${car.driverName} on CD-420439: steady check-engine light, P0135. They write: "${text}"`,
     actions: [{ kind: "driver_message", request: { orderRef: car.reference, driverId: car.driverId, text, mode: "chat" } }],
+  }
+}
+
+// ---------------------------------------------------------------- H: a whole delivery, step by step
+
+async function pickupToHandover442(): Promise<ScenarioResult> {
+  const name = "pickup-to-handover-442"
+  const [slot] = await crDb().select({ details: relatedRecords.details }).from(relatedRecords)
+    .where(and(eq(relatedRecords.orderId, "ord-00442"), eq(relatedRecords.collection, "time_windows"), sql`${relatedRecords.details}->>'purpose' = 'SELECTED_PICKUP_SLOT'`)).limit(1)
+  const start = slot ? Date.parse(String(slot.details.start_at)) : NaN
+  if (!Number.isFinite(start)) return { ok: false, name, message: "CD-420442 has no selected pickup slot in this dataset." }
+  const now = simNow()
+  // Ten minutes before the slot opens; a clock already past it stays where it is.
+  const target = start - 10 * 60_000
+  if (target > now.getTime()) advanceSimClock(Math.round((target - now.getTime()) / 60_000))
+  await syncTelemetry()
+  return {
+    ok: true, name, orderId: "ord-00442",
+    message: `Clock at ${simNow().toISOString().slice(0, 16).replace("T", " ")} UTC, just before Kasper Darevik's pickup slot at Orvendin Cars Stockholm. Report the steps in his phone.`,
   }
 }
 

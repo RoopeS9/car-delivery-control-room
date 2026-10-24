@@ -96,7 +96,7 @@ type SafetyEvidence = {
   events: Pick<EventRow, "at" | "channel" | "data">[]
 }
 const FAULT_KINDS = new Set(["VEHICLE_WARNING", "BREAKDOWN", "ACCIDENT"])
-const ROUTINE_KINDS = new Set(["KEYS_ACCESS", "EXPENSE", "DRIVER_QUESTION", "SITE_QUESTION", "OPERATOR_QUESTION"])
+const ROUTINE_KINDS = new Set(["KEYS_ACCESS", "EXPENSE", "DRIVER_QUESTION", "SITE_QUESTION", "OPERATOR_QUESTION", "CUSTOMER_MESSAGE", "HANDOVER"])
 const FAULT_SIGNAL = /VEHICLE|ENGINE|BREAKDOWN|ACCIDENT|OVERHEAT|COOLANT|OIL_PRESSURE|BRAKE|SAFETY|DTC/i
 
 /** Derive context from records, never from the model's claim that a car is safe. */

@@ -162,6 +162,8 @@ export function DemoPanel({ onFocus }: { onFocus?: (driverId: string, orderRef: 
       </ul>
     </section>
 
+    <CustomerWrites stories={stories} onLog={(text, ok) => setLog((items) => [{ at: new Date().toISOString(), text, ok }, ...items].slice(0, 8))} />
+
     {simDriver?.available && <section className={styles.section} aria-labelledby="simdriver">
       <h2 id="simdriver">Simulated driver <span className={styles.count}>video only</span></h2>
       <label className={styles.keep}>
@@ -213,4 +215,50 @@ function phoneWords(car: FleetRow, now: string): string {
   if (car.phone === "STALE") return "Silent (dataset gap)"
   if (car.quietFrom && car.quietFrom < now) return `Silent since ${clock(car.quietFrom).slice(0, 5)}`
   return "Live"
+}
+
+/** Quick lines a customer might send; anything can be typed instead. */
+const CUSTOMER_LINES = [
+  "Hello, can you tell us where our car is and whether it still arrives on time? We have a buyer coming.",
+  "We agree to the new delivery date you proposed.",
+  "Please do not tow the car yourselves; our own roadside partner will collect it this afternoon.",
+  "The car arrived, thank you. One of the keys is missing, can you check with the driver?",
+]
+
+/**
+ * The paying customer writes by email (simulated). The message lands on the order's case and conversations; the
+ * agent drafts the answer as a card a person approves, because nothing reaches a customer without a person.
+ */
+function CustomerWrites({ stories, onLog }: { stories: Scenario[]; onLog: (text: string, ok: boolean) => void }) {
+  const refs = [...new Set(stories.map((story) => story.orderRef).filter((ref): ref is string => Boolean(ref)))]
+  const [orderRef, setOrderRef] = useState("CD-420584")
+  const [text, setText] = useState(CUSTOMER_LINES[0])
+  const [busy, setBusy] = useState(false)
+  async function send() {
+    setBusy(true)
+    try {
+      const response = await fetch("/api/channels/customer/messages", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ orderRef: orderRef.trim().toUpperCase(), text }) })
+      const result = (await response.json()) as { caseId?: string; error?: string }
+      onLog(response.ok ? `The customer on ${orderRef.toUpperCase()} wrote by email (simulated). The agent drafts the answer as a card for a person.` : result.error ?? "The message was not delivered.", response.ok)
+    } catch {
+      onLog("The request failed. Is the app running?", false)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return <section className={styles.section} aria-labelledby="customer-writes">
+    <h2 id="customer-writes">The customer writes <span className={styles.count}>simulated email</span></h2>
+    <p className={styles.muted}>Anything the agent drafts back waits for a person before it goes out.</p>
+    <div className={styles.customerForm}>
+      <label>Order
+        <input list="customer-orders" value={orderRef} onChange={(event) => setOrderRef(event.target.value)} placeholder="CD-420584" />
+        <datalist id="customer-orders">{refs.map((ref) => <option key={ref} value={ref} />)}</datalist>
+      </label>
+      <label>Message
+        <textarea rows={3} value={text} onChange={(event) => setText(event.target.value)} />
+      </label>
+      <div className={styles.customerLines}>{CUSTOMER_LINES.map((line) => <button key={line} type="button" onClick={() => setText(line)}>{line.length > 48 ? `${line.slice(0, 46)}…` : line}</button>)}</div>
+      <button type="button" className={styles.primary} disabled={busy || !text.trim() || !/^CD-\d{6}$/i.test(orderRef.trim())} onClick={() => void send()}>{busy ? "Sending…" : "Send as the customer"}</button>
+    </div>
+  </section>
 }

@@ -28,7 +28,7 @@ const iso = (value: Date | string | null | undefined): string | null =>
 export const CASE_KIND_LABELS: Record<string, string> = {
   VEHICLE_WARNING: "Warning light", BREAKDOWN: "Breakdown", ACCIDENT: "Accident", DELAY: "Delay",
   MISSED_CONNECTION: "Missed ferry or train", KEYS_ACCESS: "Keys or access", EXPENSE: "Expense",
-  DRIVER_QUESTION: "Driver question", SITE_QUESTION: "Site question", OPERATOR_QUESTION: "Operator question", HANDOVER: "Delivered",
+  DRIVER_QUESTION: "Driver question", SITE_QUESTION: "Site question", OPERATOR_QUESTION: "Operator question", HANDOVER: "Delivered", CUSTOMER_MESSAGE: "Customer message",
 }
 
 const URGENCY_LABELS: Record<string, string> = { CRITICAL: "Critical", HIGH: "Urgent", NORMAL: "Normal", LOW: "Low" }

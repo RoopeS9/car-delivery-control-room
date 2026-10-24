@@ -128,10 +128,34 @@ export async function recordSentDraft(input: { orderId: string; caseKind: string
   return { conversationId: thread.id, messageId: message.id }
 }
 
+/** A message the customer wrote (a simulated email in this prototype), filed in the order's conversation with them. */
+export async function recordInboundCustomer(input: { orderId: string; caseKind: string; customerId: string; customerName: string; at: string; body: string }) {
+  const category = CASE_CATEGORY[input.caseKind] ?? "order_information"
+  const open = await db.select().from(conversations).where(and(eq(conversations.orderId, input.orderId), eq(conversations.status, "OPEN")))
+  let thread = open.find((row) => row.details.counterparty_id === input.customerId && row.category === category) ?? open.find((row) => row.details.counterparty_id === input.customerId) ?? null
+  if (!thread) {
+    const conversationId = id("conv")
+    const details: Record<string, unknown> = {
+      assignment_id: null, category, channel: "email", counterparty_id: input.customerId, counterparty_type: "customer", counterparty_name_snapshot: input.customerName,
+      id: conversationId, order_id: input.orderId, started_at: input.at, status: "OPEN", updated_at: input.at, waiting_on: "BAHN", opened_by_case: true,
+    }
+    await db.insert(conversations).values({ id: conversationId, orderId: input.orderId, category, channel: "email", status: "OPEN", updatedAt: new Date(input.at), details })
+    ;[thread] = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1)
+  }
+  if (!thread) return null
+  const message = {
+    author_id: input.customerId, author_type: "customer", authored_at: input.at, body: input.body, channel: thread.channel, conversation_id: thread.id,
+    id: id("msg"), language: null, order_id: input.orderId, recipient_id: null, recipient_type: "operator", visibility: "PUBLIC", simulated: true,
+  }
+  await db.insert(messages).values({ id: message.id, orderId: input.orderId, conversationId: thread.id, authorType: "customer", body: input.body, authoredAt: new Date(input.at), details: message })
+  await db.update(conversations).set({ updatedAt: new Date(input.at), details: { ...thread.details, updated_at: input.at, waiting_on: "BAHN" } }).where(eq(conversations.id, thread.id))
+  return { conversationId: thread.id, messageId: message.id }
+}
+
 /** The conversation category a case's message belongs to. */
 const CASE_CATEGORY: Record<string, string> = {
   VEHICLE_WARNING: "vehicle_condition", BREAKDOWN: "vehicle_condition", ACCIDENT: "vehicle_condition", DELAY: "schedule_and_eta", MISSED_CONNECTION: "ferry_and_route",
-  KEYS_ACCESS: "vehicle_custody", EXPENSE: "costs_and_payments", DRIVER_QUESTION: "driver_travel", SITE_QUESTION: "pickup_and_release", OPERATOR_QUESTION: "order_information", HANDOVER: "delivery_and_receiver",
+  KEYS_ACCESS: "vehicle_custody", EXPENSE: "costs_and_payments", DRIVER_QUESTION: "driver_travel", SITE_QUESTION: "pickup_and_release", OPERATOR_QUESTION: "order_information", HANDOVER: "delivery_and_receiver", CUSTOMER_MESSAGE: "order_information",
 }
 
 // ---------------------------------------------------------------- the inbox
