@@ -1,0 +1,41 @@
+{
+  "_about": "Approximate city-centre coordinates for the 30 cities in the dataset's addresses, plus the four fictional ferry terminals placed at their city. Used only to simulate phone GPS and to place markers on the map. Every position drawn from these is labelled simulated.",
+  "cities": {
+    "Aarhus|DK": { "lat": 56.1629, "lng": 10.2039 },
+    "Antwerp|BE": { "lat": 51.2194, "lng": 4.4025 },
+    "Berlin|DE": { "lat": 52.52, "lng": 13.405 },
+    "Cologne|DE": { "lat": 50.9375, "lng": 6.9603 },
+    "Copenhagen|DK": { "lat": 55.6761, "lng": 12.5683 },
+    "Düsseldorf|DE": { "lat": 51.2277, "lng": 6.7735 },
+    "Espoo|FI": { "lat": 60.2055, "lng": 24.6559 },
+    "Frankfurt|DE": { "lat": 50.1109, "lng": 8.6821 },
+    "Gothenburg|SE": { "lat": 57.7089, "lng": 11.9746 },
+    "Graz|AT": { "lat": 47.0707, "lng": 15.4395 },
+    "Hamburg|DE": { "lat": 53.5511, "lng": 9.9937 },
+    "Helsinki|FI": { "lat": 60.1699, "lng": 24.9384 },
+    "Lahti|FI": { "lat": 60.9827, "lng": 25.6612 },
+    "Leipzig|DE": { "lat": 51.3397, "lng": 12.3731 },
+    "Lille|FR": { "lat": 50.6292, "lng": 3.0573 },
+    "Lyon|FR": { "lat": 45.764, "lng": 4.8357 },
+    "Malmö|SE": { "lat": 55.605, "lng": 13.0038 },
+    "Marseille|FR": { "lat": 43.2965, "lng": 5.3698 },
+    "Munich|DE": { "lat": 48.1351, "lng": 11.582 },
+    "Odense|DK": { "lat": 55.4038, "lng": 10.4024 },
+    "Oulu|FI": { "lat": 65.0121, "lng": 25.4651 },
+    "Paris|FR": { "lat": 48.8566, "lng": 2.3522 },
+    "Rotterdam|NL": { "lat": 51.9244, "lng": 4.4777 },
+    "Seinäjoki|FI": { "lat": 62.7903, "lng": 22.8403 },
+    "Stockholm|SE": { "lat": 59.3293, "lng": 18.0686 },
+    "Stuttgart|DE": { "lat": 48.7758, "lng": 9.1829 },
+    "Tampere|FI": { "lat": 61.4978, "lng": 23.761 },
+    "Turku|FI": { "lat": 60.4518, "lng": 22.2666 },
+    "Vantaa|FI": { "lat": 60.2934, "lng": 25.0378 },
+    "Vienna|AT": { "lat": 48.2082, "lng": 16.3738 }
+  },
+  "terminals": {
+    "terminal-west-baltic": { "name": "West Baltic Vehicle Terminal", "city": "Hamburg|DE", "lat": 53.5413, "lng": 9.9668, "precision": "CITY_ONLY" },
+    "terminal-south-baltic": { "name": "South Baltic Vehicle Terminal", "city": "Copenhagen|DK", "lat": 55.6867, "lng": 12.5999, "precision": "CITY_ONLY" },
+    "terminal-east-nordic": { "name": "East Nordic Vehicle Terminal", "city": "Stockholm|SE", "lat": 59.3326, "lng": 18.1014, "precision": "CITY_ONLY" },
+    "terminal-south-finland": { "name": "South Finland Vehicle Terminal", "city": "Helsinki|FI", "lat": 60.1553, "lng": 24.9208, "precision": "CITY_ONLY" }
+  }
+}

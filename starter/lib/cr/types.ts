@@ -145,6 +145,24 @@ export type GpsData = {
   place_label?: string | null
 }
 
+/**
+ * `cr_events.data` for a `photo` event. Give the image either inline
+ * (`base64`) or as a file under `starter/public/` (`path`, e.g.
+ * `/demo/dashboard-584.png`). PNG, JPEG or WebP only: the agent reads it with
+ * vision. Every image must be generated or drawn, never a real photo.
+ */
+export type PhotoData = {
+  media_type: "image/png" | "image/jpeg" | "image/webp"
+  base64?: string
+  path?: string
+  /** What the photo is meant to show, e.g. "dashboard", "damage front left". */
+  subject?: string | null
+  caption?: string | null
+}
+
+/** `cr_events.data` for a `message` event with `kind: "photo_request"`: the driver app shows a camera button. */
+export type PhotoRequestData = { request: "photo"; subject: string }
+
 // ---------------------------------------------------------------- agent runs
 
 export type ToolCallTrace = {
