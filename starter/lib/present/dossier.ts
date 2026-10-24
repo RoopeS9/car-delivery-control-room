@@ -7,7 +7,7 @@
 
 import { fleetCar } from "@/lib/sim/fleet"
 import { callsFor, serviceDossier, strengthIndex } from "./call-service"
-import { slotLabel, slotValue, type CallRecord } from "./call-types"
+import { readToolArgument, slotLabel, slotValue, type CallRecord } from "./call-types"
 import { deriveKeyDates, milestones } from "./attention"
 import { type Bundle, num, rows, str } from "./bundle"
 import { labelIn } from "./labels"
@@ -181,7 +181,12 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
     })
   }
 
-  for (const call of robo) behind.push(roboCallItem(call))
+  for (const call of robo) {
+    const item = roboCallItem(call)
+    // The call service stamps calls with its own wall clock, which can be ahead of the simulated one.
+    if (item.at && !isBefore(item.at, now)) item.detail = [item.detail, "stamped by the call service's own clock, not the simulated clock"].filter(Boolean).join(" · ")
+    behind.push(item)
+  }
 
   // Where the dossier service has typed a record, its evidence word wins over
   // ours, except for the judgements made here against the clock.
@@ -277,6 +282,6 @@ function roboCallItem(call: CallRecord): DossierItem {
     tone: escalation ? "danger" : call.outcome === "COMPLETED" ? "ok" : "warn",
     turns: call.turns.map((turn) => ({ speaker: speaker(turn), text: turn.text, at: turn.startedAt })),
     slots: call.slots.map((slot) => ({ label: slotLabel(slot.value.slot), value: slotValue(slot.value.value), quote: slot.quote, turn: slot.turnSeq })),
-    missing, escalated: escalation ? String(escalation.argument ?? "") : null,
+    missing, escalated: escalation ? readToolArgument(escalation.argument) : null,
   }
 }

@@ -457,6 +457,7 @@ export function ChartHome({ initial }: { initial: ChartView }) {
           <span><i className="lg lg-fine" />Moving</span>
           <span><i className="lg lg-stale" />Phone quiet</span>
           <span><i className="lg lg-berth" />Waiting in the city</span>
+          <span><i className="lg lg-done" />Delivered</span>
         </span>
         <span className="strip-note">Car positions are simulated phone GPS</span>
       </div>

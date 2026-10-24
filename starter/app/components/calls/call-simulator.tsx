@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { slotLabel, slotValue, type CallRecord, type CallScenario } from "@/lib/present/call-types"
+import { readToolArgument, slotLabel, slotValue, type CallRecord, type CallScenario } from "@/lib/present/call-types"
 import { labelIn } from "@/lib/present/labels"
 import { fmtDateTime } from "@/lib/present/time"
 import { Icon } from "../icons"
@@ -114,7 +114,7 @@ function CallRecordView({ call }: { call: CallRecord }) {
           <span className="turn-who">{nameOf(turn.speaker)} <span>turn {turn.seq} · {fmtDateTime(turn.startedAt).split(" ").slice(-2).join(" ")}</span></span>
           <p>{turn.text}</p>
           {slotsByTurn.get(turn.seq)?.map((slot) => <span key={slot.value.slot} className="turn-slot"><Icon name="check" size={12} />{slotLabel(slot.value.slot)}: {slotValue(slot.value.value)}</span>)}
-          {toolsByTurn.get(turn.seq)?.map((tool, index) => <span key={index} className={`turn-tool${tool.name === "ESCALATE_TO_OPERATOR" ? " escalate" : ""}`}><Icon name="alert" size={12} />{tool.name === "ESCALATE_TO_OPERATOR" ? "Handed to an operator" : labelIn(String(tool.name ?? "tool"))}{tool.argument ? `: ${String(tool.argument)}` : ""}</span>)}
+          {toolsByTurn.get(turn.seq)?.map((tool, index) => <span key={index} className={`turn-tool${tool.name === "ESCALATE_TO_OPERATOR" ? " escalate" : ""}`}><Icon name="alert" size={12} />{tool.name === "ESCALATE_TO_OPERATOR" ? "Handed to an operator" : labelIn(String(tool.name ?? "tool"))}{tool.argument ? `: ${readToolArgument(tool.argument)}` : ""}</span>)}
         </li>)}
       </ol>
 
@@ -135,7 +135,7 @@ function CallRecordView({ call }: { call: CallRecord }) {
           <h3>Actions the caller took</h3>
           <ul className="slot-list">{call.toolCalls.map((tool, index) => <li key={index} className={tool.name === "ESCALATE_TO_OPERATOR" ? "escalate" : undefined}>
             <b>{tool.name === "ESCALATE_TO_OPERATOR" ? "Handed to an operator" : labelIn(String(tool.name ?? "tool"))}</b>
-            {tool.argument ? <span className="slot-value">{String(tool.argument)}</span> : null}
+            {tool.argument ? <span className="slot-value">{readToolArgument(tool.argument)}</span> : null}
             {typeof tool.turnSeq === "number" && <a href={`#turn-${tool.turnSeq}`} className="slot-cite">turn {tool.turnSeq}</a>}
           </li>)}</ul>
         </>}

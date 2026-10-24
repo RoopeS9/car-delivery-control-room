@@ -84,6 +84,7 @@
 .lg-fine { background: var(--c-fine); }
 .lg-stale { box-shadow: inset 0 0 0 1.5px var(--c-fine); }
 .lg-berth { background: var(--c-berth); }
+.lg-done { box-shadow: inset 0 0 0 1.5px var(--c-ok); }
 
 /* ---- nodes */
 .node-wrap, .pt-wrap { background: none; border: 0; }
