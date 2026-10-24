@@ -291,3 +291,26 @@ Checked / changed / rejected:
   client, so the prompts, gates and delivery code that run are the real ones.
 - Still open: a real-model run and its trace. `OPENROUTER_API_KEY` is not
   visible to this session.
+
+## 2026-10-24 ~12:20 UTC · Claude Code (stream B, cloud instance 2) · telemetry strip, photos, three-stream run
+
+Asked: finish the case page from PLAN 4.7 (telemetry strip, photos) and check
+it against the other streams' real output instead of B's own fixtures.
+
+Got: a strip on vehicle cases (check-engine light, codes named from
+`knowledge/dtc.json` with severity, key OBD values, phone position, each with
+age and "simulated"), photo thumbnails in the timeline, and phone-width fixes.
+
+Checked / changed / rejected:
+- Photos are stored as base64 on the event (up to 5 MB). Rejected putting them
+  in the order JSON that polls every 2.5 s; they are served from a small route
+  under `app/orders/` instead.
+- The test dashboard image for B's fixture was drawn as SVG and rendered, not
+  a real photo (rule 6). It stays in the scratchpad; stream C owns the demo one.
+- Merged A (30 gate and loop tests pass) and C (simulator) into B's branch and
+  ran C's `warning-light-584` scenario through A's telemetry trigger: the case
+  opened, the strip showed the limping car live, and the map drew 23 cars on
+  C's routes. Without a model key the agent hands over to a person, and the
+  page offers "Tell the agent" open by default in that state.
+- Screenshots at 390 px caught the map shrinking to a strip under the legend
+  and code chips wrapping mid-word; both fixed.
