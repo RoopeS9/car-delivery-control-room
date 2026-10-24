@@ -7,7 +7,7 @@ collection, id, primary time, evidence strength and membership (DIRECT names the
 CANDIDATE might concern it). Records are validated by strict generated schemas: unknown keys, unknown enum values and
 malformed times are rejected.
 
-Measured on the snapshot: median 6206 tokens, p90 9114, max 12141 (JSON chars / 4), so the whole dossier always fits a reasoning model's context.
+Measured on the snapshot: median 6223 tokens, p90 9132, max 12159 (JSON chars / 4), so the whole dossier always fits a reasoning model's context.
 
 ## Information classes
 

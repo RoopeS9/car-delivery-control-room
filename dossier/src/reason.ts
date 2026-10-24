@@ -6,6 +6,7 @@ import type { Dossier, DossierItem } from "./dossier"
 import { CallBrief, CallPurpose, Urgency } from "./live"
 import { briefFor, items } from "./brief"
 import { IsoDateTime, Text } from "./primitives"
+import { derive, renderDerived, type DerivedItem } from "./derived"
 
 // ------------------------------------------------------------------ typed outputs
 
@@ -65,8 +66,19 @@ export function renderDossier(d: Dossier, opts: { maxHistory?: number } = {}): s
     out.push("")
   }
   if (d.live.telemetry.length) {
-    out.push(`## TELEMETRY (${d.live.telemetry.length}, simulated)`)
+    out.push(`## TELEMETRY (${d.live.telemetry.length} samples, simulated; the latest six)`)
     for (const t of d.live.telemetry.slice(-6)) out.push(`- ${JSON.stringify(t)}`)
+    out.push("")
+  }
+  if (d.live.phone) out.push(`## PHONE\n- the driver's app is ${d.live.phone.state}${d.live.phone.quietFrom ? ` since ${d.live.phone.quietFrom}` : ""}${d.live.phone.note ? `: ${d.live.phone.note}` : ""}`, "")
+  if (d.live.events.length) {
+    out.push(`## APP TIMELINE (${d.live.events.length}; messages and decisions recorded in the control room since the snapshot)`)
+    for (const e of d.live.events.slice(-30)) out.push(`- [${e.eventKind} · ${e.channel} · ${e.actor}${e.actorId ? ` ${e.actorId}` : ""} · ${e.at}] ${e.text.slice(0, 300)}`)
+    out.push("")
+  }
+  if (d.live.cases.length) {
+    out.push(`## OPEN CASES IN THE CONTROL ROOM (${d.live.cases.length})`)
+    for (const c of d.live.cases) out.push(`- [${c.status} · ${c.urgency} · ${c.caseKind}] ${c.title}: ${c.summary}${c.waitingFor ? ` (waiting for ${c.waitingFor})` : ""}`)
     out.push("")
   }
   return out.join("\n")
@@ -80,7 +92,7 @@ Rules you must follow:
 2. The agent may call drivers and sites that are not the paying customer. It may never contact the customer; anyone who pays is a customer, including a delivery site owned by the customer. Promise changes, money, recovery of a broken car and any customer message need a person.
 3. needsPerson is for exactly those things. Routine work is not a needsPerson. If nothing needs a person, needsPerson is null.
 4. watching holds at most three derived items, each citing the dossier item ids it rests on (basis). A deadline is at risk when a cutoff, slot or promise is within reach of the latest ETA or there is no position for over an hour on a moving car.
-5. calls: propose at most two calls the agent should place now, only to drivers or non-customer sites, with the purpose from the allowed list.
+5. calls: propose at most two calls the agent should place now, only to drivers or non-customer sites, with the purpose from the allowed list. The DERIVED section lists the checks the rules say are due; a DUE_CHECK in state DUE or OVERDUE belongs in calls unless the dossier shows it is pointless, and a check in state DONE, RETRY or BLOCKED is never proposed again.
 6. headline is one plain sentence an operator reads first. No ids in headline, watching lines or needsPerson text except the order reference.
 7. Answer with JSON only, matching the schema exactly. No markdown.`.replace("OBS ERVATION", "OBSERVATION")
 
@@ -115,11 +127,12 @@ async function chat(apiKey: string, model: string, system: string, user: string,
 }
 const stripFence = (raw: string) => raw.replace(/^```(?:json)?\s*|```\s*$/g, "").trim()
 
-export async function reason(d: Dossier, opts: { model?: string; apiKey?: string } = {}): Promise<ReasonRun> {
+export async function reason(d: Dossier, opts: { model?: string; apiKey?: string; derived?: DerivedItem[] } = {}): Promise<ReasonRun> {
   const apiKey = opts.apiKey ?? process.env.OPENROUTER_API_KEY
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set")
   const model = opts.model ?? process.env.REASON_MODEL ?? "deepseek/deepseek-v4-pro"
-  const rendered = renderDossier(d) + "\n\n## Callable parties on this order\n" + callableParties(d).map((l) => `- ${l}`).join("\n")
+  const derived = opts.derived ?? derive(d)
+  const rendered = renderDossier(d) + "\n" + renderDerived(derived) + "\n## Callable parties on this order\n" + callableParties(d).map((l) => `- ${l}`).join("\n")
   const system = RULES + "\n\nOutput schema:\n" + OUTPUT_SCHEMA_TEXT
   let feedback: string | undefined, raw = "", usage: { prompt_tokens: number; completion_tokens: number; cost?: number } | undefined, parsedOut: ReasonOutput | undefined
   let cost = 0, inTok = 0, outTok = 0

@@ -2,7 +2,8 @@
 //   GET  /health
 //   GET  /scenarios                       -> personas with their order and purpose
 //   GET  /purposes                        -> CallPurpose values with which need a persona
-//   GET  /dossier/:ref                    -> full Dossier (ref = CD-xxxxxx)
+//   GET  /dossier/:ref[?live=1]           -> full Dossier (ref = CD-xxxxxx); live pulls the app's records and clock
+//   GET  /derived/:ref[?live=1]           -> the derived layer: due checks, deadlines at risk, silent gaps, conflicts
 //   GET  /brief/:ref/:purpose             -> CallBrief built from the dossier (400 if not buildable, with the reason)
 //   POST /calls/run {personaId, at?}      -> runs the simulated call, stores it, returns the CallRecord
 //   GET  /calls?ref=CD-xxxxxx             -> stored CallRecords (all, or for one order), newest first
@@ -11,7 +12,7 @@ import { createServer } from "node:http"
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { buildDossier, loadDataset } from "./build"
 import { briefFor } from "./brief"
-import { CallPurpose, CallRecord, type CallBrief } from "./live"
+import { CallPurpose, CallRecord, emptyLive, type CallBrief } from "./live"
 import { PERSONAS } from "./sim/personas"
 import { runSimulatedCall } from "./sim/call"
 import { composeBrief, reason, renderDossier, type ReasonRun } from "./reason"
@@ -19,6 +20,8 @@ import { ingestTranscript, runLlmCall } from "./llm-call"
 import { reviewCall } from "./review"
 import { cardText, contextPrompt } from "./context"
 import { renderCallAudio, ttsEnabled } from "./tts"
+import { pullLive } from "./livepull"
+import { derive } from "./derived"
 
 const root = new URL("../", import.meta.url)
 const callsDir = new URL("data/out/calls/", root)
@@ -29,6 +32,12 @@ const byRef = new Map(ds.rows.orders.map((o) => [o.reference, o.id]))
 const purposeFor = (p: (typeof PERSONAS)[number]): CallPurpose => (p.inbound ? "DRIVER_INBOUND" : p.role === "PICKUP_SITE_DESK" ? "PICKUP_READINESS" : "DRIVER_START_CHECK")
 
 const briefCache = new Map<string, { brief: CallBrief; by: "MODEL" | "RULE"; at: string }>()
+const storedCalls = (id: string) => [...calls.values()].filter((c) => c.orderId === id)
+/** The dossier with stored calls, and with the app's live records and clock when asked and the app answers. */
+async function dossierFor(ref: string, id: string, live: boolean) {
+  if (live) { const pulled = await pullLive(ds, id, ref, storedCalls(id)); if (pulled) return buildDossier(ds, id, pulled.live, pulled.asOf) }
+  return buildDossier(ds, id, { ...emptyLive(), calls: storedCalls(id) })
+}
 const reasonCache = new Map<string, ReasonRun>()
 const calls = new Map<string, CallRecord>()
 type Job = { id: string; personaId: string; mode: string; startedAt: string; status: "running" | "done" | "failed"; call?: CallRecord; note?: Record<string, unknown>; review?: unknown; error?: string }
@@ -50,8 +59,15 @@ createServer(async (req, res) => {
     if (parts[0] === "scenarios") return json(res, 200, PERSONAS.map((p) => ({ id: p.id, orderRef: p.orderRef, role: p.role, mood: p.mood, purpose: purposeFor(p), inbound: !!p.inbound, title: p.greeting })))
     if (parts[0] === "purposes") return json(res, 200, CallPurpose.options)
     if (parts[0] === "dossier" && parts[1]) {
+      // ?live=1 pulls what the app has recorded (clock, telemetry, timeline, cases) and builds as of the app's clock.
       const id = byRef.get(parts[1]); if (!id) return json(res, 404, { error: `no order ${parts[1]}` })
-      return json(res, 200, buildDossier(ds, id))
+      return json(res, 200, await dossierFor(parts[1], id, url.searchParams.get("live") === "1"))
+    }
+    if (parts[0] === "derived" && parts[1]) {
+      // What the rules say is due, at risk, silent or in conflict, as of the dossier's time (live with ?live=1).
+      const id = byRef.get(parts[1]); if (!id) return json(res, 404, { error: `no order ${parts[1]}` })
+      const d = await dossierFor(parts[1], id, url.searchParams.get("live") === "1")
+      return json(res, 200, { reference: parts[1], asOf: d.asOf, phase: d.phase, live: d.live.pulledFrom != null, derived: derive(d) })
     }
     if (parts[0] === "actions" && parts[1]) {
       // What an operator can do about this order right now: the calls the agent may place (with their card URL) and the ones a person must make.
@@ -87,8 +103,7 @@ createServer(async (req, res) => {
       const id = byRef.get(parts[1]); if (!id) return json(res, 404, { error: `no order ${parts[1]}` })
       let run = reasonCache.get(parts[1])
       if (!run || url.searchParams.get("fresh") === "1") {
-        const live = { calls: [...calls.values()].filter((c) => c.orderId === id), telemetry: [], operatorActions: [] }
-        try { run = await reason(buildDossier(ds, id, live)) } catch (e) { return json(res, 502, { error: (e as Error).message.slice(0, 600) }) }
+        try { run = await reason(await dossierFor(parts[1], id, url.searchParams.get("live") === "1")) } catch (e) { return json(res, 502, { error: (e as Error).message.slice(0, 600) }) }
         reasonCache.set(parts[1], run)
       }
       return json(res, 200, run)
@@ -102,7 +117,7 @@ createServer(async (req, res) => {
       // The turn-based line's system prompt: the brief (model-composed with ?by=model) and the whole dossier, with stored calls.
       const id = byRef.get(parts[1]); if (!id) return json(res, 404, { error: `no order ${parts[1]}` })
       const purpose = CallPurpose.safeParse(parts[2]); if (!purpose.success) return json(res, 400, { error: `unknown purpose ${parts[2]}` })
-      const d = buildDossier(ds, id, { calls: [...calls.values()].filter((c) => c.orderId === id), telemetry: [], operatorActions: [] })
+      const d = buildDossier(ds, id, { ...emptyLive(), calls: [...calls.values()].filter((c) => c.orderId === id) })
       let brief: CallBrief, by = "RULE"
       try {
         if (url.searchParams.get("by") === "model") { const key = `${parts[1]}/${purpose.data}`; let hit = briefCache.get(key); if (!hit) { const r = await composeBrief(d, purpose.data); hit = { brief: r.brief, by: r.by, at: new Date().toISOString() }; briefCache.set(key, hit) } brief = hit.brief; by = hit.by }

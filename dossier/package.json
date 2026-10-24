@@ -11,7 +11,8 @@
     "check": "npm run -s typecheck && npm run -s validate && npm run -s strictness && npm run -s build-all && npm run -s sim:calls",
     "sim:calls": "tsx src/cli/sim-calls.ts",
     "serve": "tsx src/serve.ts",
-    "reason": "tsx src/cli/reason.ts"
+    "reason": "tsx src/cli/reason.ts",
+    "derived": "tsx src/cli/derived-all.ts"
   },
   "dependencies": {
     "zod": "^3.24.2"

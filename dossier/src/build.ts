@@ -4,7 +4,7 @@ import { RECORDS, type CollectionName } from "./records.generated"
 import { COLLECTION_CLASS, type Phase } from "./classes"
 import { DATASET_CLASSES, Dossier, type DossierItem, type Membership } from "./dossier"
 import { atOf, strengthOf, type RecordOf } from "./strength"
-import type { CallRecord, OperatorAction, TelemetrySample } from "./live"
+import { emptyLive, type Live } from "./live"
 
 export type Dataset = {
   snapshotAt: string
@@ -44,8 +44,21 @@ export function loadDataset(dir: URL): Dataset {
 // Fields that hold labels or group keys rather than a record id (checked by the dangling-ref report).
 const NOT_RECORD_REFS = new Set(["upload_batch_id", "itinerary_group_id", "thread_id", "option_id", "voice_prompt"])
 
-export function derivePhase(ds: Dataset, orderId: string, asOf: string): { phase: Phase; basis: string } {
-  const o = ds.rows.orders.find((r) => r.id === orderId)!
+/**
+ * A simulated delivery run moves an order along without the dataset changing: the run tells the dossier what the
+ * world would say now. Every field is optional; absent means "as the dataset has it".
+ */
+export type Overlay = {
+  /** The order's status as the run has advanced it (a readiness order becomes WAITING_FOR_PICKUP, then IN_TRANSIT, then DELIVERED). */
+  status?: "NEW" | "WAITING_FOR_PICKUP" | "IN_TRANSIT" | "DELIVERED"
+  /** Why, in words, for the dossier's phase basis. */
+  note?: string
+}
+
+export function derivePhase(ds: Dataset, orderId: string, asOf: string, overlay: Overlay = {}): { phase: Phase; basis: string } {
+  const stored = ds.rows.orders.find((r) => r.id === orderId)!
+  const o = overlay.status ? { ...stored, status: overlay.status } : stored
+  const simulated = overlay.status && overlay.status !== stored.status ? ` (simulated: ${overlay.note ?? `status ${overlay.status}`})` : ""
   if (o.cancelled_at) return { phase: "CANCELLED", basis: `cancelled at ${o.cancelled_at}` }
   const t = Date.parse(asOf), day = 24 * 3600e3
   const windows = ds.rows.time_windows.filter((w) => w.order_id === orderId && w.is_selected)
@@ -57,18 +70,19 @@ export function derivePhase(ds: Dataset, orderId: string, asOf: string): { phase
     return live ? { phase: "MARKET", basis: "readiness CONFIRMED and an offer is published" } : { phase: "READINESS", basis: "readiness CONFIRMED, no published offer" }
   }
   if (o.status === "WAITING_FOR_PICKUP") {
-    if (slot && Date.parse(slot.start_at) - t <= day) return { phase: "PICKUP_DUE", basis: `selected pickup slot starts ${slot.start_at}` }
-    return { phase: "BOOKED", basis: slot ? `driver booked, pickup slot ${slot.start_at}` : "driver booked, no selected pickup slot" }
+    if (slot && Date.parse(slot.start_at) - t <= day) return { phase: "PICKUP_DUE", basis: `selected pickup slot starts ${slot.start_at}${simulated}` }
+    return { phase: "BOOKED", basis: (slot ? `driver booked, pickup slot ${slot.start_at}` : "driver booked, no selected pickup slot") + simulated }
   }
   if (o.status === "IN_TRANSIT") {
-    if (promise && Date.parse(promise.start_at) - t <= day) return { phase: "DELIVERY_DUE", basis: `delivery promise starts ${promise.start_at}` }
-    return { phase: "MOVING", basis: promise ? `in transit, promise ${promise.start_at}` : "in transit, no selected promise" }
+    if (promise && Date.parse(promise.start_at) - t <= day) return { phase: "DELIVERY_DUE", basis: `delivery promise starts ${promise.start_at}${simulated}` }
+    return { phase: "MOVING", basis: (promise ? `in transit, promise ${promise.start_at}` : "in transit, no selected promise") + simulated }
   }
+  if (overlay.status === "DELIVERED") return { phase: "AFTER", basis: `delivered${simulated}` }
   const stillMoving = ds.rows.work_assignments.some((a) => a.order_id === orderId && a.status === "IN_PROGRESS")
   return stillMoving ? { phase: "MOVING", basis: "primary car delivered, another item (trade-in) still in progress" } : { phase: "AFTER", basis: "delivered" }
 }
 
-export function buildDossier(ds: Dataset, orderId: string, live: { calls: CallRecord[]; telemetry: TelemetrySample[]; operatorActions: OperatorAction[] } = { calls: [], telemetry: [], operatorActions: [] }, asOf = ds.snapshotAt): Dossier {
+export function buildDossier(ds: Dataset, orderId: string, live: Live = emptyLive(), asOf = ds.snapshotAt, overlay: Overlay = {}): Dossier {
   const order = ds.rows.orders.find((r) => r.id === orderId)
   if (!order) throw new Error(`no order ${orderId}`)
   const picked = new Map<string, { c: CollectionName; r: object; m: Membership }>()
@@ -153,7 +167,7 @@ export function buildDossier(ds: Dataset, orderId: string, live: { calls: CallRe
     schemaVersion: 1,
     order: { id: order.id, reference: order.reference, customerId: order.customer_id },
     asOf, builtAt: new Date().toISOString(),
-    phase: derivePhase(ds, orderId, asOf),
+    phase: derivePhase(ds, orderId, asOf, overlay),
     classes, live, integrity: { danglingRefs },
   })
 }

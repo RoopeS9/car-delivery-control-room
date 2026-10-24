@@ -3,7 +3,7 @@
 import { z } from "zod"
 import { RECORDS, type CollectionName } from "./records.generated"
 import { COLLECTION_CLASS, ClassId, Phase, type DatasetClassId } from "./classes"
-import { CallRecord, OperatorAction, TelemetrySample } from "./live"
+import { Live } from "./live"
 import { Id, IsoDateTime, Text } from "./primitives"
 import { Strength, type RecordOf } from "./strength"
 
@@ -36,7 +36,7 @@ export const Dossier = z.object({
   builtAt: IsoDateTime,
   phase: z.object({ phase: Phase, basis: Text }).strict(),
   classes: z.object(classesShape).strict(),
-  live: z.object({ calls: z.array(CallRecord), telemetry: z.array(TelemetrySample), operatorActions: z.array(OperatorAction) }).strict(),
+  live: Live,
   integrity: z.object({ danglingRefs: z.array(DanglingRef) }).strict(),
 }).strict().superRefine((d, ctx) => {
   // An item must sit in the class its collection belongs to, and appear once.

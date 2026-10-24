@@ -1,7 +1,7 @@
 // npm run reason -- CD-420584 [CD-...]: build the dossier (with stored calls), run the reasoning step, save and print.
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
 import { buildDossier, loadDataset } from "../build"
-import { CallRecord } from "../live"
+import { CallRecord, emptyLive } from "../live"
 import { reason, renderDossier } from "../reason"
 
 const root = new URL("../../", import.meta.url)
@@ -20,7 +20,7 @@ if (!refs.length) { console.error("usage: npm run reason -- CD-420584 [--render]
 let total = 0
 for (const ref of refs) {
   const order = ds.rows.orders.find((o) => o.reference === ref); if (!order) { console.error("no order", ref); continue }
-  const d = buildDossier(ds, order.id, { calls: calls.filter((c) => c.orderId === order.id), telemetry: [], operatorActions: [] })
+  const d = buildDossier(ds, order.id, { ...emptyLive(), calls: calls.filter((c) => c.orderId === order.id) })
   const rendered = renderDossier(d)
   console.log(`\n=== ${ref} · ${d.phase.phase} · rendered ${rendered.length} chars (~${Math.round(rendered.length / 4)} tokens)`)
   if (dry) { console.log(rendered.slice(0, 3000)); continue }

@@ -155,6 +155,37 @@ export const CallRecord = z.object({
 }).strict()
 export type CallRecord = z.infer<typeof CallRecord>
 
+// ------------------------------------------------------------------ what the app records while the world moves
+
+/** One line of the app's timeline for this order (cr_events): a message, a note, a decision, a scenario injection. */
+export const AppEvent = z.object({
+  kind: z.literal("APP_EVENT"),
+  id: Id, orderId: Id, caseId: Id.nullable(), at: IsoDateTime,
+  actor: z.enum(["driver", "site", "customer", "operator", "agent", "obd", "phone", "system"]), actorId: Text.nullable(),
+  eventKind: z.enum(["message", "voice_turn", "photo", "telemetry_snapshot", "dtc", "lookup", "tool_call", "proposal", "decision", "effect", "note"]),
+  channel: z.enum(["driver_chat", "driver_voice", "site_chat", "operator_chat", "customer_email", "internal", "telemetry", "system", "safety"]),
+  /** The event's plain-language text, as the timeline shows it. */
+  text: Text,
+}).strict()
+export type AppEvent = z.infer<typeof AppEvent>
+
+/** An open or closed case the app's agent holds on this order. */
+export const AppCase = z.object({
+  kind: z.literal("APP_CASE"),
+  id: Id, orderId: Id, openedAt: IsoDateTime, updatedAt: IsoDateTime,
+  caseKind: Text, status: z.enum(["NEEDS_DECISION", "AGENT_WORKING", "WAITING_EXTERNAL", "HANDLED_BY_AGENT", "RESOLVED"]),
+  urgency: z.enum(["CRITICAL", "HIGH", "NORMAL", "LOW"]), title: Text, summary: Text,
+  waitingFor: z.enum(["driver", "site", "customer", "operator", "agent", "provider", "dispatch"]).nullable(), nextCheckAt: IsoDateTime.nullable(),
+}).strict()
+export type AppCase = z.infer<typeof AppCase>
+
+/** What the app knows about the car's phone, from the simulator: live, quiet since a time, or never heard. */
+export const PhoneState = z.object({
+  kind: z.literal("PHONE"),
+  state: z.enum(["LIVE", "QUIET", "OFF", "UNKNOWN"]), quietFrom: IsoDateTime.nullable(), note: Text.nullable(),
+}).strict()
+export type PhoneState = z.infer<typeof PhoneState>
+
 // ------------------------------------------------------------------ operator actions
 
 export const OperatorAction = z.discriminatedUnion("kind", [
@@ -165,3 +196,15 @@ export const OperatorAction = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("DECISION"), id: Id, orderId: Id, at: IsoDateTime, operatorId: Id, about: z.object({ collection: Text, id: Id }).strict(), choice: Text }).strict(),
 ])
 export type OperatorAction = z.infer<typeof OperatorAction>
+
+// ------------------------------------------------------------------ the live input, whole
+
+/** Everything the dossier takes from outside the dataset. Empty by default; the live pull fills it. */
+export const Live = z.object({
+  calls: z.array(CallRecord), telemetry: z.array(TelemetrySample), operatorActions: z.array(OperatorAction),
+  events: z.array(AppEvent), cases: z.array(AppCase), phone: PhoneState.nullable(),
+  /** Where the live part came from and when; null when nothing was pulled. */
+  pulledAt: IsoDateTime.nullable(), pulledFrom: Text.nullable(),
+}).strict()
+export type Live = z.infer<typeof Live>
+export const emptyLive = (): Live => ({ calls: [], telemetry: [], operatorActions: [], events: [], cases: [], phone: null, pulledAt: null, pulledFrom: null })
