@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <!-- Fictional instrument cluster for demo scenario A (CD-420584). Drawn, not photographed; no brand marks.
+       Car stopped with the engine idling: check-engine light on, reduced-power message, 11:05 local time. -->
+  <defs>
+    <radialGradient id="room" cx="50%" cy="45%" r="75%">
+      <stop offset="0" stop-color="#2a2622"/>
+      <stop offset="0.7" stop-color="#14120f"/>
+      <stop offset="1" stop-color="#070605"/>
+    </radialGradient>
+    <linearGradient id="hood" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3b342c"/>
+      <stop offset="1" stop-color="#1b1714"/>
+    </linearGradient>
+    <radialGradient id="dial" cx="50%" cy="45%" r="60%">
+      <stop offset="0" stop-color="#1c2026"/>
+      <stop offset="1" stop-color="#07090b"/>
+    </radialGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#161b21"/>
+      <stop offset="1" stop-color="#0a0d10"/>
+    </linearGradient>
+    <radialGradient id="amberGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffb02e" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ffb02e" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glare" cx="30%" cy="20%" r="60%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="1.2"/></filter>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <!-- SAE-style engine symbol, 100 x 64 box -->
+    <symbol id="engine" viewBox="0 0 100 64">
+      <path fill="currentColor" d="M22 6h30v8h-9v6h17l8 8h8V20h8v30h-8v-8h-6l-10 14H30l-8-10h-6v10H8V22h8v10h6V20h17v-6h-9z"/>
+    </symbol>
+  </defs>
+
+  <rect width="1600" height="1000" fill="url(#room)"/>
+  <!-- cluster hood -->
+  <path d="M90 230 Q800 60 1510 230 L1540 860 Q800 960 60 860 Z" fill="url(#hood)"/>
+  <path d="M130 270 Q800 120 1470 270 L1495 830 Q800 915 105 830 Z" fill="#050607"/>
+
+  <!-- speedometer -->
+  <g transform="translate(400 520)">
+    <circle r="250" fill="url(#dial)" stroke="#5a5f66" stroke-width="5"/>
+    <g stroke="#c9ced6" stroke-linecap="round">
+      <g id="spdTicks">
+        <line x1="0" y1="-228" x2="0" y2="-200" stroke-width="5" transform="rotate(-135)"/>
+        <line x1="0" y1="-228" x2="0" y2="-200" stroke-width="5" transform="rotate(-101.25)"/>
+        <line x1="0" y1="-228" x2="0" y2="-200" stroke-width="5" transform="rotate(-67.5)"/>
+        <line x1="0" y1="-228" x2="0" y2="-200" stroke-width="5" transform="rotate(-33.75)"/>
+        <line x1="0" y1="-228" x2="0" y2="-200" stroke-width="5" transform="rotate(0)"/>
+        <line x1="0" y1="-228" x2="0" y2="-200" stroke-width="5" transform="rotate(33.75)"/>
+        <line x1="0" y1="-228" x2="0" y2="-200" stroke-width="5" transform="rotate(67.5)"/>
+        <line x1="0" y1="-228" x2="0" y2="-200" stroke-width="5" transform="rotate(101.25)"/>
+        <line x1="0" y1="-228" x2="0" y2="-200" stroke-width="5" transform="rotate(135)"/>
+      </g>
+    </g>
+    <g fill="#e6e9ee" font-family="Arial, Helvetica, sans-serif" font-size="30" text-anchor="middle">
+      <text x="-119" y="130">0</text><text x="-165" y="44">40</text><text x="-155" y="-53">80</text><text x="-93" y="-129">120</text><text x="0" y="-157">160</text><text x="93" y="-129">200</text><text x="155" y="-53">240</text><text x="165" y="44">280</text><text x="119" y="130">320</text>
+    </g>
+    <text y="70" fill="#9aa1ab" font-family="Arial, Helvetica, sans-serif" font-size="26" text-anchor="middle">km/h</text>
+    <text x="30" y="200" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="56" font-weight="bold" text-anchor="middle">0</text>
+    <line x1="0" y1="0" x2="0" y2="-205" stroke="#ff5a2a" stroke-width="9" stroke-linecap="round" transform="rotate(-135)"/>
+    <circle r="22" fill="#2b2f35" stroke="#777" stroke-width="3"/>
+  </g>
+
+  <!-- tachometer -->
+  <g transform="translate(1200 520)">
+    <circle r="250" fill="url(#dial)" stroke="#5a5f66" stroke-width="5"/>
+    <g stroke="#c9ced6" stroke-linecap="round"><line x1="0" y1="-228" x2="0" y2="-200" stroke-width="5" transform="rotate(-135)"/><line x1="0" y1="-228" x2="0" y2="-200" stroke-width="5" transform="rotate(-101.25)"/><line x1="0" y1="-228" x2="0" y2="-200" stroke-width="5" transform="rotate(-67.5)"/><line x1="0" y1="-228" x2="0" y2="-200" stroke-width="5" transform="rotate(-33.75)"/><line x1="0" y1="-228" x2="0" y2="-200" stroke-width="5" transform="rotate(0)"/><line x1="0" y1="-228" x2="0" y2="-200" stroke-width="5" transform="rotate(33.75)"/><line x1="0" y1="-228" x2="0" y2="-200" stroke-width="5" transform="rotate(67.5)"/><line x1="0" y1="-228" x2="0" y2="-200" stroke-width="5" transform="rotate(101.25)"/><line x1="0" y1="-228" x2="0" y2="-200" stroke-width="5" transform="rotate(135)"/></g>
+    <path d="M 209.0 -20.6 A 210 210 0 0 1 148.5 148.5" fill="none" stroke="#c0392b" stroke-width="16"/>
+    <g fill="#e6e9ee" font-family="Arial, Helvetica, sans-serif" font-size="34" text-anchor="middle">
+      <text x="-119" y="131">0</text><text x="-165" y="45">1</text><text x="-155" y="-52">2</text><text x="-93" y="-127">3</text><text x="0" y="-156">4</text><text x="93" y="-127">5</text><text x="155" y="-52">6</text><text x="165" y="45">7</text><text x="119" y="131">8</text>
+    </g>
+    <text y="88" fill="#9aa1ab" font-family="Arial, Helvetica, sans-serif" font-size="24" text-anchor="middle">x1000 rpm</text>
+    <line x1="0" y1="0" x2="0" y2="-205" stroke="#ff5a2a" stroke-width="9" stroke-linecap="round" transform="rotate(-113)"/>
+    <circle r="22" fill="#2b2f35" stroke="#777" stroke-width="3"/>
+    <!-- coolant mini gauge, normal -->
+    <g transform="translate(0 175)" font-family="Arial, Helvetica, sans-serif" font-size="20" fill="#9aa1ab" text-anchor="middle">
+      <rect x="-70" y="-6" width="140" height="10" rx="5" fill="#2a2f36"/>
+      <rect x="-70" y="-6" width="72" height="10" rx="5" fill="#6fb7ff"/>
+      <text y="34">°C</text>
+    </g>
+  </g>
+
+  <!-- centre display -->
+  <g transform="translate(800 470)">
+    <rect x="-190" y="-215" width="380" height="430" rx="22" fill="url(#screen)" stroke="#3a4048" stroke-width="3"/>
+    <rect x="-170" y="-195" width="340" height="250" rx="14" fill="#2b1d06" stroke="#ffb02e" stroke-width="4"/>
+    <use href="#engine" x="-62" y="-178" width="124" height="80" color="#ffb02e" filter="url(#glow)"/>
+    <g font-family="Arial, Helvetica, sans-serif" text-anchor="middle">
+      <text y="-58" fill="#ffd27a" font-size="34" font-weight="bold">Engine malfunction</text>
+      <text y="-14" fill="#ffd27a" font-size="30">Reduced power</text>
+      <text y="28" fill="#f2e3c4" font-size="23">Stop safely. Contact service.</text>
+    </g>
+    <g font-family="Arial, Helvetica, sans-serif" fill="#cfd5dd" font-size="26">
+      <text x="-160" y="110">11:05</text>
+      <text x="160" y="110" text-anchor="end">9 °C</text>
+      <text x="-160" y="160" fill="#9aa1ab" font-size="22">Range 412 km</text>
+      <text x="160" y="160" text-anchor="end" fill="#9aa1ab" font-size="22">48 217 km</text>
+      <text x="0" y="198" text-anchor="middle" fill="#9aa1ab" font-size="22">P  ·  Engine running</text>
+    </g>
+  </g>
+
+  <!-- warning light strip -->
+  <g transform="translate(800 800)">
+    <rect x="-420" y="-46" width="840" height="92" rx="18" fill="#0b0d10" stroke="#23272d" stroke-width="2"/>
+    <!-- lit: check-engine -->
+    <circle r="70" fill="url(#amberGlow)"/>
+    <use href="#engine" x="-46" y="-30" width="92" height="59" color="#ffae1f" filter="url(#glow)"/>
+    <!-- unlit lamps: oil, battery, coolant, brake, seat belt -->
+    <g fill="none" stroke="#2f343b" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M-370 10h70l20-20h-20 M-330 10v-18h-25"/>
+      <rect x="-250" y="-18" width="64" height="38" rx="4"/><path d="M-238 -2h12 M-210 -2h12 M-204 -8v12"/>
+      <path d="M140 -24v38 M128 2h24 M120 22q10 8 20 0 q10 -8 20 0"/>
+      <circle cx="230" cy="0" r="22"/><path d="M222 -8v10 M238 -8v10 M230 12v1"/>
+      <circle cx="330" cy="-14" r="8"/><path d="M318 22l6 -24h12l6 24 M310 -2l44 28"/>
+    </g>
+  </g>
+
+  <!-- phone-photo feel: glare, slight blur on the rim, vignette -->
+  <rect width="1600" height="1000" fill="url(#glare)"/>
+  <rect x="0" y="0" width="1600" height="1000" fill="none" stroke="#000" stroke-width="120" opacity="0.35" filter="url(#soft)"/>
+</svg>

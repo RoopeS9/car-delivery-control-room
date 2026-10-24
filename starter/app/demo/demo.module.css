@@ -1,0 +1,53 @@
+/* Presenter panel. Uses the shared colour tokens so it follows the app's light and dark themes. */
+
+.page { max-width: 920px; margin: 0 auto; padding: 28px 24px 80px; color: var(--ink); background: var(--birch); min-height: 100dvh; }
+.head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; padding-bottom: 18px; border-bottom: 1px solid var(--hair); }
+.head h1 { font-family: var(--font-display); font-weight: 600; font-size: 26px; letter-spacing: -0.02em; line-height: 1.1; }
+.eyebrow { font-size: 12.5px; color: var(--subtle); margin-bottom: 6px; }
+.headRight { display: flex; align-items: center; gap: 20px; }
+.clock { display: grid; justify-items: end; gap: 1px; font-size: 12px; color: var(--muted); }
+.clock b { font-family: var(--font-mono); font-size: 26px; font-weight: 500; color: var(--ink); line-height: 1.1; }
+
+.error { margin-top: 16px; padding: 10px 12px; border-radius: var(--radius); background: var(--red-bg); color: var(--red-ink); font-size: 13px; }
+.section { margin-top: 28px; }
+.section h2, .foot h2 { display: flex; align-items: baseline; gap: 8px; font-size: 15px; font-weight: 600; margin-bottom: 10px; }
+.count { font-size: 12px; font-weight: 500; color: var(--subtle); }
+.muted { font-size: 13px; color: var(--muted); max-width: 70ch; }
+
+.scenarios { display: grid; gap: 10px; }
+.scenario { display: flex; align-items: center; gap: 20px; padding: 16px 18px; border-radius: 12px; background: var(--birch); box-shadow: var(--shadow-card); }
+.scenarioText { flex: 1; min-width: 0; }
+.scenarioText h3 { font-size: 14.5px; font-weight: 600; }
+.scenarioText h3 span { font-weight: 500; color: var(--muted); font-size: 13px; }
+.scenarioText p { margin-top: 4px; font-size: 13px; color: var(--brown); max-width: 64ch; }
+.scenarioActions { flex: none; }
+
+.primary, .danger { height: 36px; padding: 0 18px; border-radius: var(--radius); border: 1px solid var(--ink); background: var(--ink); color: var(--birch); font-size: 13.5px; font-weight: 500; white-space: nowrap; }
+.primary:hover:not(:disabled) { opacity: 0.88; }
+.danger { border-color: var(--red-ink); background: transparent; color: var(--red-ink); }
+.danger:hover:not(:disabled) { background: var(--red-bg); }
+.primary:disabled, .danger:disabled { opacity: 0.45; cursor: progress; }
+
+.links { display: flex; flex-wrap: wrap; gap: 8px; }
+.links a { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 6px 12px; border: 1px solid var(--hair); border-radius: var(--radius); font-size: 13px; font-weight: 500; color: var(--brown); text-decoration: none; }
+.links a:hover { border-color: var(--sand); color: var(--ink); }
+
+.log { display: grid; gap: 6px; }
+.log li { display: flex; gap: 12px; font-size: 13px; color: var(--brown); }
+.log time { flex: none; font-family: var(--font-mono); font-size: 12px; color: var(--subtle); padding-top: 1px; }
+.logBad { color: var(--red-ink) !important; }
+
+.fleet { width: 100%; margin-top: 12px; border-collapse: collapse; font-size: 13px; }
+.fleet th { text-align: left; font-size: 11.5px; font-weight: 500; color: var(--subtle); padding: 0 10px 6px 0; border-bottom: 1px solid var(--hair); }
+.fleet td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--hair-soft); vertical-align: top; }
+.fleet td:first-child { white-space: nowrap; font-size: 12px; color: var(--muted); }
+.fleet small { display: block; font-size: 12px; color: var(--subtle); }
+.rowFault td { color: var(--red-ink); }
+.rowFault small { color: var(--red-ink); opacity: 0.85; }
+
+.foot { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--hair); }
+
+@media (max-width: 640px) {
+  .scenario { flex-direction: column; align-items: stretch; }
+  .fleet th:nth-child(2), .fleet td:nth-child(2) { display: none; }
+}
