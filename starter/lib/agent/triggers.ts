@@ -7,7 +7,7 @@
 import { simNow } from "@/lib/cr/clock"
 import { withRuntimeWork } from "@/lib/cr/activity"
 import {
-  appendEvent, attachEvents, createCase, getCase, getProposal, listCases, resolveOrder, updateCase, type CaseRow,
+  appendEvent, attachEvents, createCase, getCase, getProposal, listCases, listProposals, resolveOrder, updateCase, type CaseRow,
 } from "@/lib/cr/queries"
 import {
   OPEN_CASE_STATUSES, type AskAgentRequest, type AssumptionCheck, type CustomerAnswerRequest, type DecisionRequest,
@@ -130,7 +130,11 @@ export async function prepareSiteMessage(request: SiteMessageRequest): Promise<P
 export async function handleSiteMessage(prepared: PreparedSiteMessage, onText?: OnText): Promise<{ caseId: string; result: TurnResult }> {
   return withRuntimeWork("site message handling", async () => {
     const { facts, end, contactId, name, request } = prepared
-    const caseRow = await openCase(facts.id, (row) => (row.status === "WAITING_EXTERNAL" && (row.waitingFor === "site" || row.waitingFor === "customer")) || row.kind === "SITE_QUESTION" || row.channelOpened === "site_chat", () => createCase({
+    // The site's message belongs on the case that waits for them, else on the open case that wrote to them (a contact
+    // card, whatever its state), else on the running site question; only then is it a new question.
+    const contacted = new Set((await Promise.all((await listCases({ orderId: facts.id, statuses: [...OPEN_CASE_STATUSES] })).map(async (row) =>
+      (await listProposals({ caseId: row.id })).some((p) => p.actionType === "CONTACT_CUSTOMER" || p.actionType === "CONTACT_SITE_AS_CUSTOMER") ? row.id : null))).filter((id): id is string => Boolean(id)))
+    const caseRow = await openCase(facts.id, (row) => (row.status === "WAITING_EXTERNAL" && (row.waitingFor === "site" || row.waitingFor === "customer")) || contacted.has(row.id) || row.kind === "SITE_QUESTION" || row.channelOpened === "site_chat", () => createCase({
       orderId: facts.id, kind: "SITE_QUESTION", status: "AGENT_WORKING", urgency: "NORMAL", title: `Question from ${name}`,
       summary: request.text.slice(0, 200), channelOpened: "site_chat", owner: "agent", driverId: activeDriverId(facts),
     }))

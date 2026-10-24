@@ -1,6 +1,7 @@
 // The order record, read out section by section. Every value here points back to
 // a record in the API response; the view adds labels, names and grouping.
 
+import { needsPersonItem } from "./tone-rule"
 import { chosenWindows, deriveAttention, deriveKeyDates, latestTracking, strongestTone, windowSource, windowViews } from "./attention"
 import {
   type Bundle, type RelatedRow, activePoints, bool, journeyPlan, list, num, obj, recordedAt, refCount, rows, str, strings,
@@ -744,7 +745,8 @@ function buildStory(bundle: Bundle, keyDates: KeyDate[], assignments: Assignment
   if (!open) return story
   // The lane sentence already says a moving car has no position; do not say it twice.
   if (open.kind === "check" && story.detail?.includes("No driver-app position")) return story
-  const tone: Tone = strongestTone(attention.map((item) => item.tone)) === "danger" ? "danger" : story.tone
+  // Red is for a person's decision only (the map's rule); an alert being watched keeps the lane's own colour.
+  const tone: Tone = attention.some((item) => needsPersonItem(item) && item.tone === "danger") ? "danger" : story.tone
   const exception = `Open: ${open.title}.`
   return { ...story, tone, detail: story.detail ? `${story.detail} ${exception}` : exception }
 }
@@ -779,9 +781,9 @@ function laneStory(bundle: Bundle, keyDates: KeyDate[], assignments: AssignmentV
   }
   if (lane === "moving") {
     const late = eta?.tone === "danger" || promise?.tone === "danger"
-    const headline = driver ? `${driver} is driving it to ${to.city}.` : `It is on the road to ${to.city}.`
+    const headline = driver ? `${driver} is driving it from ${from.city} to ${to.city}.` : `It is on the road from ${from.city} to ${to.city}.`
     const detail = eta
-      ? `${eta.label} ${fmtDateTime(eta.start, eta.zone)}${promise ? `, promised by ${fmtClockIn(promise.end ?? promise.start, promise.zone)}` : ""}.${late ? " That is after the promise." : ""}`
+      ? `ETA ${fmtDateTime(eta.start, eta.zone)}${eta.note ? ` (${eta.note.replace(/^stale signal received /, "driver app, ").replace(/; unverified$/, "")})` : " (driver app)"}${promise ? ` · promised by ${fmtClockIn(promise.end ?? promise.start, promise.zone)}` : ""}.${late ? " That is after the promise." : ""}`
       : promise ? `Promised ${range(promise)}. No driver-app position in this packet.` : "No promise or position recorded."
     return { intro, headline: late ? `Running late to ${to.city}.` : headline, tone: late ? "danger" : "accent", detail }
   }
@@ -827,10 +829,13 @@ function buildTiles(bundle: Bundle, keyDates: KeyDate[], assignments: Assignment
   const active = assignments.find((item) => item.status === "IN_PROGRESS") ?? assignments.find((item) => item.status === "ASSIGNED") ?? assignments.find((item) => item.status === "COMPLETED") ?? null
   const offer = offers.find((item) => item.status === "ACCEPTED") ?? offers.find((item) => item.status === "PUBLISHED") ?? offers[0] ?? null
   const tiles: Tile[] = []
-  tiles.push(slot ? {
-    label: slot.key === "requested_pickup" ? "Requested pickup" : "Pickup", value: fmtRange(slot.start, slot.end, slot.zone),
+  const pickedUp = slot?.note?.match(/^picked up (.+)$/i)?.[1] ?? null
+  tiles.push(slot ? pickedUp ? {
+    label: "Picked up", value: pickedUp, hint: `slot was ${fmtRange(slot.start, slot.end, slot.zone)}`, tone: "ok",
+  } : {
+    label: slot.key === "requested_pickup" ? "Requested pickup slot" : "Pickup slot", value: fmtRange(slot.start, slot.end, slot.zone),
     hint: slot.note, tone: slot.tone,
-  } : { label: "Pickup", value: "No slot yet", hint: "availability not selected", tone: "neutral" })
+  } : { label: "Pickup slot", value: "No slot yet", hint: "availability not selected", tone: "neutral" })
   tiles.push(delivered ? {
     label: "Delivered", value: fmtDateTime(delivered.start, delivered.zone), hint: promise?.note ?? delivered.note, tone: "ok",
   } : promise ? {
@@ -841,7 +846,7 @@ function buildTiles(bundle: Bundle, keyDates: KeyDate[], assignments: Assignment
     tone: active.status === "IN_PROGRESS" ? "accent" : "neutral", href: active.driver.id ? `/drivers/${active.driver.id}` : null,
   } : { label: "Driver", value: "Nobody yet", hint: offer?.status === "PUBLISHED" ? "offer is on the market" : "not on the market", tone: "warn" })
   if (eta && !delivered) {
-    tiles.push({ label: "ETA", value: fmtDateTime(eta.start, eta.zone), hint: eta.note, tone: eta.tone })
+    tiles.push({ label: "ETA from the driver app", value: fmtDateTime(eta.start, eta.zone), hint: eta.note?.replace(/^stale signal received /, "stale, received ") ?? null, tone: eta.tone })
   } else {
     tiles.push(offer ? {
       label: "Driver fee", value: offer.fee ?? "No fee", hint: `${offer.statusLabel.toLowerCase()} offer${offer.publishedAt ? `, published ${relativeTo(offer.publishedAt, snapshotAt)?.text ?? ""}` : ""}`,

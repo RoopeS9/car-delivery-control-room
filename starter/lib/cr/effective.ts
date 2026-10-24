@@ -173,8 +173,10 @@ export async function checkAssumptions(caseId: string, orderId: string, assumpti
   for (const assumption of assumptions) {
     if (assumption.kind === "record") {
       const actual = await recordField(assumption.table, assumption.id, assumption.field)
-      const holds = actual !== undefined && String(actual ?? null) === String(assumption.expected ?? null)
-      checks.push({ assumption, holds, now: actual === undefined ? "record not found" : inWords(actual) })
+      // A field the record does not carry (the agent named a label it saw, not a column) cannot have changed: the
+      // check is skipped and says so. Only a value that is there and differs outdates the card.
+      if (actual === undefined) { checks.push({ assumption, holds: true, now: "not checkable: no such field on the record" }); continue }
+      checks.push({ assumption, holds: String(actual ?? null) === String(assumption.expected ?? null), now: inWords(actual) })
     } else if (assumption.kind === "no_new_message") {
       const after = new Date(assumption.after)
       const [latest] = Number.isNaN(after.getTime()) ? [] : await crDb().select().from(crEvents)
@@ -184,7 +186,9 @@ export async function checkAssumptions(caseId: string, orderId: string, assumpti
     } else {
       const [latest] = await crDb().select().from(crTelemetry)
         .where(and(eq(crTelemetry.orderId, orderId), eq(crTelemetry.source, "OBD"))).orderBy(desc(crTelemetry.at)).limit(1)
-      const codes = latest ? [...((latest.data as ObdData).dtcs ?? [])].sort() : []
+      // No dongle sample at all (the fault came in by message or by the API) is not "no codes": nothing to compare.
+      if (!latest) { checks.push({ assumption, holds: true, now: "not checkable: no dongle data" }); continue }
+      const codes = [...((latest.data as ObdData).dtcs ?? [])].sort()
       const expected = [...assumption.codes].map((code) => code.toUpperCase()).sort()
       checks.push({ assumption, holds: codes.join(",") === expected.join(","), now: codes.length ? `car reports ${codes.join(", ")}` : "car reports no trouble codes" })
     }
