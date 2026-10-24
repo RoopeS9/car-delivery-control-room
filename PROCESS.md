@@ -1293,3 +1293,30 @@ Checked / changed / rejected:
   order's distance; Demo delivery runs stamp calls ahead of the simulated clock (now labelled so); Node 24's dev
   server reload-looped in this container (Node 22 dev and Node 24 tests were used).
 - Spend: about $2 of model calls for all of the above.
+
+## 2026-10-24 ~23:30–24:00 UTC · RoopeS + Claude Code (cloud) · night run, second half
+
+Asked: keep iterating on your own within the budget: the lifecycle, the customer's side, whatever the runs show.
+
+Got:
+- The dossier service now hears the driver's steps (its live feed had dropped the new event kind): a collected car
+  moves its phase to MOVING, a reported check-in stands in for the gate scan, so it stops asking for
+  pickup-readiness calls on a car already on the road.
+- `npm run e2e:roles`: a role-playing harness against a running app with the real model (A, C, D, F, G, H and a
+  customer email; checks records, not wording). Its first run found two more defects: after close_case the desk
+  received "The case has been closed" instead of the answer, and DeepSeek's notes before a "---" line reached the
+  driver. Both fixed; the last full run passed 20/20.
+- The inbox's suggested reply quoted the promise as "08:00–14:00 EET" (UTC times with a local zone pasted on); the
+  suggestion now gets the key windows already in local time.
+- Ask the agent: 58 s at the deep effort, 9 s at the fast effort, same sources; read-only questions run fast now.
+- A wait the agent set "check at 11:15 UTC" with 12 minutes would have fired two hours early; the named time wins.
+- Small ones: the journey bar's km now match the route card; a customer question was re-kinded as a handover by the
+  agent (refused now); "simulated GPS" stayed out of customer drafts; markdown stays out of the driver's phone.
+
+Checked / changed / rejected:
+- The dev server reloaded pages in a loop in this container (no file changed on disk); screens were checked against
+  a production build instead, which is also what the live box serves.
+- Scenario C's agent sometimes asks operations to confirm the site's handover instruction instead of closing the
+  case (the record marks it unconfirmed). Kept: it is a defensible reading of the evidence, and the harness accepts
+  either a closed case or exactly one card.
+- Spend for the whole night so far: about $3.20 of model calls (DeepSeek v4 for the agent).
