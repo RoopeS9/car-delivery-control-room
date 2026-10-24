@@ -760,6 +760,8 @@ export type TimelineEntry = {
   /** `record` for the dataset snapshot, `live` for events after it. */
   origin: "record" | "live"
   internal: boolean
+  /** The agent's own words to operators (notes, operator chat): light markdown, shown as formatted text. */
+  rich: boolean
   caseId: string | null
   /** A photo sent on this line, served from /orders/:id/photos/:eventId (or a public path). */
   photo: { src: string; subject: string | null } | null

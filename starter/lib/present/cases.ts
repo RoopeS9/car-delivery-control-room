@@ -417,7 +417,7 @@ export function mergedTimeline(bundle: Bundle): TimelineEntry[] {
     const internal = str(d.visibility) === "INTERNAL" || channel === "internal_note"
     const channelLabel = label(channel)
     entries.push({
-      id: message.id, at: message.authoredAt, actorName: author.name, actorRole: author.role, actorKind: author.kind,
+      id: message.id, at: message.authoredAt, actorName: author.name, actorRole: author.role, actorKind: author.kind, rich: false,
       kind: "message", text: message.body,
       channelLabel: internal ? "Internal note" : recipient ? `${channelLabel} to ${recipient.name}` : channelLabel,
       source: { kind: "messages", id: message.id, label: `${channelLabel.toLowerCase()} message`, at: message.authoredAt },
@@ -427,7 +427,7 @@ export function mergedTimeline(bundle: Bundle): TimelineEntry[] {
 
   for (const alert of bundle.alerts) {
     entries.push({
-      id: alert.id, at: alert.triggeredAt, actorName: "Journey monitor", actorRole: "alert", actorKind: "system",
+      id: alert.id, at: alert.triggeredAt, actorName: "Journey monitor", actorRole: "alert", actorKind: "system", rich: false,
       kind: "alert", text: `Alert raised: ${label(alert.signal)}. ${alert.summary}`, channelLabel: `Alert, ${label(alert.status).toLowerCase()}`,
       source: { kind: "alerts", id: alert.id, label: "alert", at: alert.triggeredAt },
       tone: alert.status === "OPEN" ? (alert.severity === "critical" || alert.severity === "high" ? "danger" : "warn") : "neutral",
@@ -438,7 +438,7 @@ export function mergedTimeline(bundle: Bundle): TimelineEntry[] {
   for (const event of bundle.events) {
     const described = describeEvent(event, bundle)
     entries.push({
-      id: event.id, at: event.recordedAt, actorName: described.actor ?? "System", actorRole: null, actorKind: "system",
+      id: event.id, at: event.recordedAt, actorName: described.actor ?? "System", actorRole: null, actorKind: "system", rich: false,
       kind: "event", text: described.detail ? `${described.text}. ${described.detail}` : described.text, channelLabel: "Event log",
       source: { kind: "operational_events", id: event.id, label: "event log", at: event.recordedAt },
       tone: "neutral", origin: "record", internal: true, caseId: null, photo: null,
@@ -456,6 +456,7 @@ export function mergedTimeline(bundle: Bundle): TimelineEntry[] {
       channelLabel: to ? `${channel} to ${to}` : channel,
       source: { kind: "cr_events", id: event.id, label: event.actorType === "obd" || event.actorType === "phone" ? "simulated sensor" : "case log", at },
       tone: liveTone(event), origin: "live", internal: event.channel === "internal" || event.kind === "lookup" || event.kind === "tool_call",
+      rich: event.actorType === "agent" && (event.kind === "note" || event.channel === "operator_chat"),
       caseId: event.caseId, photo: photoOf(bundle, event),
     })
   }

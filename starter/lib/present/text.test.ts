@@ -2,7 +2,7 @@
 
 import assert from "node:assert/strict"
 import { describe, test } from "node:test"
-import { blocksOf } from "./text"
+import { blocksOf, oneLine } from "./text"
 
 describe("the agent's light markdown becomes plain data for React", () => {
   test("paragraphs, bullets and bold", () => {
@@ -27,5 +27,20 @@ describe("the agent's light markdown becomes plain data for React", () => {
   test("nothing in, nothing out", () => {
     assert.deepEqual(blocksOf(""), [])
     assert.deepEqual(blocksOf("\n  \n"), [])
+  })
+})
+
+describe("one skimmable line for the activity log", () => {
+  test("markup is removed and bullets are joined", () => {
+    assert.equal(oneLine("**Ferry** is booked.\n- Check-in 17:30\n- Departs 19:30"), "Ferry is booked. · Check-in 17:30 · Departs 19:30")
+  })
+
+  test("a long answer is cut at a word, with an ellipsis", () => {
+    const line = oneLine("word ".repeat(100), 50)
+    assert.ok(line.length <= 51 && line.endsWith("…") && !line.includes("  "), line)
+  })
+
+  test("a short line is left alone", () => {
+    assert.equal(oneLine("Asked the driver for a photo."), "Asked the driver for a photo.")
   })
 })

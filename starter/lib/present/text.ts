@@ -54,3 +54,11 @@ export function blocksOf(text: string): Block[] {
   endList()
   return blocks
 }
+
+/** One skimmable line from a longer answer: markup removed, bullets joined, cut at a word. */
+export function oneLine(text: string, max = 200): string {
+  const flat = text.replace(/\*\*/g, "").replace(/\s*\n\s*[-*•]\s+/g, " · ").replace(/\s+/g, " ").trim()
+  if (flat.length <= max) return flat
+  const cut = flat.slice(0, max)
+  return cut.slice(0, Math.max(cut.lastIndexOf(" "), max / 2)).replace(/[\s,;:·-]+$/, "") + "…"
+}
