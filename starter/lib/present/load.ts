@@ -40,7 +40,7 @@ const iso = (value: Date | string | null | undefined): string => value instanceo
 export const BOARD_COLLECTIONS = [
   "time_windows", "tracking_observations", "work_assignments", "market_offers", "work_items", "agent_proposals",
   "order_endpoint_details", "transport_points", "transport_segments", "incidents", "endpoint_claims", "custody_assets",
-  "market_offer_exposures", "custody_reports", "travel_reservations",
+  "market_offer_exposures", "custody_reports", "travel_reservations", "site_visits",
 ]
 
 const SHARED_COLLECTIONS = ["operators", "agents", "support_inbox_threads"]

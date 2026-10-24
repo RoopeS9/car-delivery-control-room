@@ -46,7 +46,8 @@ const STATE_WORD: Record<ChartNode["attention"], string> = {
 }
 
 function vesselHtml(node: ChartNode, selected: boolean): string {
-  const moving = node.heading != null && (node.speedKmh ?? 0) > 0 && !node.stale
+  // Two car shapes: a chevron for a car moving or due to be, a circle for one waiting; a quiet phone draws either hollow.
+  const moving = node.motion === "moving" && node.heading != null
   const classes = ["v", `v-${node.attention}`, node.stale ? "v-stale" : "", selected ? "v-sel" : "", moving ? "v-moving" : "v-still"].filter(Boolean).join(" ")
   const shape = moving
     ? `<svg viewBox="0 0 20 20" style="transform:rotate(${Math.round(node.heading ?? 0)}deg)"><path d="M10 2.6 16 17.2 10 13.8 4 17.2Z"/></svg>`
@@ -78,7 +79,7 @@ function tipHtml(node: ChartNode): string {
     : `<span class="tip-quiet">${escape(node.berthNote ?? "")}</span>`
   return `<div class="tip-head"><b>${escape(node.vehicle)}</b><span class="mono">${escape(node.reference)}</span></div>
     <div class="tip-route">${escape(node.from)} → ${escape(node.to)} · ${escape(node.laneLabel)}${node.driver ? ` · ${escape(node.driver)}` : ""}</div>
-    <div class="tip-where">${where}</div>
+    <div class="tip-where">${where}${node.motionNote ? `<br><span class="tip-quiet">${escape(node.motionNote)}</span>` : ""}</div>
     ${node.headline ? `<div class="tip-state tip-${node.attention}">${escape(STATE_WORD[node.attention])}: ${escape(node.headline)}</div>` : ""}`
 }
 
@@ -302,7 +303,7 @@ export function ChartHome({ initial }: { initial: ChartView }) {
     const rank = { decide: 300, watch: 200, agent: 100, fine: 0 }
     const layer = { berth: 100, still: 400, cluster: 500, vessel: 1000 }
     const zFor = (kind: keyof typeof layer, attention: ChartNode["attention"], isSelected = false) => layer[kind] + rank[attention] + (isSelected ? 5000 : 0)
-    const movingNow = (node: ChartNode) => node.heading != null && (node.speedKmh ?? 0) > 0 && !node.stale
+    const movingNow = (node: ChartNode) => node.motion === "moving" && !node.stale
     // Cars that would overlap below FAN_ZOOM share a cluster (greedy, most urgent first). Locations are never grouped.
     const vessels = nodes.filter((node) => node.kind === "vessel").sort((a, b) => rank[b.attention] - rank[a.attention])
     const clusters: { anchor: ChartNode; nodes: ChartNode[]; point: { x: number; y: number } }[] = []
@@ -504,6 +505,8 @@ export function ChartHome({ initial }: { initial: ChartView }) {
           {offline && <span className="tone-warn">Reconnecting</span>}
         </span>
         <span className="strip-legend" aria-label="Legend">
+          <span><svg className="lg-shape" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.6 16 17.2 10 13.8 4 17.2Z" /></svg>Moving</span>
+          <span><svg className="lg-shape" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="5.2" /></svg>Waiting</span>
           <span><i className="lg lg-decide" />Needs a person</span>
           <span><i className="lg lg-watch" />Watching</span>
           <span><i className="lg lg-agent" />Agent working</span>

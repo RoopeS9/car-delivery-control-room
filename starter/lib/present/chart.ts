@@ -5,7 +5,7 @@
 // the same queue the old home page used, so the chart and /queue agree.
 
 import type { FleetCar } from "@/lib/sim/fleet"
-import { cityPoint, terminalPoint, type LatLng } from "@/lib/sim/geo"
+import { bearing, cityPoint, terminalPoint, type LatLng } from "@/lib/sim/geo"
 import { deriveKeyDates, milestones } from "./attention"
 import type { Bundle } from "./bundle"
 import { rows, str } from "./bundle"
@@ -55,6 +55,10 @@ export type ChartNode = {
   fromName: string
   toName: string
   promiseText: string | null
+  /** Cars only. `moving`: on the road, or should be by now (drawn as a chevron). `waiting`: waiting for something (a circle). */
+  motion: "moving" | "waiting" | null
+  /** For a waiting car, what it waits for; for a car that should be moving, why it is drawn at the pickup. */
+  motionNote: string | null
   /** Berths: what kind of place the order waits at. */
   placeKind: PlaceKind | null
   /** "On the road between Turku and Seinäjoki", "On the ferry to …", simulated. */
@@ -202,8 +206,13 @@ export function buildChart(input: { bundles: Bundle[]; fleet: FleetCar[]; sample
       const minutes = minutesBetween(last.at, now) ?? 0
       const rel = relativeTo(last.at, now)
       const stale = minutes > CHART_STALE_MINUTES || car?.phone === "STALE"
+      const where = last.placeLabel ?? ""
+      const waitNote = /^At /.test(where) ? "Parked at the terminal before check-in" : /^Near the delivery/.test(where) ? "At the delivery, waiting for the receiver"
+        : /^Stopped|^Pulling into|service area/i.test(where) || car?.stoppedNote ? (car?.stoppedNote ? "Stopped with a fault" : "Stopped")
+        : /^Last app position/.test(where) ? null : (last.speedKmh ?? 0) <= 0 ? "Stopped" : null
       nodes.push({
         ...base, kind: "vessel", lat: last.lat, lng: last.lng, berth: null, berthNote: null,
+        motion: waitNote ? "waiting" : "moving", motionNote: waitNote,
         placeKind: null, heading: last.heading, speedKmh: stale ? null : last.speedKmh, at: last.at,
         ageLabel: rel ? (rel.text === "now" ? "just now" : rel.text) : null, stale,
         placeLabel: last.placeLabel, trail: track.slice(-12).map((sample) => [sample.lat, sample.lng] as LatLng),
@@ -212,6 +221,25 @@ export function buildChart(input: { bundles: Bundle[]; fleet: FleetCar[]; sample
       continue
     }
     if (lane === "moving") counts.noPosition += 1
+    // A booked car whose leg has started or whose slot has passed with no pickup should be moving now: a car mark at the
+    // pickup, pointed along the route ahead. One with a site visit recorded waits at the desk instead.
+    const slot = keyDates.find((date) => date.key === "pickup_slot")
+    const started = rows(bundle, "work_assignments").some((row) => row.details.status === "IN_PROGRESS")
+    const shouldMove = lane === "booked" && !deliveredAt && (started || (!!slot && slot.start <= now))
+    const fromPoint = from ? cityPoint(from.city, from.country) : null
+    const toPoint = to ? cityPoint(to.city, to.country) : null
+    if (shouldMove && fromPoint) {
+      const atDesk = rows(bundle, "site_visits").some((row) => !str(row.details.left_at))
+      nodes.push({
+        ...base, kind: "vessel", lat: fromPoint[0], lng: fromPoint[1], berth: null, placeKind: null,
+        berthNote: null, motion: atDesk ? "waiting" : "moving",
+        motionNote: atDesk ? "At the pickup desk, waiting for the car or keys" : started ? "The leg has started; no phone position yet, drawn at the pickup" : "The pickup slot has started; no pickup recorded, drawn at the pickup",
+        heading: toPoint ? bearing(fromPoint, toPoint) : null, speedKmh: null, at: null, ageLabel: null, stale: false,
+        placeLabel: `Pickup city ${from?.city ?? ""}, from the records; not a phone position`, trail: [],
+        sig: [attention, found?.row.headline ?? "", found?.row.statusLabel ?? "", watchReason ?? "", "should-move"].join("|"),
+      })
+      continue
+    }
     // Not moving, or moving with no phone report: a berth at the city the records name.
     const place = lane === "delivered" ? to : from
     if (!place) continue
@@ -221,7 +249,7 @@ export function buildChart(input: { bundles: Bundle[]; fleet: FleetCar[]; sample
     const site = lane === "delivered" ? deliverySite : pickupSite
     const placeKind: PlaceKind = !site ? "private" : site.kind === "TRANSFER_YARD" || site.kind === "INDEPENDENT_STORAGE" ? "yard" : "dealer"
     nodes.push({
-      ...base, kind: "berth", lat: point[0], lng: point[1], berth: `${place.city}|${place.country}`, berthNote, placeKind,
+      ...base, kind: "berth", lat: point[0], lng: point[1], berth: `${place.city}|${place.country}`, berthNote, placeKind, motion: null, motionNote: null,
       heading: null, speedKmh: null, at: null, ageLabel: null, stale: false, placeLabel: null, trail: [],
       sig: [attention, found?.row.headline ?? "", found?.row.statusLabel ?? "", watchReason ?? "", lane].join("|"),
     })

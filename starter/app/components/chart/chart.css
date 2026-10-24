@@ -415,3 +415,5 @@
 .tone-edge-warn { border-left-color: var(--tone-watch); }
 .tone-edge-accent { border-left-color: var(--tone-agent); }
 .sp-now .sp-dot { background: var(--tone-agent); }
+
+.lg-shape { width: 13px; height: 13px; margin-right: 5px; vertical-align: -2px; fill: var(--c-fine); }
