@@ -407,6 +407,7 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
   for (let attempt = 0; attempt < 2; attempt++) {
     usage.attempts = attempt + 1
     messages = [{ role: "user", content: notes }]
+    let cutOff = false
     error = null
     try {
       for (let iteration = 0; ; iteration++) {
@@ -420,6 +421,16 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
         if (message.stop_reason === "refusal") {
           error = "the model declined to continue"
           break
+        }
+        if (message.stop_reason === "max_tokens" && !cutOff && !message.content.some((block) => block.type === "tool_use")) {
+          // A reasoning model can spend the whole output budget thinking and stop before any tool call or reply; ending
+          // the turn there leaves the case without a next step. Once per turn, ask again for the next step directly
+          // (the cut-off answer is dropped: a half-written thinking block cannot be sent back).
+          cutOff = true
+          const last = messages.at(-1)!
+          const nudge = "Your previous answer was cut off at the length limit before you acted. Keep your reasoning short and take the next step now with a tool call."
+          last.content = typeof last.content === "string" ? `${last.content}\n\n${nudge}` : [...last.content, { type: "text", text: nudge }]
+          continue
         }
         messages.push({ role: "assistant", content: message.content })
         if (message.stop_reason === "pause_turn") continue

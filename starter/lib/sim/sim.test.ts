@@ -96,6 +96,16 @@ describe("OBD", () => {
     assert.equal(obdSample(subject, off, second(200), plan).mil, "ON", "light stays on, no longer flashing, once the engine stops")
     assert.equal(faultMotion(subject, plan, second(500)).km, off.km, "a stopped car does not move")
     assert.equal(freezeFrame(subject, plan).at, second(6).toISOString())
+
+    // An operator clears the repaired car: it drives on from where it stopped, light off, no codes.
+    const repaired: MisfirePlan = { ...plan, resumedAt: second(3600).toISOString() }
+    assert.equal(faultMotion(subject, repaired, second(3000)).km, off.km, "still stopped before the clearance")
+    const onward = motionAt(subject, second(3600 + 1800), repaired)
+    assert.equal(onward.state, "DRIVING")
+    assert.ok(onward.km > off.km + 20, "half an hour later it is well past the stop")
+    const frame = obdSample(subject, onward, second(3600 + 1800), repaired)
+    assert.equal(frame.mil, "OFF")
+    assert.deepEqual(frame.dtcs, [])
   })
 
   test("scenario F: coolant climbs, P0217 is set, then the dongle goes quiet while the car moves", () => {

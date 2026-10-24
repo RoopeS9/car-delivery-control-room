@@ -4,7 +4,7 @@
 
 import { and, asc, eq, inArray, sql } from "drizzle-orm"
 import { crDb } from "@/lib/cr/db"
-import { effectiveOrder, type EffectiveOrder } from "@/lib/cr/effective"
+import { effectiveOrder, type EffectiveBooking, type EffectiveOrder } from "@/lib/cr/effective"
 import { latestTelemetry } from "@/lib/cr/queries"
 import type { Audience, GpsData, ObdData, SourceRef } from "@/lib/cr/types"
 import { addresses, alerts, conversations, customers, drivers, orderItems, orders, relatedRecords, sites, vehicles } from "@/lib/schema"
@@ -270,6 +270,46 @@ function reservationView(row: Raw, terminalZones: Map<string, string>) {
   }
 }
 
+/**
+ * Travel as it stands: the dataset's reservations (one replaced by a confirmed Road Desk booking says so) and the
+ * bookings an operator approved here, with the times of the quote that was booked. A quote is never in this list.
+ */
+function bookingsView(facts: OrderFacts, effective: EffectiveOrder, rows: Raw[]) {
+  const current = new Set(effective.bookings.filter((booking) => booking.source.kind === "travel_reservations").map((booking) => booking.source.id))
+  const ours = effective.bookings.filter((booking) => booking.source.kind === "cr_effects")
+  return [
+    ...rows.map((row) => {
+      const view = reservationView(row, facts.terminalZones)
+      if (current.has(String(row.id))) return view
+      const by = ours.find((booking) => booking.replacesReservationId === String(row.id))
+      return { ...view, status: `REPLACED${by?.reference ? ` by Road Desk booking ${by.reference}` : ""}` }
+    }),
+    ...ours.map((booking) => roadDeskBookingView(booking, facts.terminalZones)),
+  ]
+}
+
+function roadDeskBookingView(booking: EffectiveBooking, terminalZones: Map<string, string>) {
+  const selection = booking.selection
+  const zone = [...terminalZones.values()][0] ?? null
+  return {
+    kind: booking.kind,
+    status: booking.status,
+    note: "Booked through Road Desk after an operator's approval (simulated). A booking is not a check-in or boarding.",
+    provider: booking.provider,
+    reference: booking.reference,
+    from: selection?.from ?? null,
+    to: selection?.to ?? null,
+    departs: localTime(selection?.departure_at ?? null, zone) ?? utcTime(selection?.departure_at ?? null),
+    departs_utc: selection?.departure_at ?? null,
+    departs_in: relative(selection?.departure_at ?? null),
+    check_in_closes: localTime(selection?.check_in_cutoff_at ?? null, zone),
+    check_in_closes_utc: selection?.check_in_cutoff_at ?? null,
+    arrives_utc: selection?.arrival_at ?? null,
+    replaces: booking.replacesReservationId,
+    source: booking.source,
+  }
+}
+
 function optionView(row: Raw) {
   return {
     kind: str(row.kind)?.toLowerCase(),
@@ -411,9 +451,9 @@ export async function getDriverContext(facts: OrderFacts, driverId: string | nul
     ...commonView(facts, "driver", id),
     your_pickup_slot: pickupSlot ? windowView(pickupSlot) : null,
     delivery_window: promiseView(effective, "driver"),
-    your_travel_bookings: facts.reservations
-      .filter((row) => !row.assignment_id || facts.assignments.some((a) => a.id === row.assignment_id && a.driver_id === id))
-      .map((row) => reservationView(row, facts.terminalZones)),
+    your_travel_bookings: bookingsView(facts, effective, facts.reservations
+      .filter((row) => !row.assignment_id || facts.assignments.some((a) => a.id === row.assignment_id && a.driver_id === id)))
+      .map(({ replaces: _replaces, ...view }: Record<string, unknown>) => view),
     phone_position: telemetry.phone_position,
     car_status: telemetry.car_status,
     your_expense_claims: facts.expenses.filter((row) => row.driver_id === id).map((row) => ({
@@ -441,8 +481,7 @@ export async function getOperatorContext(facts: OrderFacts) {
     delivery_promise: promiseView(effective, "operator"),
     windows: windows.map(windowView),
     eta_estimate: effective.eta,
-    travel_bookings: facts.reservations.map((row) => reservationView(row, facts.terminalZones)),
-    road_desk_bookings: effective.bookings.filter((booking) => booking.source.kind === "cr_effects"),
+    travel_bookings: bookingsView(facts, effective, facts.reservations),
     travel_quotes: facts.options.map(optionView),
     driver_fee: money(assignment?.fee_cents, assignment?.currency),
     phone_position: telemetry.phone_position,

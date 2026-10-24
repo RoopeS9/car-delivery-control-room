@@ -3,12 +3,13 @@
 // writes the samples that fell due since the last one, so the result is the
 // same however often it runs.
 
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq, inArray, sql } from "drizzle-orm"
 import { beginRuntimeWork, isResetting } from "@/lib/cr/activity"
 import { advanceSimClock, simNow } from "@/lib/cr/clock"
 import { crDb } from "@/lib/cr/db"
 import { appendEvent, insertTelemetry, type NewTelemetry } from "@/lib/cr/queries"
-import { crEvents } from "@/lib/cr/schema"
+import type { BookingSelection } from "@/lib/cr/types"
+import { crEffects, crEvents } from "@/lib/cr/schema"
 import { loadFleet, simStart, type FleetCar } from "./fleet"
 import { notifyAgent } from "./agent-hooks"
 import { freezeFrame, gpsSample, motionAt, obdSample, obdSilentFrom, type FaultPlan, type OverheatPlan } from "./motion"
@@ -65,9 +66,45 @@ export async function activeFaults(): Promise<Map<string, FaultPlan>> {
   const plans = new Map<string, FaultPlan>()
   for (const row of rows) {
     const plan = row.data.sim as FaultPlan | undefined
-    if (plan?.profile === "misfire" || plan?.profile === "overheat") plans.set(row.orderId, plan)
+    if (plan?.profile === "misfire" || plan?.profile === "overheat") plans.set(row.orderId, { ...plan })
+  }
+  if (!plans.size) return plans
+  // An operator's clearance after a stop (the car was repaired) lets a misfire car drive on.
+  const cleared = await crDb().select({ orderId: crEffects.orderId, at: crEffects.at }).from(crEffects)
+    .where(and(inArray(crEffects.orderId, [...plans.keys()]), eq(crEffects.kind, "DRIVER_INSTRUCTION"), sql`(${crEffects.value}->>'cleared_to_continue')::boolean`))
+    .orderBy(crEffects.at)
+  for (const row of cleared) {
+    const plan = plans.get(row.orderId)
+    if (plan?.profile === "misfire" && !plan.resumedAt && row.at.getTime() > Date.parse(plan.startedAt)) plan.resumedAt = row.at.toISOString()
   }
   return plans
+}
+
+/**
+ * A ferry an operator rebooked through Road Desk replaces the dataset's sailing for the simulated journey: the car
+ * waits at the terminal for the new departure. Only a confirmed booking counts, never a quote or an unknown outcome.
+ */
+export async function withRebookedFerries(fleet: FleetCar[]): Promise<FleetCar[]> {
+  const ids = fleet.filter((car) => car.ferry).map((car) => car.orderId)
+  if (!ids.length) return fleet
+  const rows = await crDb().select({ orderId: crEffects.orderId, value: crEffects.value }).from(crEffects)
+    .where(and(inArray(crEffects.orderId, ids), eq(crEffects.kind, "BOOKING"), eq(crEffects.state, "RECORDED")))
+    .orderBy(crEffects.at)
+  const latest = new Map<string, BookingSelection & { reference?: string }>()
+  for (const row of rows) {
+    const selection = row.value.booking_selection as BookingSelection | undefined
+    if (selection?.kind === "ferry" && selection.departure_at && selection.arrival_at) latest.set(row.orderId, { ...selection, reference: typeof row.value.reference === "string" ? row.value.reference : undefined })
+  }
+  if (!latest.size) return fleet
+  return fleet.map((car) => {
+    const sailing = latest.get(car.orderId)
+    if (!sailing || !car.ferry) return car
+    return { ...car, ferry: {
+      ...car.ferry, bookingReference: sailing.reference ?? car.ferry.bookingReference,
+      departureAt: new Date(sailing.departure_at!), arrivalAt: new Date(sailing.arrival_at!),
+      checkInCutoffAt: sailing.check_in_cutoff_at ? new Date(sailing.check_in_cutoff_at) : car.ferry.checkInCutoffAt,
+    } }
+  })
 }
 
 async function latestBySource(): Promise<{ gps: Latest; obd: Latest }> {
@@ -95,7 +132,7 @@ function grid(after: Date, until: Date, every: number): Date[] {
 }
 
 async function runSync(now: Date): Promise<SyncResult> {
-  const [fleet, faults, latest] = await Promise.all([loadFleet(), activeFaults(), latestBySource()])
+  const [fleet, faults, latest] = await Promise.all([loadFleet().then(withRebookedFerries), activeFaults(), latestBySource()])
   const rows: (Omit<NewTelemetry, "id" | "at"> & { at: Date })[] = []
   let gps = 0
   let obd = 0

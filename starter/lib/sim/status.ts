@@ -11,7 +11,7 @@ import { fleetCar, loadFleet, simStart, type FleetCar, type PhoneState } from ".
 import { motionAt, type MotionState, type SimObd } from "./motion"
 import { alreadyReconnected, canReconnect } from "./reconnect"
 import { routineCaseCount } from "./routine"
-import { activeFaults, syncTelemetry } from "./sync"
+import { activeFaults, syncTelemetry, withRebookedFerries } from "./sync"
 
 export type CarReadings = {
   orderId: string
@@ -93,7 +93,7 @@ async function spend(): Promise<{ dollars: number; runs: number }> {
 }
 
 export async function fleetOverview(): Promise<{ now: string; start: string; spend: { dollars: number; runs: number }; routineCases: number; cars: FleetRow[] }> {
-  const [fleet, faults, cost, routineCases] = await Promise.all([loadFleet(), activeFaults(), spend(), routineCaseCount()])
+  const [fleet, faults, cost, routineCases] = await Promise.all([loadFleet().then(withRebookedFerries), activeFaults(), spend(), routineCaseCount()])
   const now = simNow()
   return {
     now: now.toISOString(),

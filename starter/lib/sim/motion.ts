@@ -37,6 +37,11 @@ type PlanBase = {
   speedAtStart: number
   codes: string[]
   detectAfterSeconds: number
+  /**
+   * Set when an operator cleared the driver to continue after the fault (a repair, a reset): from then on the car
+   * drives on from where it stopped, with the light off and no codes. Read from the clearance, never stored here.
+   */
+  resumedAt?: string
 }
 
 /** Scenario A: flashing light and reduced power; the driver pulls into a service area and stops. */
@@ -110,14 +115,16 @@ export function kmAtObservation(car: FleetCar): number {
 /** The car's normal journey, with no fault. */
 export function baseMotion(car: FleetCar, at: Date): Motion {
   const km0 = kmAtObservation(car)
-  const since = car.lastObservation?.at ?? at
-  const label = (point: LatLng) => `On the road ${roughWhere(point, car.fromCity, car.toCity)}`
-
   if (car.stoppedNote) {
     const placed = placeOnRoute(car, km0)
     return { state: "PARKED", km: km0, ...placed, speedKmh: 0, engineOn: false, placeLabel: `Stopped ${roughWhere(placed.point, car.fromCity, car.toCity)}` }
   }
+  return journeyFrom(car, km0, car.lastObservation?.at ?? at, at)
+}
 
+/** Driving on from `km0` at `since`: road, the terminal and the booked sailing, then the last stretch. */
+function journeyFrom(car: FleetCar, km0: number, since: Date, at: Date): Motion {
+  const label = (point: LatLng) => `On the road ${roughWhere(point, car.fromCity, car.toCity)}`
   const hours = Math.max(0, (at.getTime() - since.getTime()) / 3_600_000)
   let km = km0 + car.cruiseKmh * hours
   const cruise = cruiseSpeed(car, at)
@@ -186,6 +193,10 @@ function faultDistanceKm(plan: FaultPlan, seconds: number): number {
 }
 
 export function faultMotion(car: FleetCar, plan: FaultPlan, at: Date): Motion {
+  if (plan.profile === "misfire" && plan.resumedAt && at.getTime() >= Date.parse(plan.resumedAt)) {
+    const stoppedKm = plan.kmAtStart + faultDistanceKm(plan, plan.limpSeconds + plan.rampSeconds)
+    return journeyFrom(car, stoppedKm, new Date(plan.resumedAt), at)
+  }
   const seconds = (at.getTime() - Date.parse(plan.startedAt)) / 1000
   const km = plan.kmAtStart + faultDistanceKm(plan, Math.max(0, seconds))
   const placed = placeOnRoute(car, km)
@@ -239,7 +250,8 @@ export function obdSample(car: FleetCar, motion: Motion, at: Date, plan: FaultPl
   const n = (signal: string) => noise(car.orderId, signal, at)
   const seed = hash(car.vehicleId)
   const running = motion.engineOn
-  const fault = plan && at.getTime() >= Date.parse(plan.startedAt) ? plan : null
+  const repaired = plan?.resumedAt && at.getTime() >= Date.parse(plan.resumedAt)
+  const fault = plan && !repaired && at.getTime() >= Date.parse(plan.startedAt) ? plan : null
   const seconds = fault ? (at.getTime() - Date.parse(fault.startedAt)) / 1000 : 0
   const detected = !!fault && seconds >= fault.detectAfterSeconds
   const mil: MilState = !detected ? "OFF" : fault.profile === "misfire" && running ? "FLASHING" : "ON"

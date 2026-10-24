@@ -4,7 +4,7 @@
 import { sql } from "drizzle-orm"
 import { crDb } from "@/lib/cr/db"
 import { loadFleet } from "@/lib/sim/fleet"
-import { syncTelemetry } from "@/lib/sim/sync"
+import { syncTelemetry, withRebookedFerries } from "@/lib/sim/sync"
 import { buildChart, type ChartView, type GpsSample } from "./chart"
 import { loadBoardBundles } from "./load"
 
@@ -38,6 +38,6 @@ export async function loadChart(): Promise<ChartView> {
   } catch (error) {
     console.warn("Simulated telemetry could not be brought up to date.", error instanceof Error ? error.message : error)
   }
-  const [{ snapshotAt, simNow, bundles }, fleet, samples] = await Promise.all([loadBoardBundles(), loadFleet().catch(() => []), recentPositions()])
+  const [{ snapshotAt, simNow, bundles }, fleet, samples] = await Promise.all([loadBoardBundles(), loadFleet().then(withRebookedFerries).catch(() => []), recentPositions()])
   return buildChart({ bundles, fleet, samples, snapshotAt, now: simNow })
 }
