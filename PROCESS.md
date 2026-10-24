@@ -30,3 +30,32 @@ Checked / changed / rejected:
 - Drivability policy: safety-only advice by the agent; "keep driving" needs an
   operator yes.
 - Result: `PLAN.md`.
+
+## 2026-10-24 ~12:15 UTC · Claude Code (stream A agent) · M0 foundation
+
+Asked: do M0 (shared contract) since `lib/cr/` did not exist, then move on to
+the agent.
+
+Got: `starter/lib/cr/` with `types.ts` (enums, `SourceRef`, `HandoverPacket`,
+OBD/GPS shapes), `schema.ts` (six `cr_` tables, no foreign keys into starter
+tables), `queries.ts` (store/fetch only; gates stay in `lib/agent`),
+`clock.ts` (simulated clock from `SIM_NOW`) and `db.ts`. Drizzle config now
+pushes both schemas; agent env vars added to `.env.example`.
+
+Checked / changed / rejected:
+- Read `scripts/seed.ts` first: it truncates only starter tables, so `cr_`
+  rows survive a reseed. Verified by reseeding with the new tables present.
+- `lib/db.ts` imports `server-only`, which throws under `tsx`. Rather than
+  edit the starter file, `lib/cr/db.ts` opens its own client so tests and
+  scripts can share the same queries as the app.
+- Added fields the plan's table list lacked but the UI and gates need:
+  `channel` and recipient on events (to audit "never contacted a customer"
+  and to render the driver thread), `waiting_on` / `next_step` on cases,
+  and `transitionProposal()` that only updates from an expected status so a
+  double click cannot execute a proposal twice.
+- Customer contact is pinned to ASK_FIRST in two places: `setAutonomy`
+  refuses it, and `getAutonomy` ignores any stored row for it.
+- No Docker daemon in the cloud machine: ran the system Postgres 16 on port
+  5438 instead. Node 22 (not 24) here; seed, typecheck and smoke all pass.
+- Left the dark-mode token skeleton (also M0) to stream B, since
+  `globals.css` is theirs.
