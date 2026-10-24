@@ -180,9 +180,11 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
 
   // ---- what happened: records, live case events, calls
   const callIds = new Set(view.calls.map((call) => call.id))
+  const lineEventIds = new Set(bundle.cr.events.filter((event) => typeof (event.data as Record<string, unknown>).line_call_id === "string").map((event) => event.id))
   const chainSteps: { at: string; text: string }[] = []
   for (const entry of view.timeline) {
     if (entry.kind === "voice" && callIds.size) continue
+    if (entry.source.kind === "cr_events" && lineEventIds.has(entry.source.id)) continue
     const command = entry.source.kind === "operational_events" ? commandOf.get(entry.source.id) ?? null : null
     if (command && LIFECYCLE.has(command)) continue
     if ((command && CHAIN.test(command)) || entry.kind === "alert") {
@@ -221,6 +223,24 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
     behind.push(item)
     recent.push({ id: item.id, at: call.startedAt, text: `${call.driverName} on a call: ${call.directionLabel.toLowerCase()}${call.urgencyLabel ? `, ${call.urgencyLabel.toLowerCase()}` : ""}` })
   }
+  // Live calls on the VoiceChat line, linked by the in-app call screen with the phone's transcript.
+  for (const event of bundle.cr.events) {
+    const data = event.data as Record<string, unknown>
+    if (typeof data.line_call_id !== "string") continue
+    const at = event.at instanceof Date ? event.at.toISOString() : String(event.at)
+    const lines = Array.isArray(data.transcript) ? data.transcript as { t: number; role: string; text: string }[] : []
+    const who = typeof data.who === "string" ? data.who : "the other party"
+    const seconds = typeof data.duration_s === "number" ? data.duration_s : null
+    const inbound = data.purpose === "DRIVER_INBOUND"
+    const title = `${inbound ? "Driver called Road Desk" : `Live call: ${labelIn(String(data.purpose ?? "call")).toLowerCase()}`} on the VoiceChat line${seconds != null ? `, ${Math.max(1, Math.round(seconds / 60))} min` : ""}`
+    behind.push({
+      id: `line-${event.id}`, at, kind: "call", title, detail: lines.length ? null : "The phone recorded no words.",
+      strength: "recorded", source: "VoiceChat line, transcript of the phone's recording", tone: "neutral",
+      turns: lines.map((line) => ({ speaker: line.role === "model" ? (inbound ? "Road Desk" : "Mira from Bahn") : inbound ? "Driver" : who.startsWith("Mira") ? "Desk" : "You", text: line.text, at })),
+    })
+    recent.push({ id: `line-${event.id}`, at, text: title })
+  }
+
   for (const call of robo) {
     const item = roboCallItem(call)
     // The call service stamps calls with its own wall clock, which can be ahead of the simulated one.

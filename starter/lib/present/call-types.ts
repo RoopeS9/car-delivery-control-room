@@ -80,10 +80,6 @@ export type ActionStripView = {
   from: string
   to: string
   when: string | null
-  actions: { label: string; who: string | null; agentMay: boolean; reason: string | null; href: string; external: boolean }[]
-}
-
-/** The owner's duplex phone hosts the VoiceChat line; a per-call card tells it who to call and why. */
-export function voiceChatUrl(cardUrl: string): string {
-  return `https://duplex.hopeajahti.lol/?dial=voicechat&card=${encodeURIComponent(cardUrl)}`
+  reference: string
+  actions: { label: string; who: string | null; purpose: string | null; agentMay: boolean; reason: string | null; href: string; cardUrl: string | null }[]
 }

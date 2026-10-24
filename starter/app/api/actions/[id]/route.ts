@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { deriveKeyDates } from "@/lib/present/attention"
 import { orderActions } from "@/lib/present/call-service"
-import { voiceChatUrl, type ActionStripView } from "@/lib/present/call-types"
+import type { ActionStripView } from "@/lib/present/call-types"
 import { loadOrder } from "@/lib/present/load"
 import { buildRecordView } from "@/lib/present/record"
 
@@ -18,7 +18,7 @@ function clock(iso: string, zone: string | null): string {
 /**
  * The operator action strip for one order: from and to with the time that
  * matters, and the calls an operator is there to make. When the agent may
- * place a call, the button dials the VoiceChat line; when it may not (a
+ * place a call, the button opens a live call on the VoiceChat line in the app; when it may not (a
  * customer), it leads the person to the conversation on the order page.
  */
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -40,11 +40,12 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const strip: ActionStripView = {
     from: service ? `${service.from.name}, ${service.from.city}` : `${view.header.from.name}, ${view.header.from.city}`,
     to: service ? `${service.to.name}, ${service.to.city}` : `${view.header.to.name}, ${view.header.to.city}`,
-    when,
+    when, reference: bundle.order.reference,
     actions: (service?.actions ?? []).map((action) => {
-      if (action.agentMay && action.cardUrl) return { label: action.label, who: action.who, agentMay: true, reason: null, href: voiceChatUrl(action.cardUrl), external: true }
       const thread = threadFor(action.who)
-      return { label: action.label, who: action.who, agentMay: false, reason: action.reason, href: `/orders/${bundle.order.id}#${thread ? `thread-${thread.id}` : "conversations"}`, external: false }
+      const href = `/orders/${bundle.order.id}#${thread ? `thread-${thread.id}` : "conversations"}`
+      if (action.agentMay && action.cardUrl) return { label: action.label, who: action.who, purpose: action.purpose, agentMay: true, reason: null, href, cardUrl: action.cardUrl }
+      return { label: action.label, who: action.who, purpose: action.purpose, agentMay: false, reason: action.reason, href, cardUrl: null }
     }),
   }
   return NextResponse.json(strip)

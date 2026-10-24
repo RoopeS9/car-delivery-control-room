@@ -6,6 +6,7 @@ import { readToolArgument, slotLabel, slotValue, type CallRecord, type CallScena
 import { labelIn } from "@/lib/present/labels"
 import { fmtDateTime } from "@/lib/present/time"
 import { Icon } from "../icons"
+import { CallOverlay, type CallTarget } from "../line/call-screen"
 import "./calls.css"
 
 
@@ -30,6 +31,7 @@ export function CallSimulator({ scenarios, stored, orderIds, callees, drivers, o
   const [calls, setCalls] = useState(stored)
   const [shown, setShown] = useState<Record<string, string>>({})
   const [fresh, setFresh] = useState<string | null>(null)
+  const [live, setLive] = useState<CallTarget | null>(null)
   const record = useRef<HTMLDivElement>(null)
   const scenario = scenarios?.find((item) => item.id === selected) ?? null
   const history = scenario ? calls[scenario.orderRef] ?? [] : []
@@ -103,6 +105,11 @@ export function CallSimulator({ scenarios, stored, orderIds, callees, drivers, o
               {drivers[scenario.id] && <> <Link className="studio-link" href={`/driver?driver=${encodeURIComponent(drivers[scenario.id])}&job=${scenario.orderRef}`}>Show the driver</Link></>}</p>
           </div>
           <div className="call-run">
+            {!scenario.inbound && <button type="button" className="btn" disabled={!!running || !!live} title="A live call: Mira from Bahn calls, and you answer as the desk"
+              onClick={() => setLive({ orderRef: scenario.orderRef, purpose: scenario.purpose, calleeName: "Mira from Bahn", purposeLabel: words(PURPOSE_WORDS, scenario.purpose),
+                youAre: `You are ${callees[scenario.id] ?? "the pickup desk"}. Mira from Bahn calls you about this collection; answer as the desk would.` })}>
+              Simulate outbound call (you answer)
+            </button>}
             <button type="button" className="btn primary" onClick={() => void run(scenario)} disabled={!!running} aria-busy={running === scenario.id}>
               {running === scenario.id ? <><span className="spinner" aria-hidden="true" />Simulating…</> : "Simulate call"}
             </button>
@@ -119,6 +126,7 @@ export function CallSimulator({ scenarios, stored, orderIds, callees, drivers, o
           : running !== scenario.id && <p className="calls-quiet">No call stored for this order yet. Simulate one to see the transcript.</p>}
       </section>}
     </div>}
+    {live && <CallOverlay target={live} onClose={() => setLive(null)} />}
   </section>
 }
 

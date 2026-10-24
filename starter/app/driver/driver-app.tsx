@@ -9,6 +9,7 @@ import { Icon } from "../components/icons"
 import { fetchFeed, sendMessage, shrinkImage, uploadPhoto } from "./channel"
 import type { DriverJob, ThreadMessage } from "./data"
 import styles from "./driver.module.css"
+import { CallScreen } from "../components/line/call-screen"
 
 type Readings = {
   now: string
@@ -18,16 +19,6 @@ type Readings = {
   codes: string[]
   mil: ObdData["mil"]
   canConnect: boolean
-}
-
-/**
- * Calls go to the owner's duplex phone, which hosts the VoiceChat line, with a
- * per-call card from the call service. The in-app voice pipeline is no longer
- * linked (it had no recording and fell back to the browser's own voice).
- */
-export function roadDeskCallUrl(reference: string): string {
-  const card = `http://127.0.0.1:8799/card/${reference}/DRIVER_INBOUND`
-  return `https://duplex.hopeajahti.lol/?dial=voicechat&card=${encodeURIComponent(card)}`
 }
 
 /** The drawn dashboard picture for scenario A. Fictional; no real car or person. */
@@ -43,6 +34,8 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow, onJob }
   serverNow: string
 }) {
   const [thread, setThread] = useState<ThreadMessage[]>(initialThread)
+  // A live call on the VoiceChat line replaces the app until it ends.
+  const [calling, setCalling] = useState(false)
   const [draft, setDraft] = useState("")
   const [streaming, setStreaming] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
@@ -151,6 +144,11 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow, onJob }
   const answered = openRequest && thread.some((message) => message.kind === "photo" && message.at > openRequest.at)
   const photoAsk = openRequest && !answered ? openRequest : null
 
+  if (calling && job) return <CallScreen onClose={() => setCalling(false)} target={{
+    orderRef: job.reference, purpose: "DRIVER_INBOUND", calleeName: "Road Desk", purposeLabel: "Calling Road Desk",
+    youAre: `You are ${driver.name}, the driver. Road Desk's assistant answers; tell it what is going on with the car.`,
+  }} />
+
   return <div className={styles.app}>
     <header className={styles.top}>
       <span className={styles.avatar} aria-hidden="true">{driver.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span>
@@ -158,9 +156,9 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow, onJob }
         <b>{driver.name}</b>
         {!onJob && <Link href="/driver">Switch driver</Link>}
       </div>
-      {job && <a className={styles.callButton} href={roadDeskCallUrl(job.reference)} target="_blank" rel="noopener" title="Opens the Road Desk line in a new tab">
+      {job && <button type="button" className={styles.callButton} onClick={() => setCalling(true)} title="A live call with Road Desk's assistant on the VoiceChat line">
         <PhoneIcon /> Call Road Desk
-      </a>}
+      </button>}
     </header>
 
     {jobs.length > 1 && <nav className={styles.jobTabs} aria-label="Your jobs">
@@ -193,7 +191,7 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow, onJob }
           return <div key={message.id}>
             {index === 0 && message.origin === "dataset" && <p className={styles.divider}>Earlier on this job</p>}
             {firstNew && <p className={styles.divider}>Today</p>}
-            <Bubble message={message} callHref={roadDeskCallUrl(job.reference)} />
+            <Bubble message={message} onAnswer={() => setCalling(true)} />
           </div>
         })}
         {streaming !== null && <div className={`${styles.bubble} ${styles.theirs}`}>
@@ -244,15 +242,15 @@ function fromFeed(message: FeedMessage): ThreadMessage {
   }
 }
 
-function Bubble({ message, callHref }: { message: ThreadMessage; callHref: string | null }) {
+function Bubble({ message, onAnswer }: { message: ThreadMessage; onAnswer: (() => void) | null }) {
   const mine = message.from === "me"
   const time = new Date(message.at).toISOString().slice(11, 16)
   if (message.kind === "call") {
     return <div className={styles.call} role="status">
       <span className={styles.who}>Road Desk is calling · {time} UTC</span>
       <p>{message.text}</p>
-      {callHref
-        ? <a className={styles.callButton} href={callHref} target="_blank" rel="noopener"><PhoneIcon /> Answer on the Road Desk line</a>
+      {onAnswer
+        ? <button type="button" className={styles.callButton} onClick={onAnswer}><PhoneIcon /> Answer</button>
         : <small>Calls open in the voice screen, which is not installed in this build. Reply here instead.</small>}
     </div>
   }

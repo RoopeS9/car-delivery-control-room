@@ -1,0 +1,35 @@
+/* The in-app call: a phone-frame card in the Road Desk look. */
+.call-screen { display: flex; flex-direction: column; height: 100%; background: var(--birch); color: var(--ink); }
+.cs-head { display: grid; justify-items: center; gap: 4px; padding: 36px 20px 18px; text-align: center; border-bottom: 1px solid var(--hair-soft); }
+.cs-avatar { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: var(--hair-soft); font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+.cs-live .cs-avatar { box-shadow: 0 0 0 4px color-mix(in srgb, var(--tone-agent) 35%, transparent); animation: cs-breathe 2.4s ease-in-out infinite; }
+@keyframes cs-breathe { 50% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--tone-agent) 12%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .cs-live .cs-avatar { animation: none; } }
+.cs-head b { font-size: 18px; font-weight: 600; }
+.cs-purpose { font-size: 13px; color: var(--muted); }
+.cs-purpose .mono { font-size: 12px; }
+.cs-status { margin-top: 4px; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--brown); }
+.cs-failed .cs-status { color: var(--tone-need); }
+.cs-note { font-size: 12px; color: var(--tone-watch); }
+.cs-captions { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 16px; background: var(--canvas); }
+.cs-cap { max-width: 85%; padding: 8px 12px; border-radius: 14px; font-size: 14px; line-height: 1.4; }
+.cs-cap.cs-model { align-self: flex-start; background: var(--birch); box-shadow: var(--shadow-card); }
+.cs-cap.cs-user { align-self: flex-end; background: var(--ink); color: var(--birch); }
+.cs-cap.interim { opacity: 0.65; }
+.cs-hint { margin: auto; max-width: 280px; text-align: center; font-size: 13px; color: var(--muted); }
+.cs-transcript { flex: 1; overflow-y: auto; padding: 14px 16px; background: var(--canvas); display: grid; gap: 10px; align-content: start; }
+.cs-done { font-size: 13px; color: var(--brown); }
+.cs-transcript ol { display: grid; gap: 6px; }
+.cs-transcript li { display: grid; grid-template-columns: 38px 1fr; gap: 8px; font-size: 13px; line-height: 1.4; }
+.cs-transcript small { color: var(--subtle); font-variant-numeric: tabular-nums; padding-top: 1px; }
+.cs-transcript li.cs-user span { color: var(--ink); }
+.cs-transcript li.cs-model span { color: var(--brown); }
+.cs-fine { font-size: 12px; color: var(--subtle); }
+.cs-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 14px 16px 22px; border-top: 1px solid var(--hair-soft); }
+.cs-btn { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--sand); background: transparent; color: var(--ink); font-size: 13.5px; font-weight: 500; }
+.cs-btn.on { background: var(--hair-soft); }
+.cs-call { background: var(--ink); border-color: var(--ink); color: var(--birch); }
+.cs-hang { background: var(--tone-need); border-color: var(--tone-need); color: #fff; }
+.cs-overlay { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; background: rgba(15, 15, 15, 0.45); }
+.cs-phone { width: 390px; height: min(780px, calc(100dvh - 40px)); border-radius: 36px; overflow: hidden; background: var(--birch);
+  box-shadow: 0 0 0 10px var(--ink), 0 0 0 11px var(--sand), 0 24px 60px rgba(15, 15, 15, 0.35); }
