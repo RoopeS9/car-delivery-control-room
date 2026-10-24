@@ -786,7 +786,10 @@ a.source:hover { border-color: var(--sand); color: var(--ink); }
 .ask-form input:focus { border-color: var(--ink); outline: 0; }
 .ask-answer { margin-bottom: 12px; padding: 12px 14px; border-radius: 12px; background: var(--canvas); max-width: 80ch; }
 .ask-q { font-size: 12.5px; color: var(--muted); }
-.ask-a { margin-top: 4px; font-size: 14px; line-height: 1.55; white-space: pre-wrap; }
+.ask-a { margin-top: 4px; font-size: 14px; line-height: 1.55; }
+.ask-a p + p, .ask-a p + ul, .ask-a ul + p { margin-top: 8px; }
+.ask-a ul { margin: 6px 0 0; padding-left: 18px; }
+.ask-a li + li { margin-top: 4px; }
 
 @media (max-width: 900px) {
   .case { padding: 16px 16px 18px; }

@@ -1,0 +1,56 @@
+// Pure text helpers for operator-facing words. No Node imports, so client
+// components can use them too.
+
+/**
+ * How a code-style name reads in a sentence ("a CONTACT_CUSTOMER proposal"). Anything not listed
+ * falls back to lower-case words, so a name the agent invents never reaches an operator raw.
+ */
+const TOKEN_WORDS: Record<string, string> = {
+  CONTACT_CUSTOMER: "customer-contact", CONTACT_SITE_AS_CUSTOMER: "site-contact", UPDATE_ETA: "ETA-update",
+  CHANGE_PROMISE: "promise-change", BOOK_RECOVERY: "recovery-booking", BOOK_TRAVEL: "travel-booking",
+  APPROVE_EXPENSE: "expense", REASSIGN_DRIVER: "driver-reassignment", CLEAR_TO_CONTINUE: "drive-on clearance",
+  STOP_NOW: "stop now", DRIVE_TO_SAFE_STOP: "drive to a safe stop", CONTINUE_AND_MONITOR: "continue and monitor",
+}
+
+export function plainTokens(text: string): string {
+  return text.replace(/\b[A-Z]{2,}(?:_[A-Z0-9]+)+\b/g, (token) => TOKEN_WORDS[token] ?? token.toLowerCase().replace(/_/g, " "))
+}
+
+export type Run = { text: string; bold?: boolean }
+export type Block = { type: "p"; runs: Run[] } | { type: "ul"; items: Run[][] }
+
+function runsOf(line: string): Run[] {
+  const runs: Run[] = []
+  let last = 0
+  for (const match of line.matchAll(/\*\*(.+?)\*\*/g)) {
+    const at = match.index ?? 0
+    if (at > last) runs.push({ text: line.slice(last, at) })
+    runs.push({ text: match[1], bold: true })
+    last = at + match[0].length
+  }
+  if (last < line.length) runs.push({ text: line.slice(last) })
+  return runs
+}
+
+/**
+ * The agent answers in light markdown: paragraphs, "- " bullets and **bold**. Nothing else is
+ * interpreted, and the result is plain data for React to render, never HTML.
+ */
+export function blocksOf(text: string): Block[] {
+  const blocks: Block[] = []
+  let paragraph: string[] = []
+  let list: Run[][] | null = null
+  const endParagraph = () => { if (paragraph.length) blocks.push({ type: "p", runs: runsOf(paragraph.join(" ")) }); paragraph = [] }
+  const endList = () => { if (list) blocks.push({ type: "ul", items: list }); list = null }
+  for (const raw of text.split("\n")) {
+    const line = raw.trim()
+    const bullet = /^[-*•]\s+(.+)$/.exec(line)
+    if (!line) { endParagraph(); endList(); continue }
+    if (bullet) { endParagraph(); (list ??= []).push(runsOf(bullet[1])); continue }
+    endList()
+    paragraph.push(line)
+  }
+  endParagraph()
+  endList()
+  return blocks
+}

@@ -6,6 +6,7 @@ import {
   type AskAgentRequest, type AskAgentResponse, type CaseActionResponse, type CustomerAnswerRequest, type InstructRequest, type LogOutcomeRequest,
 } from "@/lib/cr/types"
 import type { CaseView, PromiseView, RecordView } from "@/lib/present/types"
+import { blocksOf, plainTokens, type Run } from "@/lib/present/text"
 import { Icon } from "../icons"
 import { When } from "../ui"
 import { DecidedCard, DecisionCard, OutdatedNotice, Sources, UnknownOutcomeNotice } from "./decision-card"
@@ -123,6 +124,10 @@ function TellAgent({ caseId, onSent, startOpen = false }: { caseId: string; onSe
   </div>
 }
 
+function Runs({ runs }: { runs: Run[] }) {
+  return <>{runs.map((run, index) => run.bold ? <strong key={index}>{run.text}</strong> : <span key={index}>{run.text}</span>)}</>
+}
+
 function AskAgent({ caseId, orderRef }: { caseId: string | null; orderRef: string }) {
   const [text, setText] = useState("")
   const [busy, setBusy] = useState(false)
@@ -148,7 +153,9 @@ function AskAgent({ caseId, orderRef }: { caseId: string | null; orderRef: strin
   }
   return <section className="sec ask" aria-label="Ask the agent">
     <div className="sec-head"><h2>Ask the agent</h2><span className="note">Answers with sources. It never changes anything from here.</span></div>
-    {answer && <div className="ask-answer"><p className="ask-q">{answer.q}</p><p className="ask-a">{answer.a}</p></div>}
+    {answer && <div className="ask-answer"><p className="ask-q">{answer.q}</p><div className="ask-a">{blocksOf(plainTokens(answer.a)).map((block, index) => block.type === "ul"
+      ? <ul key={index}>{block.items.map((item, at) => <li key={at}><Runs runs={item} /></li>)}</ul>
+      : <p key={index}><Runs runs={block.runs} /></p>)}</div></div>}
     <form className="ask-form" onSubmit={(event) => { event.preventDefault(); void ask() }}>
       <input value={text} onChange={(event) => setText(event.target.value)} placeholder="Has the driver sent the photo? What is the promise and who set it?" aria-label="Question for the agent" />
       <button type="submit" className="btn" disabled={busy || !text.trim()}>{busy ? "Asking…" : "Ask"}</button>

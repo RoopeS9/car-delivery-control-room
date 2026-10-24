@@ -14,6 +14,7 @@ import {
 import { describeEvent } from "./events"
 import { type Bundle, str } from "./bundle"
 import { label } from "./labels"
+import { plainTokens } from "./text"
 import { fmtClock, fmtDateTime, fmtRange, minutesBetween, relativeTo } from "./time"
 import type { AttentionItem, CaseView, DecisionCardView, DraftView, PromiseView, SourceChip, TelemetryStripView, TimelineEntry, Tone } from "./types"
 
@@ -192,20 +193,7 @@ export function caseAttention(bundle: Bundle): AttentionItem[] {
 }
 
 /** Free text from the agent or the gate may carry a desk id ("ops-shift"); operators read the desk's title. */
-/**
- * How a code-style name reads in a sentence ("a CONTACT_CUSTOMER proposal"). Anything not listed
- * falls back to lower-case words, so a name the agent invents never reaches an operator raw.
- */
-const TOKEN_WORDS: Record<string, string> = {
-  CONTACT_CUSTOMER: "customer-contact", CONTACT_SITE_AS_CUSTOMER: "site-contact", UPDATE_ETA: "ETA-update",
-  CHANGE_PROMISE: "promise-change", BOOK_RECOVERY: "recovery-booking", BOOK_TRAVEL: "travel-booking",
-  APPROVE_EXPENSE: "expense", REASSIGN_DRIVER: "driver-reassignment", CLEAR_TO_CONTINUE: "drive-on clearance",
-  STOP_NOW: "stop now", DRIVE_TO_SAFE_STOP: "drive to a safe stop", CONTINUE_AND_MONITOR: "continue and monitor",
-}
-
-export function plainTokens(text: string): string {
-  return text.replace(/\b[A-Z]{2,}(?:_[A-Z0-9]+)+\b/g, (token) => TOKEN_WORDS[token] ?? token.toLowerCase().replace(/_/g, " "))
-}
+export { plainTokens }
 
 export function plainText(bundle: Bundle, text: string): string
 export function plainText(bundle: Bundle, text: string | null): string | null
