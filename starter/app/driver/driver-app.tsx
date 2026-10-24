@@ -16,6 +16,7 @@ type Readings = {
   gps: { at: string; data: GpsData } | null
   codes: string[]
   mil: ObdData["mil"]
+  canConnect: boolean
 }
 
 /** The drawn dashboard picture for scenario A. Fictional; no real car or person. */
@@ -162,7 +163,11 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow }: {
     {!job && <div className={styles.state}><h1>No work right now</h1><p>{driver.name} has no current or upcoming job in the records.</p></div>}
 
     {job && <>
-      {job.status === "IN_PROGRESS" && <CarBar readings={readings} />}
+      {job.status === "IN_PROGRESS" && <CarBar readings={readings} onConnect={async () => {
+        await fetch(`/api/sim/connect/${job.reference}`, { method: "POST" }).catch(() => undefined)
+        const response = await fetch(`/api/sim/telemetry/${job.reference}`, { cache: "no-store" }).catch(() => null)
+        if (response?.ok) setReadings(await response.json() as Readings)
+      }} />}
       <JobCard job={job} />
 
       <section className={styles.thread} aria-label="Messages with Bahn" aria-live="polite">
@@ -245,7 +250,8 @@ function Bubble({ message }: { message: ThreadMessage }) {
   </div>
 }
 
-function CarBar({ readings }: { readings: Readings | null }) {
+function CarBar({ readings, onConnect }: { readings: Readings | null; onConnect: () => Promise<void> }) {
+  const [connecting, setConnecting] = useState(false)
   if (!readings) return <div className={styles.carBar}><span className={styles.carState}>Connecting to the car…</span></div>
   const obd = readings.obd
   const age = obd ? Math.max(0, Math.round((Date.parse(readings.now) - Date.parse(obd.at)) / 1000)) : null
@@ -257,6 +263,12 @@ function CarBar({ readings }: { readings: Readings | null }) {
       <span className={styles.carState}><span className={styles.carDot} aria-hidden="true" />{state}</span>
       <span className={styles.carSource}>Simulated OBD{age !== null ? ` · ${age < 60 ? `${age} s` : `${Math.round(age / 60)} min`} ago` : ""}</span>
     </div>
+    {readings.canConnect && <div className={styles.connect}>
+      <p>Plug the OBD dongle in and switch the ignition on (engine off) so Bahn can read the car.</p>
+      <button type="button" disabled={connecting} onClick={async () => { setConnecting(true); await onConnect(); setConnecting(false) }}>
+        {connecting ? "Connecting…" : "Connect the car"}
+      </button>
+    </div>}
     {warn && <p className={styles.carAlert}>
       <EngineIcon /> Check-engine light {readings.mil === "FLASHING" ? "flashing" : "on"}
       {readings.codes.length > 0 && <span className="mono"> · {readings.codes.join(" ")}</span>}

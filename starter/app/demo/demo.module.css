@@ -21,6 +21,9 @@
 .scenarioText h3 span { font-weight: 500; color: var(--muted); font-size: 13px; }
 .scenarioText p { margin-top: 4px; font-size: 13px; color: var(--brown); max-width: 64ch; }
 .scenarioActions { flex: none; }
+.scenarioLinks { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px !important; }
+.scenarioLinks a { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 500; color: var(--teal-ink); text-decoration: none; }
+.scenarioLinks a:hover { text-decoration: underline; }
 
 .primary, .danger { height: 36px; padding: 0 18px; border-radius: var(--radius); border: 1px solid var(--ink); background: var(--ink); color: var(--birch); font-size: 13.5px; font-weight: 500; white-space: nowrap; }
 .primary:hover:not(:disabled) { opacity: 0.88; }

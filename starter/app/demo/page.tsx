@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Icon } from "../components/icons"
 import styles from "./demo.module.css"
 
-type Scenario = { name: string; title: string; orderRef: string | null; description: string; started: boolean }
+type Scenario = { name: string; title: string; orderRef: string | null; description: string; started: boolean; links: { label: string; href: string }[] }
 type FleetRow = {
   reference: string; orderId: string; vehicleTitle: string; driverName: string; driverId: string
   phone: "LIVE" | "STALE" | "NONE"; state: string; placeLabel: string; speedKmh: number; fault: string | null; quietFrom: string | null
@@ -101,12 +101,15 @@ export default function DemoPage() {
           <div className={styles.scenarioText}>
             <h3>{scenario.title}{scenario.orderRef && <span className="mono"> · {scenario.orderRef}</span>}</h3>
             <p>{scenario.description}</p>
+            {scenario.links.length > 0 && <p className={styles.scenarioLinks}>
+              {scenario.links.map((link) => <Link key={link.href} href={link.href} target="_blank">{link.label} <Icon name="arrow" size={12} /></Link>)}
+            </p>}
           </div>
           <div className={styles.scenarioActions}>
             {scenario.started
               ? <span className="chip tone-accent"><span className="chip-dot" />Running</span>
               : <button type="button" className={styles.primary} disabled={busy !== null} onClick={() => void run(scenario.name)}>
-                {busy === scenario.name ? "Starting…" : "Start"}
+                {busy === scenario.name ? "Starting…" : "Run"}
               </button>}
           </div>
         </li>)}
@@ -117,8 +120,8 @@ export default function DemoPage() {
       <h2 id="open">Open in another window</h2>
       <div className={styles.links}>
         <Link href="/" target="_blank"><Icon name="work" />Control room</Link>
-        <Link href="/driver?driver=drv-042" target="_blank"><Icon name="driver" />Driver app as Leo Quellford (CD-420584)</Link>
-        <Link href="/driver" target="_blank"><Icon name="people" />Driver app, pick a driver</Link>
+        <Link href="/driver" target="_blank"><Icon name="driver" />Driver app, pick a driver</Link>
+        <Link href="/site" target="_blank"><Icon name="building" />Site chat, pick a place</Link>
       </div>
     </section>
 

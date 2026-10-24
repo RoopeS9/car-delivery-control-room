@@ -40,7 +40,10 @@ export async function activeFaults(): Promise<Map<string, FaultPlan>> {
     .where(and(eq(crEvents.kind, "dtc"), eq(crEvents.actorType, "obd"), sql`${crEvents.data} ? 'sim'`))
     .orderBy(crEvents.at)
   const plans = new Map<string, FaultPlan>()
-  for (const row of rows) plans.set(row.orderId, row.data.sim as FaultPlan)
+  for (const row of rows) {
+    const plan = row.data.sim as FaultPlan | undefined
+    if (plan?.profile === "misfire") plans.set(row.orderId, plan)
+  }
   return plans
 }
 

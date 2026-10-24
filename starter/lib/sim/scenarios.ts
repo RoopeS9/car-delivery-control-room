@@ -1,42 +1,80 @@
 // Demo scenarios, started from /demo. Each one changes only our own `cr_`
-// tables; the dataset is never touched. `reset` puts the demo back to the
+// tables; the dataset is never touched. Messages from drivers and sites go
+// through the real channel routes after the scenario responds, exactly as a
+// phone or a browser would send them. `reset` puts the demo back to the
 // start: no cases, no events, a fresh sim clock at the snapshot time.
 
+import { and, eq } from "drizzle-orm"
 import { resetSimClock, simNow } from "@/lib/cr/clock"
+import { crDb } from "@/lib/cr/db"
 import { appendEvent, insertTelemetry, resetCrData } from "@/lib/cr/queries"
-import type { SourceRef, TelemetryTriggerRequest } from "@/lib/cr/types"
+import type { DriverMessageRequest, SiteMessageRequest, SourceRef, TelemetryTriggerRequest } from "@/lib/cr/types"
+import { orders, relatedRecords } from "@/lib/schema"
 import { fleetCar, type FleetCar } from "./fleet"
 import { baseMotion, faultMotion, freezeFrame, type FaultPlan } from "./motion"
 import { roughWhere } from "./places"
 import { activeFaults, syncTelemetry } from "./sync"
 
-export type ScenarioName = "warning-light-584" | "reset"
+export type ScenarioName = "warning-light-584" | "catch-up-322" | "driver-keys-145" | "site-question-442" | "reset"
 
 export type ScenarioInfo = {
   name: ScenarioName
   title: string
   orderRef: string | null
   description: string
+  /** Where the presenter looks while it runs. */
+  links: { label: string; href: string }[]
 }
 
 export const SCENARIOS: ScenarioInfo[] = [
   {
     name: "warning-light-584",
-    title: "Fresh warning light",
+    title: "A. Fresh warning light",
     orderRef: "CD-420584",
-    description: "The Bentley on its way from Cologne to the Helsinki ferry gets a flashing check-engine light and loses power. " +
-      "The driver pulls into a service area. The OBD dongle sends misfire codes P0300 and P0302 with a freeze frame.",
+    description: "The Bentley on its way from Cologne to the Hamburg ferry gets a flashing check-engine light and loses power. " +
+      "The driver pulls into a service area. The OBD dongle sends misfire codes P0300 and P0302 with a freeze frame, and the agent contacts the driver first.",
+    links: [{ label: "Leo Quellford's driver app", href: "/driver?driver=drv-042" }],
+  },
+  {
+    name: "catch-up-322",
+    title: "B. Catch up on an open case",
+    orderRef: "CD-420322",
+    description: "The Bentley has been stopped at a service area since 08:04 with a red warning (already in the records). " +
+      "The driver writes again. The agent reads the history; when the driver connects the dongle, it sends stored codes and the phone shares where the car is.",
+    links: [{ label: "Kasper Kovelund's driver app", href: "/driver?driver=drv-319" }],
+  },
+  {
+    name: "driver-keys-145",
+    title: "C. Routine question, no person needed",
+    orderRef: "CD-420145",
+    description: "Kasper Carvell, 40 minutes from Helsinki with the Porsche, asks where to leave the car and the keys. The agent answers from the order and site records.",
+    links: [{ label: "Kasper Carvell's driver app", href: "/driver?driver=drv-130" }],
+  },
+  {
+    name: "site-question-442",
+    title: "D. Pickup desk asks about the driver",
+    orderRef: "CD-420442",
+    description: "Uma Aldermere at the Orvendin Cars Stockholm desk (not the customer) asks if the driver is still coming tomorrow morning. " +
+      "The agent answers only about this order and says what it does not know.",
+    links: [{ label: "Site chat as Uma Aldermere", href: "/site?contact=ep-xf3ba5412ec8d619e" }],
   },
   {
     name: "reset",
     title: "Reset the demo",
     orderRef: null,
     description: "Remove every case, message, decision and telemetry sample we added, and restart the sim clock at 09:00 UTC on 21 Oct.",
+    links: [],
   },
 ]
 
 /** The fictional service area where the car in scenario A stops. */
 const SERVICE_AREA = "Velmerheide Nord"
+
+/** Work the route does after it has answered, so the presenter is not kept waiting. */
+export type SimAction =
+  | { kind: "telemetry"; request: TelemetryTriggerRequest }
+  | { kind: "driver_message"; request: DriverMessageRequest }
+  | { kind: "site_message"; request: SiteMessageRequest }
 
 export type ScenarioResult = {
   ok: boolean
@@ -44,14 +82,21 @@ export type ScenarioResult = {
   message: string
   orderId?: string
   eventId?: string
-  /** Set when the agent should be told about a new fault (the route does that after responding). */
-  notifyAgent?: TelemetryTriggerRequest
+  actions?: SimAction[]
 }
 
 export async function runScenario(name: string): Promise<ScenarioResult> {
-  if (name === "reset") return reset()
-  if (name === "warning-light-584") return warningLight584()
-  return { ok: false, name: name as ScenarioName, message: `There is no scenario called "${name}".` }
+  switch (name) {
+    case "reset": return reset()
+    case "warning-light-584": return warningLight584()
+    case "catch-up-322": return driverWrites("catch-up-322", "CD-420322",
+      "Still waiting at the service area with the Bentley. Has anyone decided who is collecting the car? I need to know if I should stay.")
+    case "driver-keys-145": return driverWrites("driver-keys-145", "CD-420145",
+      "Hi, I'm about 40 minutes from Helsinki with the Porsche. Where do I leave the car and the keys at Kavornia?")
+    case "site-question-442": return siteWrites("site-question-442", "CD-420442", "PICKUP",
+      "Hi, this is Uma at the Orvendin Cars desk. Is your driver still coming tomorrow morning for the Bentley?")
+    default: return { ok: false, name: name as ScenarioName, message: `There is no scenario called "${name}".` }
+  }
 }
 
 async function reset(): Promise<ScenarioResult> {
@@ -60,6 +105,8 @@ async function reset(): Promise<ScenarioResult> {
   await syncTelemetry()
   return { ok: true, name: "reset", message: `Demo reset. Sim clock back at ${simNow().toISOString().slice(11, 16)} UTC.` }
 }
+
+// ---------------------------------------------------------------- A
 
 async function warningLight584(): Promise<ScenarioResult> {
   const car = await fleetCar("CD-420584")
@@ -104,7 +151,7 @@ async function warningLight584(): Promise<ScenarioResult> {
     message: `Warning light on for CD-420584. The car limps for about a minute, then stops at ${plan.stopLabel}.`,
     orderId: car.orderId,
     eventId: event.id,
-    notifyAgent: { orderRef: car.reference, codes: plan.codes, mil: "FLASHING", note: "reduced power message on the dashboard", eventId: event.id },
+    actions: [{ kind: "telemetry", request: { orderRef: car.reference, codes: plan.codes, mil: "FLASHING", note: "reduced power message on the dashboard", eventId: event.id } }],
   }
 }
 
@@ -126,4 +173,35 @@ function misfirePlan(car: FleetCar, startedAt: Date, km: number, speed: number, 
   const stopAt = new Date(startedAt.getTime() + (draft.limpSeconds + draft.rampSeconds + 1) * 1000)
   const stop = faultMotion(car, draft, stopAt)
   return { ...draft, stopLabel: `${SERVICE_AREA} service area on the motorway ${roughWhere(stop.point, car.fromCity, car.toCity)}` }
+}
+
+// ---------------------------------------------------------------- B, C: a driver writes
+
+async function driverWrites(name: ScenarioName, reference: string, text: string): Promise<ScenarioResult> {
+  const car = await fleetCar(reference)
+  if (!car) return { ok: false, name, message: `${reference} has no driver on the road in this dataset.` }
+  await syncTelemetry()
+  return {
+    ok: true, name, orderId: car.orderId,
+    message: `${car.driverName} writes on ${reference}: "${text}"`,
+    actions: [{ kind: "driver_message", request: { orderRef: reference, driverId: car.driverId, text, mode: "chat" } }],
+  }
+}
+
+// ---------------------------------------------------------------- D: a site writes
+
+async function siteWrites(name: ScenarioName, reference: string, boundary: "PICKUP" | "DELIVERY", text: string): Promise<ScenarioResult> {
+  const db = crDb()
+  const [order] = await db.select({ id: orders.id }).from(orders).where(eq(orders.reference, reference)).limit(1)
+  if (!order) return { ok: false, name, message: `No order ${reference}.` }
+  const endpoints = await db.select({ id: relatedRecords.id, details: relatedRecords.details }).from(relatedRecords)
+    .where(and(eq(relatedRecords.collection, "order_endpoint_details"), eq(relatedRecords.orderId, order.id)))
+  const endpoint = endpoints.find((row) => row.details.boundary === boundary)
+  if (!endpoint) return { ok: false, name, message: `${reference} has no ${boundary.toLowerCase()} contact on record.` }
+  const who = typeof endpoint.details.contact_name === "string" ? endpoint.details.contact_name : "The site desk"
+  return {
+    ok: true, name, orderId: order.id,
+    message: `${who} writes about ${reference}: "${text}"`,
+    actions: [{ kind: "site_message", request: { orderRef: reference, siteContactId: endpoint.id, text, mode: "chat" } }],
+  }
 }

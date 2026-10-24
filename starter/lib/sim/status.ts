@@ -8,6 +8,7 @@ import { crTelemetry } from "@/lib/cr/schema"
 import type { GpsData, ObdData } from "@/lib/cr/types"
 import { fleetCar, loadFleet, simStart, type FleetCar, type PhoneState } from "./fleet"
 import { motionAt, type MotionState } from "./motion"
+import { alreadyReconnected, canReconnect } from "./reconnect"
 import { activeFaults, syncTelemetry } from "./sync"
 
 export type CarReadings = {
@@ -27,6 +28,8 @@ export type CarReadings = {
   /** Codes from the newest OBD sample, or the stored ones after the engine stopped. */
   codes: string[]
   mil: ObdData["mil"]
+  /** True when the driver can plug the dongle back in (scenario B) and has not yet. */
+  canConnect: boolean
 }
 
 export async function carReadings(orderRefOrId: string): Promise<CarReadings | null> {
@@ -40,6 +43,7 @@ export async function carReadings(orderRefOrId: string): Promise<CarReadings | n
     db.select().from(crTelemetry).where(and(eq(crTelemetry.orderId, car.orderId), eq(crTelemetry.source, "PHONE_GPS")))
       .orderBy(desc(crTelemetry.at)).limit(1),
   ])
+  const canConnect = canReconnect(car.reference) && !(await alreadyReconnected(car.orderId))
   const latestObd = obdRows[0] ? { at: obdRows[0].at.toISOString(), data: obdRows[0].data as unknown as ObdData } : null
   const latestGps = gpsRows[0] ? { at: gpsRows[0].at.toISOString(), data: gpsRows[0].data as unknown as GpsData } : null
   return {
@@ -60,6 +64,7 @@ export async function carReadings(orderRefOrId: string): Promise<CarReadings | n
     }),
     codes: latestObd?.data.dtcs ?? [],
     mil: latestObd?.data.mil ?? "OFF",
+    canConnect,
   }
 }
 
