@@ -95,6 +95,45 @@ export async function openConversation(orderId: string, input: { category?: unkn
   return { conversation: details, message }
 }
 
+/**
+ * A message the case engine sent on an operator's approval is also a message in the order's conversations: it goes
+ * into the thread with that party of the matching category (opened if there is none), so the Conversations section
+ * and the inbox show it like any other. Phone-call talking points are not messages and are not filed.
+ */
+export async function recordSentDraft(input: { orderId: string; caseKind: string; by: string; at: string; draft: { to_type: "customer" | "site" | "driver"; to_id: string; to_name: string; channel: string; subject?: string | null; body: string; language?: string | null } }) {
+  const { draft } = input
+  if (draft.channel === "phone_call") return null
+  const category = CASE_CATEGORY[input.caseKind] ?? "order_information"
+  const channel = draft.channel === "email" ? "email" : draft.to_type === "driver" ? "driver_chat" : draft.channel === "sms" ? "whatsapp" : draft.to_type === "site" ? "site_chat" : "support_chat"
+  const counterpartyType = draft.to_type === "site" ? "site_contact" : draft.to_type
+  const open = await db.select().from(conversations).where(and(eq(conversations.orderId, input.orderId), eq(conversations.status, "OPEN")))
+  let thread = open.find((row) => row.details.counterparty_id === draft.to_id && row.category === category) ?? open.find((row) => row.details.counterparty_id === draft.to_id) ?? null
+  if (!thread) {
+    const conversationId = id("conv")
+    const details: Record<string, unknown> = {
+      assignment_id: null, category, channel, counterparty_id: draft.to_id, counterparty_type: counterpartyType, counterparty_name_snapshot: draft.to_name,
+      id: conversationId, order_id: input.orderId, started_at: input.at, status: "OPEN", updated_at: input.at, waiting_on: "COUNTERPARTY_REPLY", opened_by_case: true,
+    }
+    await db.insert(conversations).values({ id: conversationId, orderId: input.orderId, category, channel, status: "OPEN", updatedAt: new Date(input.at), details })
+    ;[thread] = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1)
+  }
+  if (!thread) return null
+  const message = {
+    author_id: input.by, author_type: "operator", authored_at: input.at, body: draft.subject ? `${draft.subject}\n\n${draft.body}` : draft.body,
+    channel: thread.channel, conversation_id: thread.id, id: id("msg"), language: draft.language ?? null, order_id: input.orderId,
+    recipient_id: draft.to_id, recipient_type: counterpartyType, visibility: "PUBLIC", sent_by_case: true,
+  }
+  await db.insert(messages).values({ id: message.id, orderId: input.orderId, conversationId: thread.id, authorType: "operator", body: message.body, authoredAt: new Date(input.at), details: message })
+  await db.update(conversations).set({ updatedAt: new Date(input.at), details: { ...thread.details, updated_at: input.at, waiting_on: "COUNTERPARTY_REPLY" } }).where(eq(conversations.id, thread.id))
+  return { conversationId: thread.id, messageId: message.id }
+}
+
+/** The conversation category a case's message belongs to. */
+const CASE_CATEGORY: Record<string, string> = {
+  VEHICLE_WARNING: "vehicle_condition", BREAKDOWN: "vehicle_condition", ACCIDENT: "vehicle_condition", DELAY: "schedule_and_eta", MISSED_CONNECTION: "ferry_and_route",
+  KEYS_ACCESS: "vehicle_custody", EXPENSE: "costs_and_payments", DRIVER_QUESTION: "driver_travel", SITE_QUESTION: "pickup_and_release", OPERATOR_QUESTION: "order_information",
+}
+
 // ---------------------------------------------------------------- the inbox
 
 async function inboxThread(threadId: string) {

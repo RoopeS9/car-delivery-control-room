@@ -29,6 +29,7 @@ import { activeDriverId, loadOrderFacts, type OrderFacts } from "./context"
 import { SAFETY_TEMPLATES, findClearance } from "./drivability"
 import { mockProviderBook } from "./mocks"
 import { operatorPhrase } from "./timeline"
+import { recordSentDraft } from "@/lib/present/helpdesk"
 
 // ---------------------------------------------------------------- tool policy
 
@@ -424,6 +425,9 @@ async function performEffects(proposal: ProposalRow, actor: Actor): Promise<{ af
     if (!draft) return
     const sent = await effect(proposal, "MESSAGE_SENT", "RECORDED", { to_type: draft.to_type, to_id: draft.to_id, to_name: draft.to_name, channel: draft.channel, subject: draft.subject ?? null, body: draft.body, edited: Boolean(proposal.editedDraftMessage) }, authority, { to_type: draft.to_type, to_id: draft.to_id })
     const toDriver = draft.to_type === "driver"
+    // The same message, filed in the order's conversations so the desk reads it where every other message is.
+    const caseRow = await getCase(proposal.caseId)
+    try { await recordSentDraft({ orderId: proposal.orderId, caseKind: caseRow?.kind ?? "OPERATOR_QUESTION", by: actor.id, at: simNow().toISOString(), draft }) } catch (error) { console.error("Road Desk: the sent message could not be filed in the conversations", error) }
     await note(toDriver ? draft.body : `Sent to ${draft.to_name} (simulated): ${draft.body}`, { effect_id: sent.id, channel: draft.channel }, {
       kind: toDriver ? "message" : "effect", channel: toDriver ? "driver_chat" : draft.to_type === "customer" ? "customer_email" : "site_chat",
       recipientType: toDriver ? "driver" : draft.to_type === "customer" ? "customer" : "site", recipientId: draft.to_id,

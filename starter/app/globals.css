@@ -738,6 +738,7 @@ details.more > :not(summary) { margin-top: 8px; }
 .case-order-car b { font-size: 15px; font-weight: 600; color: var(--ink); }
 .case-order-sub { margin-top: 1px; font-size: 13px; color: var(--muted); }
 
+.case-panel { margin-top: 36px; }
 .case { padding: 22px 24px 24px; border-radius: var(--radius-lg); background: var(--canvas); box-shadow: inset 4px 0 0 var(--hair); }
 .case + .case { margin-top: 16px; }
 .case[data-tone="danger"] { box-shadow: inset 4px 0 0 var(--red); }
@@ -797,6 +798,18 @@ a.source:hover { border-color: var(--sand); color: var(--ink); }
 .dcard-draft { margin: 0; padding: 12px 14px; border-left: 3px solid var(--sand); border-radius: 0 var(--radius) var(--radius) 0; background: var(--canvas); font-size: 14px; line-height: 1.55; color: var(--ink); white-space: pre-wrap; max-width: 78ch; }
 .dcard-draft b { display: block; margin-bottom: 4px; font-weight: 600; }
 .dcard-draft.folded { max-height: 9.5em; overflow: hidden; -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent); mask-image: linear-gradient(to bottom, #000 60%, transparent); }
+/* The card's message as a chat bubble; the agent's working folded under one line. */
+.dcard-chat { margin: 16px 0 0; padding: 14px 16px; }
+.dcard-chat .chat-line { max-width: 86%; }
+.dcard-chat .chat-bubble.folded { max-height: 9.5em; overflow: hidden; -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent); mask-image: linear-gradient(to bottom, #000 60%, transparent); }
+.dcard-chat .dcard-draft-edit { width: min(78ch, 100%); margin: 0; }
+.dcard-details { margin-top: 14px; }
+.dcard-details summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; list-style: none; font-size: 13px; font-weight: 600; color: var(--muted); }
+.dcard-details summary::-webkit-details-marker { display: none; }
+.dcard-details[open] summary .icon { transform: rotate(90deg); }
+.dcard-details .dcard-sec:first-of-type { margin-top: 12px; }
+.dcard-what { font-size: 15px; }
+.dcard-rec b { font-weight: 700; }
 .dcard-draft-edit { width: 100%; max-width: 78ch; padding: 12px 14px; border: 1px solid var(--ink); border-radius: var(--radius); background: var(--birch); font: inherit; font-size: 14px; line-height: 1.55; color: var(--ink); resize: vertical; }
 .dcard-hint { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
 .dcard-did summary { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; list-style: none; font-size: 12.5px; font-weight: 600; color: var(--muted); }

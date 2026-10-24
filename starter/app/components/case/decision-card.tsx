@@ -98,34 +98,21 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
 
   if (done) return <div className="decided-line" role="status"><Icon name="check" size={16} /><div><b>Recorded.</b> {done}</div></div>
 
+  const details = card.facts.length + card.unknowns.length + card.agentDid.length + card.evidence.length
   return <article className="dcard" data-tone={card.tone} aria-labelledby={`card-${card.id}`}>
     <header className="dcard-head">
-      <span className="dcard-eyebrow"><Icon name="proposal" size={13} />{card.choiceOnly ? "The agent needs you to choose" : <>The agent recommends · {card.actionLabel}</>}</span>
-      <span className="dcard-rule" title={card.approvalRule}>{customer ? <><Icon name="key" size={12} />Customer contact · needs a person</> : card.choiceOnly ? "Your choice" : "Needs your yes"}</span>
+      <span className="dcard-eyebrow"><Icon name="proposal" size={13} />{card.choiceOnly ? "Your choice" : customer ? "Customer contact: needs a person" : driveOn ? "Clearance: needs a person" : `Needs your yes · ${card.actionLabel}`}</span>
+      {card.replaces && <span className="dcard-rule" title={card.replaces.changed.map((item) => `${item.label} → ${item.actual ?? "unknown"}`).join("; ")}>Revision {card.revision}</span>}
     </header>
-    {card.replaces && <div className="dcard-revision">
-      <p>Revision {card.revision}: it replaces a version that went out of date{card.replaces.changed.length ? ". What changed:" : "."}</p>
-      {card.replaces.changed.length > 0 && <ul>{card.replaces.changed.map((item, index) => <li key={index}>{item.label} → {item.actual ?? "unknown"}</li>)}</ul>}
-    </div>}
-    {driveOn && <p className="dcard-driveon"><Icon name="alert" size={14} />{card.approvalRule}</p>}
     {card.factsChanged && <div className="dcard-changed" role="note">
       <Icon name="alert" size={14} />
-      <span><b>Facts changed since this was drafted:</b> {card.factsChanged.what} at <When at={card.factsChanged.at} withZone={false} />. Check the timeline, or ask for a fresh card.</span>
+      <span><b>Facts changed since this was drafted:</b> {card.factsChanged.what} at <When at={card.factsChanged.at} withZone={false} />.</span>
       <button type="button" className="btn" disabled={busy} onClick={redraft}>Ask the agent to redraft</button>
     </div>}
     <h2 className="dcard-title" id={`card-${card.id}`}>{card.title}</h2>
     {card.whatHappened && <p className="dcard-what">{card.whatHappened}</p>}
-    {card.recommendation && card.recommendation !== card.title && <p className="dcard-rec">{card.recommendation}</p>}
-
-    {card.facts.length > 0 && <section className="dcard-sec">
-      <h3>What we know</h3>
-      <ul className="dcard-facts">{card.facts.map((fact, index) => <li key={index}><span>{fact.text}</span><Sources sources={fact.sources} /></li>)}</ul>
-    </section>}
-
-    {card.unknowns.length > 0 && <section className="dcard-sec">
-      <h3>Still unknown</h3>
-      <ul className="dcard-unknowns">{card.unknowns.map((item, index) => <li key={index}>{item}</li>)}</ul>
-    </section>}
+    {card.recommendation && card.recommendation !== card.title && card.recommendation !== card.whatHappened && <p className="dcard-rec"><b>Recommended:</b> {card.recommendation}</p>}
+    {driveOn && <p className="dcard-driveon"><Icon name="alert" size={14} />{card.approvalRule}</p>}
 
     {card.booking && <section className="dcard-sec">
       <h3>Selected {card.booking.kind.toLowerCase()} quote · simulated</h3>
@@ -157,28 +144,25 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
       </label>)}
     </fieldset>}
 
-    {card.draft && <section className="dcard-sec">
-      <h3>{call ? "Talking points for the call" : "Drafted message"} <span className="dcard-to">to {card.draft.toName} ({card.draft.toRole}) · {card.draft.channelLabel}</span></h3>
-      {mode === "edit"
-        ? <textarea className="dcard-draft-edit" value={draft} onChange={(event) => setDraft(event.target.value)} rows={6} aria-label="Edit the drafted message" />
-        : <>
-          <blockquote className={`dcard-draft${longDraft && !fullDraft ? " folded" : ""}`}>{card.draft.subject && <b>{card.draft.subject}</b>}{card.draft.body}</blockquote>
-          {longDraft && <button type="button" className="show-more" onClick={() => setFullDraft((value) => !value)}>{fullDraft ? "Show less" : "Show the whole message"}</button>}
-        </>}
-      {customer && <p className="dcard-hint">Nothing reaches the customer until a person says yes.</p>}
-    </section>}
-
-    {card.agentDid.length > 0 && <details className="dcard-sec dcard-did">
-      <summary><Icon name="chevron" size={12} />What the agent already did ({card.agentDid.length})</summary>
-      <ul>{card.agentDid.map((item, index) => <li key={index}>{item}</li>)}</ul>
-    </details>}
-
-    {card.evidence.length > 0 && <p className="dcard-evidence">Evidence: <Sources sources={card.evidence} /></p>}
-
-    {!card.choiceOnly && <div className="dcard-next">
-      <p><b>If you approve:</b> {card.nextIfApproved}</p>
-      <p><b>If you reject:</b> {card.nextIfRejected}</p>
+    {/* The message as it would sit in the conversation: our bubble, to them, not sent yet. Editing happens in the bubble. */}
+    {card.draft && <div className="chat dcard-chat" aria-label={call ? "Talking points for the call" : "The message, not sent yet"}>
+      <div className="chat-line chat-ours">
+        <div className="chat-who"><b>{OPERATOR.title}</b><span>to {card.draft.toName} ({card.draft.toRole}) · {card.draft.channelLabel}</span><span className="msg-tag">{call ? "Talking points" : "Draft, not sent"}</span></div>
+        {mode === "edit"
+          ? <textarea className="dcard-draft-edit" value={draft} onChange={(event) => setDraft(event.target.value)} rows={Math.min(12, Math.max(4, draft.split("\n").length + 1))} aria-label="Edit the message" autoFocus />
+          : <div className={`chat-bubble${longDraft && !fullDraft ? " folded" : ""}`}><p className="msg-body">{card.draft.subject && <b>{card.draft.subject}{"\n"}</b>}{card.draft.body}</p></div>}
+        {longDraft && mode !== "edit" && <button type="button" className="show-more" onClick={() => setFullDraft((value) => !value)}>{fullDraft ? "Show less" : "Show the whole message"}</button>}
+      </div>
     </div>}
+
+    {details > 0 && <details className="dcard-details">
+      <summary><Icon name="chevron" size={12} />What the agent found ({details})</summary>
+      {card.facts.length > 0 && <section className="dcard-sec"><h3>What we know</h3><ul className="dcard-facts">{card.facts.map((fact, index) => <li key={index}><span>{fact.text}</span><Sources sources={fact.sources} /></li>)}</ul></section>}
+      {card.unknowns.length > 0 && <section className="dcard-sec"><h3>Still unknown</h3><ul className="dcard-unknowns">{card.unknowns.map((item, index) => <li key={index}>{item}</li>)}</ul></section>}
+      {card.agentDid.length > 0 && <section className="dcard-sec"><h3>What the agent already did</h3><ul>{card.agentDid.map((item, index) => <li key={index}>{item}</li>)}</ul></section>}
+      {card.evidence.length > 0 && <p className="dcard-evidence">Evidence: <Sources sources={card.evidence} /></p>}
+      {!card.choiceOnly && <div className="dcard-next"><p><b>If you approve:</b> {card.nextIfApproved}</p><p><b>If you reject:</b> {card.nextIfRejected}</p></div>}
+    </details>}
 
     {(mode === "reject" || mode === "instruct") && <div className="dcard-note">
       <label htmlFor={`note-${card.id}`}>{mode === "reject" ? "Why not? One line, it goes back to the agent." : "What should the agent do instead?"}</label>
@@ -191,7 +175,6 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
     <div className="dcard-actions">
       {mode === "idle" && card.choiceOnly && <>
         <button type="button" className="btn primary" disabled={busy || !chosen} onClick={() => decide("approve")}>{chosen ? chosen.label : "Choose an option"}</button>
-        {/* The options are often things a person does outside the system (call the driver). PLAN 4.2b / scenario F: "I'll handle it", then log what happened. */}
         <button type="button" className="btn" disabled={busy} onClick={() => decide("handle")}>I&apos;ll handle it</button>
         <span className="dcard-spacer" />
         <button type="button" className="btn quiet" disabled={busy} onClick={() => { setMode("instruct"); setError("") }}>Tell the agent instead</button>
@@ -201,8 +184,8 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
           ? <button type="button" className="btn primary" disabled={busy} onClick={() => setMode("confirm")}>Clear the driver to drive on…</button>
           : call
           ? <button type="button" className="btn primary" disabled={busy} onClick={() => decide("handle")}>I&apos;ll make the call</button>
-          : <button type="button" className="btn primary" disabled={busy} onClick={() => decide("approve")}>{card.actionType === "CHANGE_PROMISE" ? "Approve, send to the customer" : card.draft ? "Approve and send" : "Approve"}</button>}
-        {card.draft && <button type="button" className="btn" disabled={busy} onClick={() => setMode("edit")}>{call ? "Edit talking points" : "Edit first"}</button>}
+          : <button type="button" className="btn primary" disabled={busy} onClick={() => decide("approve")}>{card.actionType === "CHANGE_PROMISE" ? "Approve, send to the customer" : card.draft ? "Send" : "Approve"}</button>}
+        {card.draft && <button type="button" className="btn" disabled={busy} onClick={() => setMode("edit")}>{call ? "Edit talking points" : "Edit"}</button>}
         {!call && !driveOn && card.actionType !== "BOOK_TRAVEL" && <button type="button" className="btn" disabled={busy} onClick={() => decide("handle")}>I&apos;ll handle it</button>}
         <span className="dcard-spacer" />
         <button type="button" className="btn quiet" disabled={busy} onClick={() => { setMode("instruct"); setError("") }}>Tell the agent instead</button>
@@ -214,7 +197,7 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
         <button type="button" className="btn quiet" disabled={busy} onClick={() => setMode("idle")}>Cancel</button>
       </>}
       {mode === "edit" && <>
-        <button type="button" className="btn primary" disabled={busy} onClick={() => decide(call ? "handle" : "approve")}>{call ? "Save and I'll call" : "Approve edited message"}</button>
+        <button type="button" className="btn primary" disabled={busy} onClick={() => decide(call ? "handle" : "approve")}>{call ? "Save and I'll call" : "Send as edited"}</button>
         <button type="button" className="btn quiet" disabled={busy} onClick={() => { setMode("idle"); setDraft(card.draft?.body ?? "") }}>Cancel</button>
       </>}
       {mode === "reject" && <>
@@ -225,7 +208,6 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
         <button type="button" className="btn primary" disabled={busy} onClick={() => decide("instruct")}>Send to the agent</button>
         <button type="button" className="btn quiet" disabled={busy} onClick={() => { setMode("idle"); setNote(""); setError("") }}>Cancel</button>
       </>}
-      <span className="dcard-as">Deciding as {OPERATOR.title}</span>
     </div>
   </article>
 }

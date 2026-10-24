@@ -282,15 +282,17 @@ async function deliver(request: TurnRequest, caseRow: CaseRow, facts: OrderFacts
   if (request.audience === "site") {
     const endpoint = request.siteEnd === "delivery" ? facts.delivery : facts.pickup
     if (endpoint.customerSide) {
-      // The customer rule covers replies too: draft it, a person approves it.
+      // The customer rule covers replies too: draft it, a person approves it. A preamble the model wrote for the
+      // operator ("here is the draft…", then a rule) is not part of the message.
       const name = String(endpoint.site?.name ?? endpoint.address.name ?? "the site")
+      const body = text.replace(/^[^\n]*(?:draft|held for|approval)[^\n]*:?\s*\n+(?:-{3,}\s*\n+)?/i, "").replace(/\n+-{3,}[\s\S]*$/, "").trim() || text
       await submitProposal({ audience: "operator", caseRow, facts }, {
         action_type: "CONTACT_SITE_AS_CUSTOMER",
         title: `Reply to ${name}`,
         rationale: `${name} belongs to the customer, so the agent drafted the reply and a person approves it before it is sent.`,
         handover: { what_happened: `${request.counterpart.name ?? name} wrote in about ${facts.reference}.`, facts: [], agent_did: ["Drafted a reply from the order records."], unknowns: [], recommendation: "Send the drafted reply.", alternatives: ["Edit it first", "Reply yourself"] },
         changes: [],
-        draft_message: { to: endpoint.end === "pickup" ? "pickup_site" : "delivery_site", channel: "app_chat", subject: "", body: text, language: "" },
+        draft_message: { to: endpoint.end === "pickup" ? "pickup_site" : "delivery_site", channel: "app_chat", subject: "", body, language: "" },
         options: [],
         evidence_refs: [],
         assumptions: [],
