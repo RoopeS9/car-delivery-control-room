@@ -4,7 +4,7 @@
 
 import { resetSimClock, simNow } from "@/lib/cr/clock"
 import { appendEvent, insertTelemetry, resetCrData } from "@/lib/cr/queries"
-import type { SourceRef } from "@/lib/cr/types"
+import type { SourceRef, TelemetryTriggerRequest } from "@/lib/cr/types"
 import { fleetCar, type FleetCar } from "./fleet"
 import { baseMotion, faultMotion, freezeFrame, type FaultPlan } from "./motion"
 import { roughWhere } from "./places"
@@ -44,8 +44,8 @@ export type ScenarioResult = {
   message: string
   orderId?: string
   eventId?: string
-  /** True when the agent should be told about a new event (the caller does that). */
-  notifyAgent?: { kind: "telemetry_fault"; orderId: string; eventId: string }
+  /** Set when the agent should be told about a new fault (the route does that after responding). */
+  notifyAgent?: TelemetryTriggerRequest
 }
 
 export async function runScenario(name: string): Promise<ScenarioResult> {
@@ -104,7 +104,7 @@ async function warningLight584(): Promise<ScenarioResult> {
     message: `Warning light on for CD-420584. The car limps for about a minute, then stops at ${plan.stopLabel}.`,
     orderId: car.orderId,
     eventId: event.id,
-    notifyAgent: { kind: "telemetry_fault", orderId: car.orderId, eventId: event.id },
+    notifyAgent: { orderRef: car.reference, codes: plan.codes, mil: "FLASHING", note: "reduced power message on the dashboard", eventId: event.id },
   }
 }
 
