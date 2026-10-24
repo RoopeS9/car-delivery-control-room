@@ -170,6 +170,13 @@
 @keyframes chart-pulse { from { transform: scale(0.8); opacity: 0.9; } to { transform: scale(3.2); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .pulse::before { animation: none; opacity: 0.6; transform: scale(1.6); } .v svg { transition: none; } }
 
+/* A fresh phone fix: a small ring that fades. */
+.ping::after { content: ""; position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+  border: 1px solid var(--c-fine); animation: chart-ping 1.6s ease-out 1; pointer-events: none; }
+@keyframes chart-ping { from { transform: scale(0.6); opacity: 0.8; } to { transform: scale(2.6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ping::after { display: none; } }
+.rail-hint kbd { font-family: var(--font-mono); font-size: 10.5px; border: 1px solid var(--c-line-strong); border-radius: 3px; padding: 0 4px; margin: 0 1px; color: var(--c-soft); }
+
 /* ---- trails and tracks */
 .trail { stroke: var(--c-trail); stroke-linecap: round; fill: none; }
 .track { fill: none; stroke-linecap: round; stroke-linejoin: round; }

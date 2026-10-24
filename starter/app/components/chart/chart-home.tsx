@@ -98,6 +98,7 @@ export function ChartHome({ initial }: { initial: ChartView }) {
   const glides = useRef(new Map<string, Glide>())
   const sigs = useRef(new Map<string, string>())
   const pulses = useRef(new Map<string, number>())
+  const fixes = useRef(new Map<string, string>())
   const [view, setView] = useState(initial)
   const [fetchedAt, setFetchedAt] = useState(() => Date.now())
   const [ready, setReady] = useState(false)
@@ -287,6 +288,19 @@ export function ChartHome({ initial }: { initial: ChartView }) {
       if (before !== undefined && before !== node.sig) pulses.current.set(node.orderId, wall + PULSE_MS)
       sigs.current.set(node.orderId, node.sig)
     }
+    // A fresh phone fix: one small ping, the chart's heartbeat.
+    for (const node of view.nodes) {
+      if (node.kind !== "vessel" || !node.at) continue
+      const before = fixes.current.get(node.orderId)
+      fixes.current.set(node.orderId, node.at)
+      if (!before || before === node.at) continue
+      const element = markers.current.get(node.orderId)?.marker.getElement()
+      if (!element) continue
+      element.classList.remove("ping")
+      void element.offsetWidth
+      element.classList.add("ping")
+      setTimeout(() => element.classList.remove("ping"), 1800)
+    }
     for (const [id, until] of pulses.current) {
       const element = markers.current.get(id)?.marker.getElement()
       if (until < wall) { pulses.current.delete(id); element?.classList.remove("pulse"); continue }
@@ -416,7 +430,7 @@ function Rail({ view, open, onToggle, onPick, onHover, selectedId }: { view: Cha
       <button type="button" className="rail-btn rail-quiet" onClick={onToggle} aria-expanded={open} aria-controls="chart-drawer">
         <b className="num">{view.handled.length}</b><span>agent handled</span>
       </button>
-      <span className="rail-hint" aria-hidden="true">[ ]</span>
+      <span className="rail-hint" title="Press [ and ] to step through what needs a person, Esc to close"><kbd>[</kbd><kbd>]</kbd></span>
     </aside>
     <section id="chart-drawer" className={`drawer${open ? " open" : ""}`} aria-label="Needs a person" aria-hidden={!open}>
       <header className="drawer-head">
