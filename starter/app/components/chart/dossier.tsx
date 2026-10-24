@@ -66,6 +66,17 @@ export function Dossier({ node, onClose }: { node: ChartNode; onClose: () => voi
         {view.need.chain && view.need.chain.length > 0 && <details className="ds-fold-inline"><summary>How it got here</summary><ul>{view.need.chain.map((line) => <li key={line}>{line}</li>)}</ul></details>}
       </section> : <p className="ds-calm"><Icon name="check" size={13} />Nothing needs you.</p>}
 
+      {view.fault && <section className="ds-fault" aria-label="Fault reported by the car">
+        <h3>The car reports a fault <span>OBD dongle, simulated{view.fault.when ? ` · ${view.fault.when}` : ""}</span></h3>
+        {view.fault.lamp && <p className="fault-lamp">{view.fault.lamp}</p>}
+        {view.fault.codes.length > 0 && <ul className="fault-codes">{view.fault.codes.map((code) => <li key={code.code} className={`tone-${code.tone}`}>
+          <span className="mono">{code.code}</span> {code.title ?? "Code not in the guide"}{code.severity ? <small> · {code.severity.toLowerCase()}</small> : null}
+        </li>)}</ul>}
+        {view.fault.freezeSpeed && <p className="fault-line">Speed at the fault: {view.fault.freezeSpeed}</p>}
+        <p className="fault-line">{view.fault.atPickup}</p>
+        <p className="fault-note">A trouble code is a signal from the car, not a diagnosis.</p>
+      </section>}
+
       <ol className="strip" aria-label="Journey">
         {view.strip.map((point, index) => <li key={`${point.label}-${index}`} className={`sp sp-${point.state}`}>
           <span className="sp-dot" aria-hidden="true" />

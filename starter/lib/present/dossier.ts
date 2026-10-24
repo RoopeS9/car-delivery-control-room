@@ -6,7 +6,12 @@
 // evidence word: a quote is not a booking, a booking is not a gate scan, a
 // message is a claim, a phone position here is simulated.
 
+import { and, desc, eq, sql } from "drizzle-orm"
+import { crDb } from "@/lib/cr/db"
+import { crTelemetry } from "@/lib/cr/schema"
+import type { ObdData } from "@/lib/cr/types"
 import { fleetCar } from "@/lib/sim/fleet"
+import { telemetryStrip } from "./cases"
 import { callsFor, serviceDossier, strengthIndex } from "./call-service"
 import { readToolArgument, slotLabel, slotValue, type CallRecord } from "./call-types"
 import { deriveKeyDates, milestones } from "./attention"
@@ -333,13 +338,35 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
     }))
     : view.otherRecords.map((record) => ({ label: record.label, items: [{ label: `${record.count} record${record.count === 1 ? "" : "s"}`, at: null, when: null, strength: "" }] }))
 
+  // ---- a fault from the car's dongle, only when there is one
+  const strip_ = telemetryStrip(bundle)
+  let fault: DossierView["fault"] = null
+  if (strip_ && (strip_.codes.length || (strip_.mil && strip_.mil !== "OFF"))) {
+    const frozen = await crDb().select({ data: crTelemetry.data }).from(crTelemetry)
+      .where(and(eq(crTelemetry.orderId, bundle.order.id), eq(crTelemetry.source, "OBD"), sql`${crTelemetry.data} -> 'freeze_frame' IS NOT NULL AND ${crTelemetry.data} -> 'freeze_frame' <> 'null'::jsonb`))
+      .orderBy(desc(crTelemetry.at)).limit(1).catch(() => [])
+    const frame = (frozen[0]?.data as Partial<ObdData> | undefined)?.freeze_frame ?? null
+    const pickupNotes = [
+      ...view.proofs.filter((proof) => proof.pointId === pickup?.id || /pickup/i.test(proof.pointLabel ?? proof.kindLabel)).map((proof) => proof.note),
+      ...view.documents.filter((document) => /condition|pickup|inspection/i.test(`${document.kind} ${document.kindLabel}`)).map((document) => document.note),
+    ].filter((note): note is string => !!note)
+    const mention = pickupNotes.find((note) => /warning|lamp|light|engine|fault|code|dashboard/i.test(note))
+    fault = {
+      lamp: strip_.mil === "FLASHING" ? "Check-engine light flashing" : strip_.mil === "ON" ? "Check-engine light on" : null,
+      codes: strip_.codes.map((code) => ({ code: code.code, title: code.title, severity: code.severity, tone: code.tone })),
+      freezeSpeed: frame && typeof frame.values.speed_kmh === "number" ? `${Math.round(frame.values.speed_kmh)} km/h when ${frame.code} was set, ${t.at(frame.at)}` : null,
+      atPickup: mention ? `Reported at pickup: ${sentence(mention, 140)}` : "Not in the pickup record",
+      when: strip_.at ? t.at(strip_.at) : null,
+    }
+  }
+
   const primary = bundle.items.find((item) => item.role === "PRIMARY") ?? bundle.items[0] ?? null
   return {
     orderId: bundle.order.id, reference: bundle.order.reference,
     vehicle: header.vehicle?.title ?? "Vehicle not linked", make: primary?.vehicle.make ?? null,
     customer: bundle.customer.name, driver, from: header.from.city, to: header.to.city, laneLabel: header.laneLabel, zone, simNow: now,
     headline, tone: need ? "danger" : view.story.tone,
-    need, strip, watching: shownWatching, recent: recentLines.slice(0, 3), ahead, behind, records, recordsFromService: !!typed,
+    need, fault, strip, watching: shownWatching, recent: recentLines.slice(0, 3), ahead, behind, records, recordsFromService: !!typed,
   }
 }
 

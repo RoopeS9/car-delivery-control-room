@@ -56,6 +56,8 @@ export type DossierView = {
   tone: Tone
   /** The one thing that needs a person, or null for "Nothing needs you". */
   need: { title: string; ask: string | null; since: string | null; sinceLabel: string | null; href: string; chain?: string[] } | null
+  /** The car's dongle reports a lamp or trouble codes (simulated); null when there is no fault. */
+  fault: { lamp: string | null; codes: { code: string; title: string | null; severity: string | null; tone: Tone }[]; freezeSpeed: string | null; atPickup: string; when: string | null } | null
   strip: StripPoint[]
   /** At most three. */
   watching: WatchItem[]

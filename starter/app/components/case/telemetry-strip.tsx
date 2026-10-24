@@ -8,6 +8,8 @@ const MIL_TEXT = { FLASHING: "Check-engine light flashing", ON: "Check-engine li
 /** What the car itself reports: warning light, codes in plain words, key values, and where the phone says it is. */
 export function TelemetryStrip({ telemetry }: { telemetry: TelemetryStripView }) {
   const { mil } = telemetry
+  // Speed and battery voltage alone are not worth a section: show the strip only for a lamp or a code.
+  if (!telemetry.codes.length && (!mil || mil === "OFF")) return null
   return <section className="tstrip" aria-label="What the car reports">
     <div className="tstrip-row">
       {mil && <span className={`tstrip-mil mil-${mil.toLowerCase()}`}><span className="mil-dot" />{MIL_TEXT[mil]}</span>}

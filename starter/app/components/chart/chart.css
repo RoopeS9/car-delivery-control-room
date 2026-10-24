@@ -333,3 +333,14 @@
 .rec-group li { display: flex; gap: 10px; }
 .rec-group time { color: var(--subtle); }
 .rec-strength { margin-left: auto; color: var(--subtle); }
+
+/* A fault from the car's dongle: only shown when there is one. */
+.ds-fault { margin: 12px 18px 0; padding: 11px 14px; border-radius: 10px; background: var(--orange-bg); display: grid; gap: 4px; font-size: 13px; }
+.ds-fault h3 { font-size: 13px; font-weight: 600; color: var(--orange-ink); display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.ds-fault h3 span { font-weight: 400; font-size: 12px; color: var(--muted); }
+.fault-lamp { font-weight: 500; }
+.fault-codes { display: grid; gap: 2px; }
+.fault-codes .mono { font-size: 12px; }
+.fault-codes small { color: var(--muted); }
+.fault-line { color: var(--brown); }
+.fault-note { font-size: 12px; color: var(--subtle); }
