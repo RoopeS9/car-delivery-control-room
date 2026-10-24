@@ -178,7 +178,8 @@ export async function checkAssumptions(caseId: string, orderId: string, assumpti
       if (actual === undefined) { checks.push({ assumption, holds: true, now: "not checkable: no such field on the record" }); continue }
       checks.push({ assumption, holds: String(actual ?? null) === String(assumption.expected ?? null), now: inWords(actual) })
     } else if (assumption.kind === "no_new_message") {
-      const after = new Date(assumption.after)
+      // A time written without fractions ("09:29:48Z") means that whole second: a message at 09:29:48.771 is not new.
+      const after = new Date(/\.\d+Z?$/.test(assumption.after) ? assumption.after : new Date(assumption.after).getTime() + 999)
       const [latest] = Number.isNaN(after.getTime()) ? [] : await crDb().select().from(crEvents)
         .where(and(eq(crEvents.caseId, caseId), eq(crEvents.actorType, assumption.from), gt(crEvents.at, after)))
         .orderBy(desc(crEvents.at)).limit(1)

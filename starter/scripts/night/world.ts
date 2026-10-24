@@ -12,6 +12,13 @@ export class World {
   constructor(public rec: Rec) {}
 
   order(id: string) { return getJson<OrderView>(`${APP}/api/orders/${id}`) }
+
+  /** Start a scenario from a clean order: whatever earlier passes left open on it is closed, so the app opens a new case. */
+  fresh(orderId: string) {
+    const closed = sql(`update cr_cases set status = 'RESOLVED', owner = null, waiting_for = null, waiting_on = null, next_action = 'Closed by the night harness before a new scenario.', next_check_at = null where order_id = ${q(orderId)} and status in ('AGENT_WORKING','NEEDS_DECISION','WAITING_EXTERNAL','HANDLED_BY_OPERATOR') returning id`)
+    const parked = sql(`update cr_proposals set status = 'REJECTED', decision_note = 'Closed by the night harness before a new scenario.' where status = 'PENDING' and case_id in (select id from cr_cases where order_id = ${q(orderId)}) returning id`)
+    if (closed || parked) this.rec.log(`fresh order: closed ${closed.split("\n").filter(Boolean).length} earlier case(s), ${parked.split("\n").filter(Boolean).length} pending card(s)`)
+  }
   caseDetail(id: string) { return getJson<CaseDetail>(`${APP}/api/cases/${id}`) }
   async openCases(orderId?: string): Promise<CaseRow[]> {
     const data = await getJson<{ cases: CaseRow[] }>(`${APP}/api/cases`)

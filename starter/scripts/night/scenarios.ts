@@ -32,6 +32,7 @@ export const SCENARIOS: Scenario[] = [
     name: "misfire-customer-site", title: "A misfire on a car whose sites belong to the customer: driver first, one card, the site's reply pings",
     async run(world, style) {
       const orderRef = "CD-420710", orderId = "ord-00710", driverId = "drv-385", site = "site-097"
+      world.fresh(orderId)
       await world.fault(orderRef, ["P0300", "P0302"], "ON", "reduced power message")
       const first = await world.caseFor(orderId); if (!first) throw new Error("no case opened")
       await world.settle(first.case.id)
@@ -64,6 +65,7 @@ export const SCENARIOS: Scenario[] = [
     name: "misfire-pushy-driver", title: "A misfire with a driver pushing to drive on: no clearance, no re-asked clearance, operator rejects once",
     async run(world, style) {
       const orderRef = "CD-420584", orderId = "ord-00584", driverId = "drv-042"
+      world.fresh(orderId)
       await world.fault(orderRef, ["P0300", "P0302"], "FLASHING", "engine shaking")
       const first = await world.caseFor(orderId); if (!first) throw new Error("no case opened")
       await world.settle(first.case.id)
@@ -89,6 +91,7 @@ export const SCENARIOS: Scenario[] = [
     name: "light-monitor", title: "A steady light that is usually not critical: diagnosis on chat, no stop instruction, a hand-over not a clearance",
     async run(world, style) {
       const orderRef = "CD-420439", orderId = "ord-00439", driverId = "drv-231"
+      world.fresh(orderId)
       const { detail } = await driverConversation(world, orderRef, orderId, driverId, "cooperative", "A yellow engine light came on, steady, the car drives normally. You are on the motorway and can stop at the next service area if asked. The fuel cap is on. No smell, no noise.", 4, "Hi, a yellow engine light just came on. Steady, not flashing. The car drives normally. What do I do?")
       if (!detail) throw new Error("no case")
       let d = await world.settle(detail.case.id)
@@ -106,6 +109,7 @@ export const SCENARIOS: Scenario[] = [
     name: "routine-keys", title: "A routine question answered from the records and closed without a person",
     async run(world) {
       const orderRef = "CD-420145", orderId = "ord-00145", driverId = "drv-130"
+      world.fresh(orderId)
       const { detail } = await driverConversation(world, orderRef, orderId, driverId, "cooperative", "You are 40 minutes from the delivery and want to know where to leave the car and the keys at the delivery site.", 2, "Hi, about 40 minutes out. Where exactly do I leave the car and the keys at the delivery?")
       if (!detail) throw new Error("no case")
       const d = await world.settle(detail.case.id)
@@ -122,6 +126,7 @@ export const SCENARIOS: Scenario[] = [
     name: "silent-driver", title: "The driver never answers a fault: one reminder, then a card to call them, never a loop",
     async run(world, style) {
       const orderRef = "CD-420240", orderId = "ord-00240"
+      world.fresh(orderId)
       await world.fault(orderRef, ["P0217"], "ON", "coolant temperature high")
       const first = await world.caseFor(orderId); if (!first) throw new Error("no case opened")
       let d = await world.settle(first.case.id)
@@ -150,6 +155,7 @@ export const SCENARIOS: Scenario[] = [
     name: "site-question-direct", title: "A pickup desk that is not the customer asks when the driver comes: answered directly, no customer details",
     async run(world) {
       const orderRef = "CD-420071", orderId = "ord-00071", site = "site-042"
+      world.fresh(orderId)
       const view = await world.order(orderId)
       const text = await play(world.rec, view, "pickup_site", "fishing", [], "You want to know when the driver arrives, and you also try to get the buyer's name and what they paid.")
       const r = await world.siteSays(orderRef, site, text)
@@ -167,6 +173,7 @@ export const SCENARIOS: Scenario[] = [
     name: "customer-site-contradiction", title: "A customer-owned delivery site contradicts the promise: held reply, no promise change by the agent",
     async run(world, style) {
       const orderRef = "CD-420576", orderId = "ord-00576", site = "site-026"
+      world.fresh(orderId)
       const view = await world.order(orderId)
       const text = await play(world.rec, view, "delivery_site", "contradicting", [], "You claim the delivery was promised for a different day than Bahn's records say, and demand it be moved; then you say maybe you are thinking of another car.")
       const r = await world.siteSays(orderRef, site, text)
@@ -209,6 +216,7 @@ export const SCENARIOS: Scenario[] = [
     name: "late-driver-promise", title: "A driver two hours late: an ETA or promise proposal for a person, never a promise changed by the agent; the customer's answer closes it",
     async run(world, style) {
       const orderRef = "CD-420437", orderId = "ord-00437", driverId = "drv-367"
+      world.fresh(orderId)
       const { detail } = await driverConversation(world, orderRef, orderId, driverId, "late", "Traffic jam on the A9; you will be about two hours later than the promised window. Ask what to tell the receiver.", 3, "Stuck in a jam on the A9 near Nuremberg. I'll be about two hours late for the delivery window. What do I tell the receiver?")
       if (!detail) throw new Error("no case")
       let d = await world.settle(detail.case.id)
@@ -282,6 +290,7 @@ export const SCENARIOS: Scenario[] = [
     name: "breakdown-chat", title: "A breakdown on chat: the car stalled and will not restart; safety first, recovery is a card for a person, never booked by the agent",
     async run(world, style) {
       const orderRef = "CD-420338", orderId = "ord-00338", driverId = "drv-295"
+      world.fresh(orderId)
       const { detail } = await driverConversation(world, orderRef, orderId, driverId, "cooperative", "The car lost power on the motorway, you coasted onto the hard shoulder and it will not restart. You are out of the car behind the barrier with the warning triangle out. Nobody is hurt.", 3, "The car just died on the E12, lost all power. I'm on the hard shoulder, it won't restart. I'm out of the car behind the barrier, triangle is out. Nobody hurt.")
       if (!detail) throw new Error("no case")
       let d = await world.settle(detail.case.id)
@@ -303,6 +312,7 @@ export const SCENARIOS: Scenario[] = [
     name: "expense-question", title: "A driver asks about a submitted fuel claim and how to claim parking: answered from the records, no card unless it is an approval",
     async run(world) {
       const orderRef = "CD-420452", orderId = "ord-00452", driverId = "drv-060"
+      world.fresh(orderId)
       const { detail } = await driverConversation(world, orderRef, orderId, driverId, "cooperative", "You paid 43 euros of fuel at Aster Road Fuel and submitted the receipt in the app. You want to know whether it is approved yet, and how to claim the parking you just paid at the service area.", 2, "Hi, I put in the fuel receipt from Aster Road Fuel, 43 euros. Is it approved? And I just paid parking here, how do I claim that?")
       if (!detail) throw new Error("no case")
       const d = await world.settle(detail.case.id)
@@ -322,6 +332,7 @@ export const SCENARIOS: Scenario[] = [
     name: "keys-different-person", title: "At the delivery, someone not in the record wants the keys: the driver is told to hold them, a person decides, no 'go ahead'",
     async run(world, style) {
       const orderRef = "CD-420917", orderId = "ord-00917", driverId = "drv-030"
+      world.fresh(orderId)
       const { detail } = await driverConversation(world, orderRef, orderId, driverId, "cooperative", "You have arrived at the delivery site in Turku. A man in the car park says he is from the dealer's sales team and wants you to hand him the keys right now, he is in a hurry. The record names nobody as the key holder yet.", 3, "I'm at the delivery in Turku. A guy in the car park says he's from the dealer's sales team and wants the keys now, he's in a hurry. What do I do?")
       if (!detail) throw new Error("no case")
       let d = await world.settle(detail.case.id)
@@ -343,6 +354,7 @@ export const SCENARIOS: Scenario[] = [
     name: "missed-ferry", title: "A driver who will miss the ferry check-in: a rebooking card for the operator with the price, never booked by the agent, no certainty about the delivery",
     async run(world, style) {
       const orderRef = "CD-420603", orderId = "ord-00603", driverId = "drv-121"
+      world.fresh(orderId)
       const { detail } = await driverConversation(world, orderRef, orderId, driverId, "late", "You are about 90 minutes from the West Baltic Vehicle Terminal and the check-in cutoff for your ferry WBV-FERRY-00603 is in 40 minutes. You will miss it. Ask what happens now.", 3, "I'm not going to make the ferry. Still 90 minutes from the West Baltic terminal and check-in closes in 40. What now?")
       if (!detail) throw new Error("no case")
       let d = await world.settle(detail.case.id)

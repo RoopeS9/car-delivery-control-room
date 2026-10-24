@@ -321,7 +321,9 @@ async function anchorAssumptions(ctx: GateContext, assumptions: Assumption[]): P
 export async function submitProposal(ctx: GateContext, input: ProposalInput): Promise<{ proposal: ProposalRow; level: AutonomyLevel; executed: boolean }> {
   // One question once. A card an operator is already looking at is not duplicated; a card they rejected on this case
   // is not asked again in other words: the agent works out a different step from the reason, or waits.
+  // Two open "what do we do" questions on one case are one question asked twice, whatever their wording.
   const twinOf = (row: ProposalRow) => row.actionType === input.action_type && (row.title.trim().toLowerCase() === input.title.trim().toLowerCase()
+    || row.actionType === "OPERATOR_DECISION"
     || (row.draftMessage && input.draft_message && row.draftMessage.to_type === resolveDraft(input.draft_message, ctx.facts)?.to_type && ["CONTACT_CUSTOMER", "CONTACT_SITE_AS_CUSTOMER", "CLEAR_TO_CONTINUE"].includes(row.actionType)))
   const existing = await listProposals({ caseId: ctx.caseRow.id })
   const pendingTwin = existing.find((row) => row.status === "PENDING" && twinOf(row))

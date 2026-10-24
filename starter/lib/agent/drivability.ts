@@ -55,6 +55,9 @@ export function findClearance(text: string): string | null {
   return null
 }
 
+/** An explicit instruction to stop: pull over, next safe place, engine off, hazards, behind the barrier, do not drive. */
+const STOP_INSTRUCTION = /\b(pull (over|in)|next safe place|stop (at|in|the car|now|safely)|switch (the engine|it) off|engine off|hazard lights|behind the barrier|do not (drive|continue|move the car)|don't (drive|continue|move the car)|stay (stopped|where you are|with the car))\b/i
+
 /** Words that make a message worth a closer look when the classifier is unavailable. */
 const DRIVING_WORDS = /\b(driv\w*|continu\w*|carry on|keep going|go on|head (?:to|on|off|for)|move on|restart\w*|journey|on your way|get going|set off)\b/i
 const MOVEMENT_DIRECTION = /\b(use|take|enter|head|go|proceed|drive)\b[^.!?\n]{0,70}\b(gate|entrance|courtyard|ferry|terminal|site|motorway|road)\b/i
@@ -138,12 +141,13 @@ In RESTRICTED or UNKNOWN context, block instructions that would resume or contin
 
 When the context says every active code is CONTINUE_AND_MONITOR, explaining a code in plain words, saying it is usually not critical, and asking diagnostic questions (is the light steady, does the car drive differently, any smell or sound, is the fuel cap tight) are allowed, as long as the message does not say they may continue. Saying an operator confirms whether they continue is allowed.
 
-Allow it if it only tells them to stop, stay safe, wait, send information, or says an operator will decide. Allow questions that do not give permission. A message that refuses or forbids driving is allowed, even when it mentions driving many times.
+Allow it if it only tells them to stop, stay safe, wait, send information, or says an operator will decide. Allow questions that do not give permission. A message that refuses or forbids driving is allowed, even when it mentions driving many times. Telling them to pull over, get to the next safe place, stop, switch the engine off, put the hazard lights on or get behind the barrier is a stop instruction, never permission, in every context, even when it also reports codes or asks what the dashboard shows.
 
 Examples:
 - "Please don't drive on, not even the 15 km. I can't clear you to drive." ALLOW
 - "An operator has to confirm before you drive on. Stay with the car." ALLOW
 - "Are you safe? Is the car still moving?" ALLOW
+- RESTRICTED, "The car is reporting a flashing check-engine light and engine shaking, so please follow the stop instructions I just sent: get to the next safe place, switch the engine off and put your hazard lights on. Are you safe and out of traffic?" ALLOW
 - "The amber light is fine for now, head to the ferry when you're ready." BLOCK
 - "If it feels normal again you can carry on slowly." BLOCK
 - ROUTINE, "Use the marked vehicle entrance at Norvessia in Turku." ALLOW
@@ -188,7 +192,21 @@ export async function screenDriverMessage(text: string, context?: { driverSaid?:
     }, { timeout: 15000 })
     const answer = message.content.filter((block) => block.type === "text").map((block) => (block as { text: string }).text).join("").trim().toUpperCase()
     const cost = usageCost(message.usage)
-    if (answer.startsWith("BLOCK")) return { allowed: false, layer: "classifier", reason: "the classifier read it as permission to drive on", costUsd: cost }
+    if (answer.startsWith("BLOCK")) {
+      // A message that plainly tells the driver to stop is asked about once more before it is held: holding a stop
+      // instruction and replacing it with a fallback is worse than a second, cheap look.
+      if (STOP_INSTRUCTION.test(text)) {
+        const second = await client.messages.create({
+          model: classifierModel(), max_tokens: 400, output_config: { effort: "low" }, system: CLASSIFIER_PROMPT,
+          messages: [{ role: "user", content: `Trusted safety context: ${safety.mode.toUpperCase()}\n${safety.reasons.join(" ")}\n\nThis message contains an explicit instruction to stop or switch off. Does it ALSO give permission to drive on or dismiss the warning? If it only tells them to stop, wait, or answer questions, answer ALLOW.\n\nMessage to the driver:\n"""${text.slice(0, 2000)}"""` }],
+        }, { timeout: 15000 })
+        const again = second.content.filter((block) => block.type === "text").map((block) => (block as { text: string }).text).join("").trim().toUpperCase()
+        const total = cost + usageCost(second.usage)
+        if (again.startsWith("ALLOW")) return { allowed: true, layer: "classifier", reason: null, costUsd: total }
+        return { allowed: false, layer: "classifier", reason: "the classifier read it as permission to drive on, twice", costUsd: total }
+      }
+      return { allowed: false, layer: "classifier", reason: "the classifier read it as permission to drive on", costUsd: cost }
+    }
     if (answer.startsWith("ALLOW")) return { allowed: true, layer: "classifier", reason: null, costUsd: cost }
     throw new Error(`unexpected classifier answer: ${answer.slice(0, 40)}`)
   } catch (error) {
