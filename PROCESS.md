@@ -418,7 +418,7 @@ Checked / changed / rejected:
 - Noted for later: PLAN 4.6 now asks B for a call transcript block on the case
   page once voice's `cr_calls` tables exist.
 
-## 2026-10-24 ~12:35 UTC · Claude Code (stream B, cloud instance 2) · one queue, outdated and unknown cards
+## 2026-10-24 ~12:25 UTC · Claude Code (stream B, cloud instance 2) · one queue, outdated and unknown cards
 
 Asked: rebuild "Needs you" as one queue for every order that needs a person
 (PLAN 4.7, revised): three sections, "From the records" rows, and waiting
