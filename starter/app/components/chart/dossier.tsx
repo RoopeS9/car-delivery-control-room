@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import type { ChartNode } from "@/lib/present/chart"
 import { STRENGTH_LABEL, type DossierItem, type DossierView } from "@/lib/present/dossier-types"
+import { ActionStrip } from "../actions/action-strip"
 import { Icon } from "../icons"
 import { MakeMark } from "../queue"
 import { weekdayClock } from "./format"
@@ -54,6 +55,7 @@ export function Dossier({ node, onClose }: { node: ChartNode; onClose: () => voi
     {error && !view && <p className="ds-error">This delivery could not be loaded. It will try again in a few seconds.</p>}
 
     {view && <div className="ds-body">
+      <ActionStrip orderId={node.orderId} compact />
       <p className={`ds-headline tone-edge-${view.tone}`}>{view.headline}</p>
 
       {view.need ? <section className="ds-need" aria-label="Needs you">

@@ -1,0 +1,51 @@
+import { NextResponse } from "next/server"
+import { deriveKeyDates } from "@/lib/present/attention"
+import { orderActions } from "@/lib/present/call-service"
+import { voiceChatUrl, type ActionStripView } from "@/lib/present/call-types"
+import { loadOrder } from "@/lib/present/load"
+import { buildRecordView } from "@/lib/present/record"
+
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+
+function weekdayClock(iso: string, zone: string | null): string {
+  return new Intl.DateTimeFormat("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: zone ?? "UTC" }).format(new Date(iso)).replace(",", "")
+}
+function clock(iso: string, zone: string | null): string {
+  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: zone ?? "UTC" }).format(new Date(iso))
+}
+
+/**
+ * The operator action strip for one order: from and to with the time that
+ * matters, and the calls an operator is there to make. When the agent may
+ * place a call, the button dials the VoiceChat line; when it may not (a
+ * customer), it leads the person to the conversation on the order page.
+ */
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params
+  const loaded = await loadOrder(id)
+  if (!loaded) return NextResponse.json({ error: "Order not found" }, { status: 404 })
+  const { bundle } = loaded
+  const view = buildRecordView(bundle)
+  const service = await orderActions(bundle.order.reference)
+  const { keyDates } = deriveKeyDates(bundle)
+  const lane = bundle.order.lane
+  const pick = lane === "moving" || lane === "delivered" ? keyDates.find((date) => date.key === "promise") : keyDates.find((date) => date.key === "pickup_slot") ?? keyDates.find((date) => date.key === "promise")
+  const when = pick ? `${pick.key === "pickup_slot" ? "pickup slot" : pick.label === "Delivery promise" ? "promised" : pick.label.toLowerCase()} ${weekdayClock(pick.start, pick.zone)}${pick.end ? ` to ${clock(pick.end, pick.zone)}` : ""}` : null
+  const threadFor = (who: string | null) => {
+    if (!who) return null
+    const name = who.toLowerCase()
+    return view.threads.find((thread) => thread.counterparty && (thread.counterparty.name.toLowerCase().includes(name) || name.includes(thread.counterparty.name.toLowerCase()))) ?? null
+  }
+  const strip: ActionStripView = {
+    from: service ? `${service.from.name}, ${service.from.city}` : `${view.header.from.name}, ${view.header.from.city}`,
+    to: service ? `${service.to.name}, ${service.to.city}` : `${view.header.to.name}, ${view.header.to.city}`,
+    when,
+    actions: (service?.actions ?? []).map((action) => {
+      if (action.agentMay && action.cardUrl) return { label: action.label, who: action.who, agentMay: true, reason: null, href: voiceChatUrl(action.cardUrl), external: true }
+      const thread = threadFor(action.who)
+      return { label: action.label, who: action.who, agentMay: false, reason: action.reason, href: `/orders/${bundle.order.id}#${thread ? `thread-${thread.id}` : "conversations"}`, external: false }
+    }),
+  }
+  return NextResponse.json(strip)
+}

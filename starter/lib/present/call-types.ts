@@ -64,3 +64,26 @@ export function readToolArgument(argument: unknown): string {
   const lead = head ? `${words(head[1]).replace(/^./, (char) => char.toUpperCase())}, ${words(head[2])}. ` : ""
   return `${lead}${pairs.join(" · ")}`
 }
+
+/** What the operator can do on an order, from the call service: who to call, and whether the agent may place the call. */
+export type OrderActions = {
+  reference: string
+  phase?: { phase: string; basis: string }
+  from: { city: string; name: string }
+  to: { city: string; name: string }
+  driver: string | null
+  actions: { kind: string; label: string; who: string | null; purpose: string | null; agentMay: boolean; reason: string | null; cardUrl: string | null }[]
+}
+
+/** The action strip as the page shows it: one line of from and to, and buttons that either dial through the agent or lead a person to the conversation. */
+export type ActionStripView = {
+  from: string
+  to: string
+  when: string | null
+  actions: { label: string; who: string | null; agentMay: boolean; reason: string | null; href: string; external: boolean }[]
+}
+
+/** The owner's duplex phone hosts the VoiceChat line; a per-call card tells it who to call and why. */
+export function voiceChatUrl(cardUrl: string): string {
+  return `https://duplex.hopeajahti.lol/?dial=voicechat&card=${encodeURIComponent(cardUrl)}`
+}

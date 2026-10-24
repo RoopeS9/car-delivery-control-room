@@ -2,10 +2,10 @@
 // loopback. Read on the server only. Every call here tolerates the service
 // being down: the map and the dossier still render without it.
 
-import type { CallRecord, CallScenario, ServiceDossier } from "./call-types"
+import type { CallRecord, CallScenario, OrderActions, ServiceDossier } from "./call-types"
 import type { Strength } from "./dossier-types"
 
-export type { CallRecord, CallScenario, ServiceDossier }
+export type { CallRecord, CallScenario, OrderActions, ServiceDossier }
 
 const BASE = process.env.CALL_SERVICE_URL ?? "http://127.0.0.1:8799"
 
@@ -68,4 +68,8 @@ export function strengthIndex(dossier: ServiceDossier | null): Map<string, Stren
 /** The brief a call would be given: who is called and what may be asked. */
 export function callBrief(reference: string, purpose: string): Promise<CallRecord["brief"]> {
   return get<CallRecord["brief"]>(`/brief/${encodeURIComponent(reference)}/${encodeURIComponent(purpose)}`, 1500)
+}
+
+export function orderActions(reference: string): Promise<OrderActions | null> {
+  return get<OrderActions>(`/actions/${encodeURIComponent(reference)}`, 1500)
 }

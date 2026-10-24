@@ -4,6 +4,7 @@ import Link from "next/link"
 import { use, useCallback, useEffect, useRef, useState } from "react"
 import { AppFrame } from "../../components/app-frame"
 import { tickCases } from "../../components/live-refresh"
+import { ActionStrip } from "../../components/actions/action-strip"
 import { OrderPane, type Detail } from "../../components/order-detail"
 
 /** Operator pages poll every 2–3 s (PLAN.md 4.2c). */
@@ -64,6 +65,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
     <nav className="crumbs" aria-label="Breadcrumb"><Link href="/">Map</Link><span>/</span><span>{detail?.view.header.reference ?? "Record"}</span></nav>
     {error && !detail && <div className="record-state" role="alert"><h1>{error}</h1><p>The record could not be opened. <Link href="/">Back to the map</Link></p></div>}
     {!error && !detail && <div className="record-state" aria-busy="true"><div className="cover skeleton-cover" /><p>Loading order…</p></div>}
+    {detail && <ActionStrip orderId={id} />}
     {detail && <OrderPane detail={detail} onChange={refresh} />}
   </main></AppFrame>
 }
