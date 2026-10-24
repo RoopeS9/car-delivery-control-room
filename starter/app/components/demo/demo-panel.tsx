@@ -4,10 +4,8 @@
 // simulated driver and reset all propagate through the simulation to the map,
 // the node panels and the calls. The call simulator sits below as a section.
 
-import Link from "next/link"
-import { useCallback, useEffect, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useState } from "react"
 import styles from "../../demo/demo.module.css"
-import { Icon } from "../icons"
 
 type Scenario = { name: string; title: string; orderRef: string | null; description: string; started: boolean; links: { label: string; href: string }[] }
 type FleetRow = {
@@ -24,7 +22,16 @@ const STATE_WORDS: Record<string, string> = {
 
 const clock = (iso: string) => new Date(iso).toISOString().slice(11, 19)
 
-export function DemoPanel({ children }: { children?: ReactNode }) {
+/** The driver a scenario is about, from its driver-app link ("/driver?driver=drv-042"). */
+function scenarioDriver(scenario: Scenario): string | null {
+  for (const link of scenario.links) {
+    const match = link.href.match(/[?&]driver=([^&]+)/)
+    if (match) return decodeURIComponent(match[1])
+  }
+  return null
+}
+
+export function DemoPanel({ onFocus }: { onFocus?: (driverId: string, orderRef: string | null) => void }) {
   const [scenarios, setScenarios] = useState<Scenario[] | null>(null)
   const [fleet, setFleet] = useState<FleetState | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -65,6 +72,9 @@ export function DemoPanel({ children }: { children?: ReactNode }) {
         method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(name === "reset" ? { keepRoutine } : {}),
       })
       const result = (await response.json()) as { ok: boolean; message: string }
+      const started = scenarios?.find((scenario) => scenario.name === name)
+      const driverId = started ? scenarioDriver(started) : null
+      if (result.ok && driverId && onFocus) onFocus(driverId, started?.orderRef ?? null)
       setLog((items) => [{ at: new Date().toISOString(), text: result.message, ok: result.ok }, ...items].slice(0, 8))
       if (name === "reset") setLog([{ at: new Date().toISOString(), text: result.message, ok: result.ok }])
     } catch {
@@ -99,7 +109,7 @@ export function DemoPanel({ children }: { children?: ReactNode }) {
   const stories = scenarios?.filter((scenario) => scenario.name !== "reset") ?? []
   const attention = fleet?.cars.filter((car) => car.fault || car.phone !== "LIVE") ?? []
 
-  return <main className={styles.page}>
+  return <div className="studio-controls">
     <header className={styles.head}>
       <div>
         <p className={styles.eyebrow}>Everything started here shows up on the map, in the node panels and in calls</p>
@@ -132,8 +142,8 @@ export function DemoPanel({ children }: { children?: ReactNode }) {
           <div className={styles.scenarioText}>
             <h3>{scenario.title}{scenario.orderRef && <span className="mono"> · {scenario.orderRef}</span>}</h3>
             <p>{scenario.description}</p>
-            {scenario.links.length > 0 && <p className={styles.scenarioLinks}>
-              {scenario.links.map((link) => <Link key={link.href} href={link.href} target="_blank">{link.label} <Icon name="arrow" size={12} /></Link>)}
+            {scenarioDriver(scenario) && onFocus && <p className={styles.scenarioLinks}>
+              <button type="button" className="studio-link" onClick={() => onFocus(scenarioDriver(scenario)!, scenario.orderRef)}>Show the driver&apos;s phone</button>
             </p>}
           </div>
           <div className={styles.scenarioActions}>
@@ -145,17 +155,6 @@ export function DemoPanel({ children }: { children?: ReactNode }) {
           </div>
         </li>)}
       </ul>
-    </section>
-
-    {children}
-
-    <section className={styles.section} aria-labelledby="open">
-      <h2 id="open">Open in another window</h2>
-      <div className={styles.links}>
-        <Link href="/" target="_blank"><Icon name="map" />Map</Link>
-        <Link href="/driver" target="_blank"><Icon name="driver" />Driver app, pick a driver</Link>
-        <Link href="/site" target="_blank"><Icon name="building" />Site chat, pick a place</Link>
-      </div>
     </section>
 
     {simDriver?.available && <section className={styles.section} aria-labelledby="simdriver">
@@ -177,8 +176,8 @@ export function DemoPanel({ children }: { children?: ReactNode }) {
         </li>)}</ol>}
     </section>
 
-    <section className={styles.section} aria-labelledby="fleet">
-      <h2 id="fleet">Cars on the road <span className={styles.count}>{fleet?.cars.length ?? ""}</span></h2>
+    <details className={`${styles.section} studio-fold`}>
+      <summary><h2 id="fleet">Cars on the road <span className={styles.count}>{fleet?.cars.length ?? ""}</span></h2></summary>
       <p className={styles.muted}>Positions and engine readings are simulated from each car&apos;s last driver-app report and the sim clock.
         {attention.length > 0 && ` ${attention.length} cars have a fault or a silent phone.`}</p>
       <table className={styles.fleet}>
@@ -192,7 +191,7 @@ export function DemoPanel({ children }: { children?: ReactNode }) {
           </tr>)}
         </tbody>
       </table>
-    </section>
+    </details>
 
     {reset && <div className={`${styles.muted} ${styles.foot}`}>
       <p>Reset: {reset.description}</p>
@@ -201,7 +200,7 @@ export function DemoPanel({ children }: { children?: ReactNode }) {
         Keep the agent&apos;s routine cases on reset{fleet ? ` (${fleet.routineCases} stored)` : ""}. Seed them with <code>npm run sim:seed-routine</code>.
       </label>
     </div>}
-  </main>
+  </div>
 }
 
 function phoneWords(car: FleetRow, now: string): string {

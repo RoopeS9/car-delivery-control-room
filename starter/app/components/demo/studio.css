@@ -1,0 +1,27 @@
+/* Demo, one screen: controls, the phone, the calls. Each column scrolls on its own. */
+.studio { display: grid; grid-template-columns: minmax(320px, 380px) 410px minmax(420px, 1fr); gap: 24px; height: 100dvh; padding: 0 24px; background: var(--canvas); }
+.studio-col { min-width: 0; overflow-y: auto; padding: 22px 0 40px; scrollbar-width: thin; }
+.studio-controls > header { flex-direction: column; align-items: stretch; }
+.studio-controls header > div:last-child { justify-content: space-between; }
+.studio-controls ul li { flex-direction: column; align-items: stretch; gap: 10px; }
+.studio-link { padding: 0; border: 0; background: none; font-size: 12.5px; font-weight: 500; color: var(--teal-ink); }
+.studio-link:hover { text-decoration: underline; }
+.studio-fold summary { list-style: none; cursor: pointer; }
+.studio-fold summary::-webkit-details-marker { display: none; }
+.studio-mid { display: flex; flex-direction: column; align-items: center; gap: 10px; overflow: hidden; }
+.studio-mid > div { width: 390px; height: min(800px, calc(100dvh - 120px)); flex: none; }
+.studio-caption { align-self: stretch; text-align: center; font-size: 13px; color: var(--muted); }
+.studio-caption .mono { font-size: 12px; }
+.studio-note { max-width: 360px; text-align: center; font-size: 12px; color: var(--subtle); }
+.studio-phone-empty { padding: 40px 24px; font-size: 13px; color: var(--muted); text-align: center; }
+.studio-right .calls-page { margin-top: 0; }
+.studio-right .calls-layout { grid-template-columns: 1fr; }
+.studio-right .calls-list { position: static; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.studio-right .call-columns { grid-template-columns: 1fr; }
+.studio-right .call-side { position: static; }
+.studio-right .transcript li { max-width: 88%; }
+@media (max-width: 1500px) {
+  .studio { grid-template-columns: minmax(300px, 340px) 410px; height: auto; }
+  .studio-right { grid-column: 1 / -1; overflow: visible; }
+  .studio-col { overflow: visible; }
+}

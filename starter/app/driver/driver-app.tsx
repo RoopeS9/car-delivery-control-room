@@ -33,8 +33,10 @@ export function roadDeskCallUrl(reference: string): string {
 /** The drawn dashboard picture for scenario A. Fictional; no real car or person. */
 const DEMO_PHOTO = { url: "/sim/dashboard-misfire.jpg", subject: "dashboard" }
 
-export function DriverApp({ driver, jobs, job, initialThread, serverNow }: {
+export function DriverApp({ driver, jobs, job, initialThread, serverNow, onJob }: {
   driver: { id: string; name: string }
+  /** Inside Demo: switching jobs stays on the page instead of navigating to /driver. */
+  onJob?: (reference: string) => void
   jobs: DriverJob[]
   job: DriverJob | null
   initialThread: ThreadMessage[]
@@ -154,7 +156,7 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow }: {
       <span className={styles.avatar} aria-hidden="true">{driver.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span>
       <div className={styles.topText}>
         <b>{driver.name}</b>
-        <Link href="/driver">Switch driver</Link>
+        {!onJob && <Link href="/driver">Switch driver</Link>}
       </div>
       {job && <a className={styles.callButton} href={roadDeskCallUrl(job.reference)} target="_blank" rel="noopener" title="Opens the Road Desk line in a new tab">
         <PhoneIcon /> Call Road Desk
@@ -162,7 +164,11 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow }: {
     </header>
 
     {jobs.length > 1 && <nav className={styles.jobTabs} aria-label="Your jobs">
-      {jobs.map((candidate) => <Link key={candidate.reference} href={`/driver?driver=${driver.id}&job=${candidate.reference}`}
+      {jobs.map((candidate) => onJob
+        ? <button type="button" key={candidate.reference} onClick={() => onJob(candidate.reference)} aria-current={candidate.reference === job?.reference ? "page" : undefined}>
+          <span className="mono">{candidate.reference}</span> {candidate.status === "IN_PROGRESS" ? "now" : "next"}
+        </button>
+        : <Link key={candidate.reference} href={`/driver?driver=${driver.id}&job=${candidate.reference}`}
         aria-current={candidate.reference === job?.reference ? "page" : undefined}>
         <span className="mono">{candidate.reference}</span> {candidate.status === "IN_PROGRESS" ? "now" : "next"}
       </Link>)}

@@ -5,20 +5,25 @@ import { useEffect, useRef, useState } from "react"
 import { readToolArgument, slotLabel, slotValue, type CallRecord, type CallScenario } from "@/lib/present/call-types"
 import { labelIn } from "@/lib/present/labels"
 import { fmtDateTime } from "@/lib/present/time"
-import { DriverApp } from "../../driver/driver-app"
-import type { DriverJob, ThreadMessage } from "../../driver/data"
-import phoneStyles from "../../driver/driver.module.css"
 import { Icon } from "../icons"
 import "./calls.css"
 
-export type DriverPhone = { driver: { id: string; name: string }; jobs: DriverJob[]; job: DriverJob | null; thread: ThreadMessage[] }
+
 
 const ROLE_WORDS: Record<string, string> = { PICKUP_SITE_DESK: "Pickup desk", DRIVER: "Driver", DELIVERY_RECEIVER: "Receiver" }
 const PURPOSE_WORDS: Record<string, string> = { PICKUP_READINESS: "Pickup readiness", DRIVER_START_CHECK: "Driver start check", DRIVER_INBOUND: "Driver calls in" }
 const words = (map: Record<string, string>, code: string) => map[code] ?? labelIn(code)
 
 /** Pick a robo-call scenario, run it, and read what the call established and from which turn. */
-export function CallSimulator({ scenarios, stored, orderIds, callees, phones, serverNow }: { scenarios: CallScenario[] | null; stored: Record<string, CallRecord[]>; orderIds: Record<string, string>; callees: Record<string, string | null>; phones: Record<string, DriverPhone>; serverNow: string }) {
+export type PhoneFocus = { kind: "driver"; driverId: string; orderRef: string } | { kind: "desk"; name: string; call: CallRecord | null }
+
+export function CallSimulator({ scenarios, stored, orderIds, callees, drivers, onFocus }: {
+  scenarios: CallScenario[] | null; stored: Record<string, CallRecord[]>; orderIds: Record<string, string>; callees: Record<string, string | null>
+  /** Scenario id to the driver called or calling, when the other party is a driver. */
+  drivers: Record<string, string>
+  /** Tells the Demo page which phone to show in the middle. */
+  onFocus: (focus: PhoneFocus) => void
+}) {
   const [selected, setSelected] = useState<string | null>((scenarios?.find((item) => item.inbound) ?? scenarios?.[0])?.id ?? null)
   const [running, setRunning] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -46,6 +51,15 @@ export function CallSimulator({ scenarios, stored, orderIds, callees, phones, se
       setRunning(null)
     }
   }
+
+  // The middle phone follows the chosen scenario: the driver's app, or the desk's side of the call.
+  const focusKey = `${scenario?.id ?? ""}|${call?.id ?? ""}`
+  useEffect(() => {
+    if (!scenario) return
+    const driverId = drivers[scenario.id]
+    onFocus(driverId ? { kind: "driver", driverId, orderRef: scenario.orderRef } : { kind: "desk", name: callees[scenario.id] ?? words(ROLE_WORDS, scenario.role), call })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusKey])
 
   // A finished call is selected, scrolled into view and highlighted for a moment.
   useEffect(() => {
@@ -100,15 +114,8 @@ export function CallSimulator({ scenarios, stored, orderIds, callees, phones, se
             {fmtDateTime(item.startedAt)} · {labelIn(item.outcome).toLowerCase()}
           </button>)}
         </div>}
-        <div className="call-stage">
-          <div className={phoneStyles.phone}>
-            {phones[scenario.id]
-              ? <DriverApp key={scenario.id} driver={phones[scenario.id].driver} jobs={phones[scenario.id].jobs} job={phones[scenario.id].job} initialThread={phones[scenario.id].thread} serverNow={serverNow} />
-              : <DeskPhone name={callees[scenario.id] ?? words(ROLE_WORDS, scenario.role)} call={call} />}
-          </div>
-          {call ? <div ref={record} className={`call-record-wrap${fresh === call.id ? " fresh-call" : ""}`}><CallRecordView call={call} /></div>
-            : running !== scenario.id && <p className="calls-quiet">No call stored for this order yet. Simulate one to see the transcript.</p>}
-        </div>
+        {call ? <div ref={record} className={`call-record-wrap${fresh === call.id ? " fresh-call" : ""}`}><CallRecordView call={call} /></div>
+          : running !== scenario.id && <p className="calls-quiet">No call stored for this order yet. Simulate one to see the transcript.</p>}
       </section>}
     </div>}
   </section>
@@ -178,7 +185,7 @@ function CallRecordView({ call }: { call: CallRecord }) {
 }
 
 /** The other party's phone during a desk call: the conversation as it was heard. */
-function DeskPhone({ name, call }: { name: string; call: CallRecord | null }) {
+export function DeskPhone({ name, call }: { name: string; call: CallRecord | null }) {
   return <div className="desk-phone">
     <header><span className="desk-avatar" aria-hidden="true">{name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}</span><div><b>{name}</b><small>{call ? `Call with Road Desk · ${labelIn(call.outcome).toLowerCase()}` : "No call yet"}</small></div></header>
     <ol>{(call?.turns ?? []).map((turn) => <li key={turn.seq} className={turn.speaker === "CALLER" ? "them" : "me"}>{turn.text}</li>)}</ol>
