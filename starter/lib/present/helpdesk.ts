@@ -181,7 +181,7 @@ export async function suggestFor(reference: string | null, thread: ThreadLike, e
   const payload = { thread: { ...flatten(thread), ...(extra.intent ? { intent: extra.intent } : {}), ...(extra.candidates?.length ? { candidates: extra.candidates } : {}) } }
   let response: Response
   try {
-    response = await fetch(`${SERVICE}/suggest/${encodeURIComponent(reference ?? "-")}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload), cache: "no-store", signal: AbortSignal.timeout(90_000) })
+    response = await fetch(`${SERVICE}/suggest/${encodeURIComponent(reference ?? "-")}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload), cache: "no-store", signal: AbortSignal.timeout(150_000) })
   } catch {
     throw new HelpdeskError(502, "The dossier service is not reachable, so there are no drafts. You can still write your own reply.")
   }

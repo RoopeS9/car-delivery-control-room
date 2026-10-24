@@ -14,7 +14,7 @@
 .jbar-stops li::before { content: ""; width: 1px; height: 5px; background: var(--sand); margin-bottom: 2px; }
 .jbar-stops li.first { transform: none; justify-items: start; }
 .jbar-stops li.last { transform: translateX(-100%); justify-items: end; }
-.jbar-stops li.quiet b, .jbar-stops li.quiet span { visibility: hidden; }
+.jbar-stops li.quiet b, .jbar-stops li.quiet span { display: none; }
 .jbar-stops b { font-weight: 600; }
 .jbar-stops span { color: var(--subtle); max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
 .jbar-stops li.now { top: -3px; color: var(--teal-ink); }

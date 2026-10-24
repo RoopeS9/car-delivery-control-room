@@ -75,7 +75,9 @@ export function renderThread(t: SuggestThread): string {
 export async function suggestReplies(d: Dossier | null, thread: SuggestThread, opts: { model?: string; apiKey?: string } = {}): Promise<SuggestResult> {
   const apiKey = opts.apiKey ?? process.env.OPENROUTER_API_KEY
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set")
-  const model = opts.model ?? process.env.SUGGEST_MODEL ?? process.env.REASON_MODEL ?? "deepseek/deepseek-v4-pro"
+  // Drafting is a chat reply over a rendered dossier, not a judgement call: the flash model answers in seconds where the
+  // pro model takes minutes, and the operator reads and edits every word anyway. SUGGEST_MODEL overrides.
+  const model = opts.model ?? process.env.SUGGEST_MODEL ?? "deepseek/deepseek-v4-flash"
   const user = [
     renderThread(thread), "",
     d ? renderDossier(d, { maxHistory: 15 }) + "\n" + renderDerived(derive(d)) : "## No order is linked to this conversation\nThere is no dossier. Identify the order or answer general policy; state no order facts.",
