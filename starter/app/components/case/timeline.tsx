@@ -22,6 +22,10 @@ function Entry({ entry }: { entry: TimelineEntry }) {
         {entry.kind === "safety" && <span className="tl-flag">Safety instruction, sent at once</span>}
       </div>
       <p className="tl-text">{entry.text}</p>
+      {entry.photo && <a className="tl-photo" href={entry.photo.src} target="_blank" rel="noreferrer" title="Open the photo">
+        {/* eslint-disable-next-line @next/next/no-img-element -- a stored upload, not a static asset */}
+        <img src={entry.photo.src} alt={entry.photo.subject ? `Photo: ${entry.photo.subject}` : "Photo from the driver"} loading="lazy" />
+      </a>}
       <span className="tl-source">{entry.origin === "live" ? "Live" : "Recorded"}, {entry.source.label}</span>
     </div>
   </li>

@@ -4,12 +4,15 @@
 // source it came from, so a quote never reads as a booking and a driver message
 // never reads as a verified fact.
 
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import type { CaseRow, EventRow as CrEventRow, ProposalRow } from "@/lib/cr/queries"
-import { LOCKED_ACTIONS, OPEN_CASE_STATUSES, type ActionType, type DraftMessage, type SourceRef } from "@/lib/cr/types"
+import { LOCKED_ACTIONS, OPEN_CASE_STATUSES, type ActionType, type DraftMessage, type GpsData, type ObdData, type PhotoData, type SourceRef } from "@/lib/cr/types"
 import { describeEvent } from "./events"
 import { type Bundle, str } from "./bundle"
 import { label } from "./labels"
-import type { AttentionItem, CaseView, DecisionCardView, DraftView, SourceChip, TimelineEntry, Tone } from "./types"
+import { minutesBetween, relativeTo } from "./time"
+import type { AttentionItem, CaseView, DecisionCardView, DraftView, SourceChip, TelemetryStripView, TimelineEntry, Tone } from "./types"
 
 export const AGENT_NAME = "Road agent"
 
@@ -328,7 +331,7 @@ export function mergedTimeline(bundle: Bundle): TimelineEntry[] {
       kind: "message", text: message.body,
       channelLabel: internal ? "Internal note" : recipient ? `${channelLabel} to ${recipient.name}` : channelLabel,
       source: { kind: "messages", id: message.id, label: `${channelLabel.toLowerCase()} message`, at: message.authoredAt },
-      tone: "neutral", origin: "record", internal, caseId: null,
+      tone: "neutral", origin: "record", internal, caseId: null, photo: null,
     })
   }
 
@@ -338,7 +341,7 @@ export function mergedTimeline(bundle: Bundle): TimelineEntry[] {
       kind: "alert", text: `Alert raised: ${label(alert.signal)}. ${alert.summary}`, channelLabel: `Alert, ${label(alert.status).toLowerCase()}`,
       source: { kind: "alerts", id: alert.id, label: "alert", at: alert.triggeredAt },
       tone: alert.status === "OPEN" ? (alert.severity === "critical" || alert.severity === "high" ? "danger" : "warn") : "neutral",
-      origin: "record", internal: true, caseId: null,
+      origin: "record", internal: true, caseId: null, photo: null,
     })
   }
 
@@ -348,7 +351,7 @@ export function mergedTimeline(bundle: Bundle): TimelineEntry[] {
       id: event.id, at: event.recordedAt, actorName: described.actor ?? "System", actorRole: null, actorKind: "system",
       kind: "event", text: described.detail ? `${described.text}. ${described.detail}` : described.text, channelLabel: "Event log",
       source: { kind: "operational_events", id: event.id, label: "event log", at: event.recordedAt },
-      tone: "neutral", origin: "record", internal: true, caseId: null,
+      tone: "neutral", origin: "record", internal: true, caseId: null, photo: null,
     })
   }
 
@@ -363,9 +366,76 @@ export function mergedTimeline(bundle: Bundle): TimelineEntry[] {
       channelLabel: to ? `${channel} to ${to}` : channel,
       source: { kind: "cr_events", id: event.id, label: event.actorType === "obd" || event.actorType === "phone" ? "simulated sensor" : "case log", at },
       tone: liveTone(event), origin: "live", internal: event.channel === "internal" || event.kind === "lookup" || event.kind === "tool_call",
-      caseId: event.caseId,
+      caseId: event.caseId, photo: photoOf(bundle, event),
     })
   }
 
   return entries.sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id))
+}
+
+/** Photos are stored inline on the event; the page fetches them from a small route instead of the polled JSON. */
+function photoOf(bundle: Bundle, event: CrEventRow): TimelineEntry["photo"] {
+  if (event.kind !== "photo") return null
+  const data = event.data as Partial<PhotoData>
+  if (!data.base64 && !data.path) return null
+  return { src: data.path ?? `/orders/${bundle.order.id}/photos/${event.id}`, subject: data.subject ?? null }
+}
+
+// ---------------------------------------------------------------- telemetry strip
+
+type DtcEntry = { code: string; title: string; severity: string }
+let dtcIndex: Map<string, DtcEntry> | null = null
+
+function dtc(code: string): DtcEntry | null {
+  if (!dtcIndex) {
+    try {
+      const file = JSON.parse(readFileSync(join(process.cwd(), "knowledge", "dtc.json"), "utf8")) as { codes: DtcEntry[] }
+      dtcIndex = new Map(file.codes.map((entry) => [entry.code, entry]))
+    } catch {
+      dtcIndex = new Map()
+    }
+  }
+  return dtcIndex.get(code) ?? null
+}
+
+const SEVERITY_TONE: Record<string, Tone> = { STOP_NOW: "danger", DRIVE_TO_SAFE_STOP: "warn", CONTINUE_AND_MONITOR: "neutral" }
+/** A sample older than this reads as stale on the strip. */
+const STRIP_STALE_MINUTES = 10
+
+export function telemetryStrip(bundle: Bundle): TelemetryStripView | null {
+  const { obd, gps, now } = bundle.cr
+  if (!obd && !gps) return null
+  const data = (obd?.data ?? null) as Partial<ObdData> | null
+  const at = obd ? obd.at.toISOString() : null
+  const rel = at ? relativeTo(at, now) : null
+  const values: TelemetryStripView["values"] = []
+  const push = (label: string, value: number | undefined, unit: string, tone: Tone = "neutral", digits = 0) => {
+    if (typeof value === "number" && Number.isFinite(value)) values.push({ label, value: `${value.toFixed(digits)}${unit}`, tone })
+  }
+  if (data) {
+    push("Speed", data.speed_kmh, " km/h")
+    push("Engine", data.rpm, " rpm")
+    push("Load", data.engine_load_pct, "%")
+    push("Coolant", data.coolant_c, " °C", typeof data.coolant_c === "number" && data.coolant_c >= 110 ? "danger" : "neutral")
+    push("Battery", data.battery_v, " V", typeof data.battery_v === "number" && data.battery_v < 12 ? "warn" : "neutral", 1)
+    push("Charge", data.soc_pct, "%")
+    if (typeof data.misfire_count === "number" && data.misfire_count > 0) push("Misfires", data.misfire_count, "", "warn")
+  }
+  const codes = (data?.dtcs ?? []).map((code) => {
+    const entry = dtc(code)
+    return { code, title: entry?.title ?? null, severity: entry ? label(entry.severity) : null, tone: entry ? SEVERITY_TONE[entry.severity] ?? "neutral" : "warn" as Tone }
+  })
+  const position = gps ? (() => {
+    const g = gps.data as Partial<GpsData>
+    const gpsRel = relativeTo(gps.at.toISOString(), now)
+    const place = g.place_label ?? (typeof g.lat === "number" && typeof g.lng === "number" ? `${g.lat.toFixed(3)}, ${g.lng.toFixed(3)}` : "unknown")
+    return { label: place, ageLabel: gpsRel?.text ?? null }
+  })() : null
+  const fuel = bundle.items.find((item) => item.role === "PRIMARY")?.vehicle.fuel ?? null
+  return {
+    at, ageLabel: rel?.text ?? null, stale: at ? (minutesBetween(at, now) ?? 0) > STRIP_STALE_MINUTES : false,
+    mil: data?.mil ?? null, values, codes, position,
+    simulated: (obd?.simulated ?? true) && (gps?.simulated ?? true),
+    electric: fuel?.toLowerCase() === "electric",
+  }
 }

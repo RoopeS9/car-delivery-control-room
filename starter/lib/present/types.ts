@@ -562,6 +562,8 @@ export type RecordView = {
   timeline: TimelineEntry[]
   /** The simulated clock when the view was built. Live "x min ago" is measured from here. */
   simNow: string
+  /** Latest simulated OBD and GPS, when the car has reported. */
+  telemetry: TelemetryStripView | null
 }
 
 export type EntityKind = "driver" | "customer" | "site"
@@ -721,6 +723,23 @@ export type TimelineEntry = {
   origin: "record" | "live"
   internal: boolean
   caseId: string | null
+  /** A photo sent on this line, served from /orders/:id/photos/:eventId (or a public path). */
+  photo: { src: string; subject: string | null } | null
+}
+
+/** The car's latest OBD reading and phone position, for the strip on a case. */
+export type TelemetryStripView = {
+  at: string | null
+  ageLabel: string | null
+  /** Older than 10 minutes of simulated time. */
+  stale: boolean
+  mil: "OFF" | "ON" | "FLASHING" | null
+  values: { label: string; value: string; tone: Tone }[]
+  codes: { code: string; title: string | null; severity: string | null; tone: Tone }[]
+  position: { label: string; ageLabel: string | null } | null
+  simulated: boolean
+  /** Electric cars report little over standard OBD2. */
+  electric: boolean
 }
 
 // ---------------------------------------------------------------- queue (home)

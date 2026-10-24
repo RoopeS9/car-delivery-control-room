@@ -10,6 +10,7 @@ import { Icon } from "../icons"
 import { When } from "../ui"
 import { DecidedCard, DecisionCard, Sources } from "./decision-card"
 import { OPERATOR } from "./operator"
+import { TelemetryStrip } from "./telemetry-strip"
 import { Timeline } from "./timeline"
 
 function OutcomeBox({ kase, proposalId, title, onSaved }: { kase: CaseView; proposalId: string; title: string; onSaved: () => void }) {
@@ -115,6 +116,9 @@ function AskAgent({ caseId, orderRef }: { caseId: string | null; orderRef: strin
   </section>
 }
 
+/** Cases about the car itself show what the car reports. */
+const VEHICLE_KINDS = new Set(["VEHICLE_WARNING", "BREAKDOWN", "ACCIDENT"])
+
 function CaseBlock({ kase, view, onChange }: { kase: CaseView; view: RecordView; onChange: () => void }) {
   const awaiting = kase.decided.filter((card) => card.awaitingOutcome)
   const open = kase.status !== "RESOLVED" && kase.status !== "HANDLED_BY_AGENT"
@@ -130,6 +134,7 @@ function CaseBlock({ kase, view, onChange }: { kase: CaseView; view: RecordView;
     <h2 className="case-title">{kase.title}</h2>
     {kase.summary && <p className="case-summary">{kase.summary}</p>}
     {kase.sources.length > 0 && <p className="case-sources">Builds on: <Sources sources={kase.sources} /></p>}
+    {open && view.telemetry && VEHICLE_KINDS.has(kase.kind) && <TelemetryStrip telemetry={view.telemetry} />}
 
     {kase.pending.map((card) => <DecisionCard key={card.id} card={card} onDecided={onChange} />)}
     {awaiting.map((card) => <OutcomeBox key={card.id} kase={kase} proposalId={card.id} title={card.title} onSaved={onChange} />)}

@@ -8,7 +8,7 @@ import {
   relatedRecords, sites, vehicles,
 } from "@/lib/schema"
 import { simNowIso } from "@/lib/cr/clock"
-import { latestPositions, listCases, listEvents, listProposals, type TelemetryRow } from "@/lib/cr/queries"
+import { latestPositions, latestTelemetry, listCases, listEvents, listProposals, type TelemetryRow } from "@/lib/cr/queries"
 import { Directory, snapshotNames } from "./actors"
 import { type Bundle, type CrSlice, emptyCr, type PlaceRow, type RelatedRow, type SiteRow } from "./bundle"
 import type { Row } from "./types"
@@ -95,6 +95,10 @@ async function loadCr(orderId?: string): Promise<{ now: string; byOrder: Map<str
     }
     for (const row of proposals) slice(row.orderId).proposals.push(row)
     for (const row of events) slice(row.orderId).events.push(row)
+    if (orderId) {
+      const [obd, gps] = await Promise.all([latestTelemetry(orderId, "OBD"), latestTelemetry(orderId, "PHONE_GPS")])
+      Object.assign(slice(orderId), { obd, gps })
+    }
   } catch (error) {
     console.warn("Control room tables could not be read; showing the snapshot only.", error instanceof Error ? error.message : error)
   }

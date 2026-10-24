@@ -5,7 +5,7 @@ import { chosenWindows, deriveAttention, deriveKeyDates, latestTracking, stronge
 import {
   type Bundle, type RelatedRow, activePoints, bool, journeyPlan, list, num, obj, recordedAt, refCount, rows, str, strings,
 } from "./bundle"
-import { caseViews, mergedTimeline } from "./cases"
+import { caseViews, mergedTimeline, telemetryStrip } from "./cases"
 import { describeEvent } from "./events"
 import { humanize, label, labelIn, laneLabel } from "./labels"
 import { dayKey, fmtDateTime, fmtDay, fmtDayHeading, fmtMoney, fmtRange, fmtWeekday, isBefore, relativeTo } from "./time"
@@ -713,7 +713,7 @@ export function buildRecordView(bundle: Bundle): RecordView {
     snapshotAt, story, tiles, header, attention, journey, alerts, workItems, incidents, threads, proofs, documents, custody, siteVisits, notes,
     proposals, notifications, offers, assignments, reservations, options, confirmations, terminalEvents, expenses,
     history, historyTotal: bundle.events.length, inboxHints, otherRecords, sections,
-    cases, timeline, simNow: bundle.cr.now,
+    cases, timeline, simNow: bundle.cr.now, telemetry: telemetryStrip(bundle),
   }
 }
 
