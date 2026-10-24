@@ -27,7 +27,6 @@ export function RecordHero({ view, compact = false }: { view: RecordView; compac
     <div className="chips chips-order" title={story.intro}>
       <span className="chip-fact"><Icon name="pin" size={13} />{header.from.city} → {header.to.city}</span>
       <span className="chip-fact"><Icon name="waiting" size={13} />Ordered {fmtDay(header.createdAt)}</span>
-      {header.routeKind === "IMPORT" && <span className="chip-fact"><Icon name="ferry" size={13} />Import</span>}
     </div>
     <div className="story">
       <p className={`story-headline tone-${story.tone}`}>{story.headline}</p>

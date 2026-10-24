@@ -789,17 +789,28 @@ function laneStory(bundle: Bundle, keyDates: KeyDate[], assignments: AssignmentV
     return { intro, headline: `Delivered ${dayWord(delivered.start, snapshotAt, delivered.zone)} at ${fmtClockIn(delivered.start, delivered.zone)}.`, tone: "ok", detail: sentence(facts), facts }
   }
   if (lane === "moving") {
-    const late = eta?.tone === "danger" || promise?.tone === "danger"
-    const headline = driver ? `${driver} is driving it from ${from.city} to ${to.city}.` : `It is on the road from ${from.city} to ${to.city}.`
     const margin = eta && promise ? Math.round((Date.parse(promise.end ?? promise.start) - Date.parse(eta.start)) / 60000) : null
-    const marginText = margin == null ? null : margin < 0 ? `${-margin} min after the promise` : margin < 60 ? `${margin} min to spare` : `${Math.round(margin / 60)} h to spare`
+    const late = (margin != null && margin < 0) || eta?.tone === "danger" || promise?.tone === "danger"
+    const minutes = (n: number) => n < 60 ? `${n} min` : `${Math.floor(n / 60)} h${n % 60 ? ` ${n % 60} min` : ""}`
+    const marginText = margin == null ? null : margin < 0 ? `${minutes(-margin)} after the promise` : `${minutes(margin)} to spare`
+    const clock = (iso: string, zone: string | null) => fmtClockIn(iso, zone)
+    // The problem first, when there is one: an operator reads "late" before the name. Then the consequences the
+    // records support: the promise, and the driver's next scheduled step after the arrival.
+    const headline = late && eta && promise
+      ? `Late to ${to.city}: ETA ${clock(eta.start, eta.zone)}, promised by ${clock(promise.end ?? promise.start, promise.zone)}.`
+      : driver ? `${driver} is driving it from ${from.city} to ${to.city}.` : `It is on the road from ${from.city} to ${to.city}.`
+    const nextDuty = eta && active ? active.steps.filter((step) => step.status !== "COMPLETED" && step.scheduledStart && step.scheduledStart > eta.start).sort((a, b) => a.scheduledStart!.localeCompare(b.scheduledStart!))[0] ?? null : null
+    const dutyMargin = nextDuty && eta ? Math.round((Date.parse(nextDuty.scheduledStart!) - Date.parse(eta.start)) / 60000) : null
     const facts = [
-      ...fact("ETA", eta ? fmtDateTime(eta.start, eta.zone) : null, eta?.note?.replace(/^stale signal received /, "driver app, stale, ").replace(/^coarse signal received /, "driver app, coarse, ").replace(/; unverified$/, "") ?? null, eta?.tone === "danger" ? "warn" : eta?.tone ?? "neutral"),
+      ...(late && driver ? fact("Driver", driver, `${from.city} → ${to.city}`) : []),
+      ...fact("ETA", eta ? fmtDateTime(eta.start, eta.zone) : null, eta?.note?.replace(/^stale signal received /, "driver app, stale, ").replace(/^coarse signal received /, "driver app, coarse, ").replace(/; unverified$/, "") ?? null, late ? "warn" : eta?.tone === "danger" ? "warn" : eta?.tone ?? "neutral"),
       ...fact("Promise", promise ? `by ${fmtDateTime(promise.end ?? promise.start, promise.zone)}` : null, marginText, margin != null && margin < 0 ? "danger" : margin != null && margin < 30 ? "warn" : "neutral"),
+      ...(late && margin != null && margin < 0 ? fact("If nothing changes", `delivery ${minutes(-margin)} late`, "the receiver is not told yet; a promise change needs the customer's agreement", "warn") : []),
+      ...(nextDuty && dutyMargin != null ? fact("Driver's next step", `${nextDuty.title} ${clock(nextDuty.scheduledStart!, eta?.zone ?? null)}`, dutyMargin < 0 ? `${minutes(-dutyMargin)} after the ETA: missed` : dutyMargin < 90 ? `${minutes(dutyMargin)} after the ETA: tight` : `${minutes(dutyMargin)} after the ETA`, dutyMargin < 0 ? "danger" : dutyMargin < 90 ? "warn" : "neutral") : []),
       ...(!eta ? fact("Position", "none from the driver app in this packet", null, "warn") : []),
     ]
     // Running late is a signal to watch; a person is pulled in by a decision, not by a tight margin.
-    return { intro, headline: late ? `${headline.slice(0, -1)}, running late.` : headline, tone: late ? "warn" : "accent", detail: sentence(facts), facts }
+    return { intro, headline, tone: late ? "warn" : "accent", detail: sentence(facts), facts }
   }
   if (lane === "booked") {
     const slotPassed = slot?.tone === "warn"
