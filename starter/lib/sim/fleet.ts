@@ -5,6 +5,7 @@
 
 import { and, eq, inArray } from "drizzle-orm"
 import { crDb } from "@/lib/cr/db"
+import { lifecycleByOrder, milestoneEvents, overlayAssignment } from "@/lib/cr/lifecycle"
 import { addresses, alerts, drivers, orderItems, orders, relatedRecords, vehicles } from "@/lib/schema"
 import { cityPoint, legKey, polylineKm, seaKey, terminalPoint, type LatLng } from "./geo"
 import { roadLeg, seaLane } from "./routes"
@@ -82,7 +83,7 @@ export const OBD_CARS = new Set(["CD-420584", "CD-420145", "CD-420537"])
 const holder = globalThis as unknown as { __simFleet?: { at: number; version: number; cars: FleetCar[] } }
 
 /** Bump when FleetCar changes shape, so a running dev server does not keep serving old cached cars. */
-const FLEET_VERSION = 2
+const FLEET_VERSION = 3
 
 export async function loadFleet(options: { fresh?: boolean } = {}): Promise<FleetCar[]> {
   const cached = holder.__simFleet
@@ -106,7 +107,10 @@ async function related(collection: string, orderIds?: string[]): Promise<Row[]> 
 
 async function readFleet(): Promise<FleetCar[]> {
   const db = crDb()
-  const assignments = (await related("work_assignments")).filter((row) => row.status === "IN_PROGRESS")
+  // A car the driver reported collected in the app is on the road from then on; a handed-over one is not.
+  const lifecycles = lifecycleByOrder(await milestoneEvents().catch(() => []))
+  const assignments = (await related("work_assignments")).map((row) => overlayAssignment(row, lifecycles.get(str(row.order_id))))
+    .filter((row) => row.status === "IN_PROGRESS")
   if (assignments.length === 0) return []
   const orderIds = [...new Set(assignments.map((row) => str(row.order_id)))]
   const [orderRows, segments, points, reservations, observations, incidents, alertRows, itemRows, driverRows] = await Promise.all([
@@ -161,7 +165,11 @@ async function readFleet(): Promise<FleetCar[]> {
       .filter((row) => row.assignment_id === assignment.id || (!row.assignment_id && row.order_id === order.id))
       .sort((a, b) => str(a.observed_at).localeCompare(str(b.observed_at)))
     const last = observed.at(-1)
-    const lastObservation = last ? { id: str(last.id), at: new Date(str(last.observed_at)), progress: Number(last.progress_fraction) } : null
+    const collected = lifecycles.get(order.id)?.COLLECTED
+    // Collected in the app after the last recorded report: the journey starts at the pickup at that moment.
+    const lastObservation = collected && (!last || Date.parse(str(last.observed_at)) < Date.parse(collected.at))
+      ? { id: collected.eventId, at: new Date(collected.at), progress: 0 }
+      : last ? { id: str(last.id), at: new Date(str(last.observed_at)), progress: Number(last.progress_fraction) } : null
     const gapAlert = alertRows.find((row) => row.orderId === order.id && row.signal === "TRACKING_GAP" && row.status !== "RESOLVED" && row.status !== "DISMISSED")
     const safetyStop = alertRows.find((row) => row.orderId === order.id && row.signal === "SAFETY_STOP" && row.status !== "RESOLVED" && row.status !== "DISMISSED")
     const openWarning = incidents.find((row) => row.order_id === order.id && row.kind === "VEHICLE_WARNING" && !row.resolved_at)

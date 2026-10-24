@@ -41,7 +41,7 @@ export function bookingSchedule(booking: EffectiveBooking, reservations: Raw[]):
     departureAt: selected?.departure_at ?? text(recorded?.departure_at),
     arrivalAt: selected?.arrival_at ?? text(recorded?.expected_arrival_at),
     checkInCutoffAt: selected?.check_in_cutoff_at ?? text(recorded?.check_in_cutoff_at),
-    checkInConfirmed: recorded?.check_in_confirmation === "CONFIRMED",
+    checkInConfirmed: recorded?.check_in_confirmation === "CONFIRMED" || recorded?.check_in_confirmation === "CONFIRMED_BY_GATE_SCAN",
     priceAmount: selected?.price_amount ?? null,
     currency: selected?.currency ?? null,
     simulated: booking.source.kind === "cr_effects",

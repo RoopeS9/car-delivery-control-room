@@ -7,7 +7,7 @@
 
 export const CASE_KINDS = [
   "VEHICLE_WARNING", "BREAKDOWN", "ACCIDENT", "DELAY", "MISSED_CONNECTION", "KEYS_ACCESS", "EXPENSE",
-  "DRIVER_QUESTION", "SITE_QUESTION", "OPERATOR_QUESTION",
+  "DRIVER_QUESTION", "SITE_QUESTION", "OPERATOR_QUESTION", "HANDOVER",
 ] as const
 export type CaseKind = (typeof CASE_KINDS)[number]
 
@@ -32,7 +32,7 @@ export type ActorType = (typeof ACTOR_TYPES)[number]
 
 export const EVENT_KINDS = [
   "message", "voice_turn", "photo", "telemetry_snapshot", "dtc", "lookup", "tool_call", "proposal", "decision",
-  "effect", "note",
+  "effect", "note", "milestone",
 ] as const
 export type EventKind = (typeof EVENT_KINDS)[number]
 

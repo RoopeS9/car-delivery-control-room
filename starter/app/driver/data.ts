@@ -6,6 +6,7 @@
 import { and, asc, eq, inArray, or } from "drizzle-orm"
 import { crDb } from "@/lib/cr/db"
 import { effectiveOrder } from "@/lib/cr/effective"
+import { lifecycleByOrder, MILESTONE_WORDS, MILESTONES, milestoneEvents, nextMilestone, overlayAssignment, overlayReservation, type Lifecycle, type Milestone } from "@/lib/cr/lifecycle"
 import { crEvents } from "@/lib/cr/schema"
 import type { PhotoData } from "@/lib/cr/types"
 import { currentFerrySchedule, historicalFerrySchedules, type BookingSchedule } from "@/lib/present/bookings"
@@ -32,7 +33,8 @@ export type Window = { startAt: string; endAt: string; timezone: string; source:
 
 export type DriverJob = {
   assignmentId: string
-  status: "IN_PROGRESS" | "ASSIGNED"
+  /** DELIVERED: handed over in this app; the job stays on the phone so the driver sees it closed. */
+  status: "IN_PROGRESS" | "ASSIGNED" | "DELIVERED"
   orderId: string
   reference: string
   vehicle: { title: string; year: number; fuel: string; plate: string | null }
@@ -43,6 +45,9 @@ export type DriverJob = {
   roadDeskBookings: { kind: string; reference: string | null; status: string }[]
   ferry: BookingSchedule | null
   historicalFerries: BookingSchedule[]
+  /** The delivery's steps the driver reports, with when each was reported. */
+  steps: { milestone: Milestone; label: string; at: string | null }[]
+  next: Milestone | null
 }
 
 export type DriverListing = { id: string; name: string; homeCity: string; jobs: { reference: string; status: DriverJob["status"]; vehicle: string; route: string }[] }
@@ -52,7 +57,7 @@ export type ThreadMessage = {
   at: string
   from: "me" | "agent" | "operator" | "system"
   fromName: string
-  kind: "message" | "safety" | "photo_request" | "photo" | "call"
+  kind: "message" | "safety" | "photo_request" | "photo" | "call" | "milestone"
   /** For a `call` item: the voice call to answer. */
   callId?: string | null
   text: string
@@ -75,8 +80,19 @@ async function related(collection: string, where?: { orderIds?: string[] }): Pro
 const ACTIVE = ["IN_PROGRESS", "ASSIGNED"]
 
 /** Drivers with work today or coming up, moving drivers first. Each job names the car and leg this driver moves. */
+/** Assignments as the driver's reports in this app leave them (collected: in progress; handed over: delivered). */
+async function liveAssignments(): Promise<{ rows: Row[]; lifecycles: Map<string, Lifecycle> }> {
+  const lifecycles = lifecycleByOrder(await milestoneEvents().catch(() => []))
+  const rows = (await related("work_assignments")).map((row) => {
+    const lifecycle = lifecycles.get(String(row.order_id))
+    const overlaid = overlayAssignment(row, lifecycle)
+    return lifecycle?.DELIVERED && overlaid.status === "COMPLETED" ? { ...overlaid, status: "DELIVERED" } : overlaid
+  })
+  return { rows, lifecycles }
+}
+
 export async function listDrivers(): Promise<DriverListing[]> {
-  const assignments = (await related("work_assignments")).filter((row) => ACTIVE.includes(String(row.status)))
+  const assignments = (await liveAssignments()).rows.filter((row) => ACTIVE.includes(String(row.status)))
   const orderIds = [...new Set(assignments.map((row) => String(row.order_id)))]
   const db = crDb()
   const [driverRows, orderRows, itemRows, segments, points, addressRows] = await Promise.all([
@@ -116,7 +132,8 @@ export async function loadDriver(driverId: string): Promise<{ id: string; name: 
   const db = crDb()
   const [driver] = await db.select().from(drivers).where(eq(drivers.id, driverId)).limit(1)
   if (!driver) return null
-  const assignments = (await related("work_assignments")).filter((row) => row.driver_id === driverId && ACTIVE.includes(String(row.status)))
+  const live = await liveAssignments()
+  const assignments = live.rows.filter((row) => row.driver_id === driverId && (ACTIVE.includes(String(row.status)) || row.status === "DELIVERED"))
   const orderIds = [...new Set(assignments.map((row) => String(row.order_id)))]
   if (orderIds.length === 0) return { id: driver.id, name: driver.displayName, homeCity: driver.homeCity, jobs: [] }
   const [orderRows, segments, points, windows, endpoints, reservations, itemRows] = await Promise.all([
@@ -173,7 +190,7 @@ export async function loadDriver(driverId: string): Promise<{ id: string; name: 
       return row ? { startAt: String(row.start_at), endAt: String(row.end_at), timezone: String(row.timezone), source: str(row.source) } : null
     }
     const effective = await effectiveOrder(order.id)
-    const orderReservations = reservations.filter((row) => row.order_id === order.id)
+    const orderReservations = reservations.filter((row) => row.order_id === order.id).map((row) => overlayReservation(row, live.lifecycles.get(order.id)))
     const deliveryPromise = effective.promise ? {
       startAt: effective.promise.start_utc,
       endAt: effective.promise.end_utc,
@@ -194,11 +211,17 @@ export async function loadDriver(driverId: string): Promise<{ id: string; name: 
         .map((booking) => ({ kind: booking.kind, reference: booking.reference, status: booking.status })),
       ferry: segment.transport_mode === "DRIVE_WITH_FERRY" ? currentFerrySchedule(effective, orderReservations) : null,
       historicalFerries: historicalFerrySchedules(effective, orderReservations),
+      ...stepsOf(live.lifecycles.get(order.id) ?? {}, segment.transport_mode === "DRIVE_WITH_FERRY" && orderReservations.some((row) => row.kind === "FERRY" && row.status === "BOOKED")),
     })
   }
-  const order = (job: DriverJob) => (job.status === "IN_PROGRESS" ? 0 : 1)
+  const order = (job: DriverJob) => (job.status === "IN_PROGRESS" ? 0 : job.status === "ASSIGNED" ? 1 : 2)
   jobs.sort((a, b) => order(a) - order(b) || (a.pickupSlot?.startAt ?? "").localeCompare(b.pickupSlot?.startAt ?? ""))
   return { id: driver.id, name: driver.displayName, homeCity: driver.homeCity, jobs }
+}
+
+function stepsOf(lifecycle: Lifecycle, ferry: boolean): Pick<DriverJob, "steps" | "next"> {
+  const steps = MILESTONES.filter((step) => ferry || step !== "CHECKED_IN")
+  return { steps: steps.map((milestone) => ({ milestone, label: MILESTONE_WORDS[milestone], at: lifecycle[milestone]?.at ?? null })), next: nextMilestone(lifecycle, ferry) }
 }
 
 function sourceWords(endpoint: Row | undefined, fromSite: boolean): string {
@@ -232,7 +255,11 @@ export async function loadThread(driverId: string, orderId: string): Promise<Thr
       kind: "message", text: row.body, voice: false, photo: null, photoSubject: null, origin: "dataset",
     }
   })
-  const fromUs: ThreadMessage[] = ourRows.filter((row) => ["message", "voice_turn", "photo", "effect"].includes(row.kind)).map((row) => {
+  const fromUs: ThreadMessage[] = ourRows.filter((row) => ["message", "voice_turn", "photo", "effect", "milestone"].includes(row.kind)).map((row) => {
+    if (row.kind === "milestone") {
+      const step = (row.data as { milestone?: Milestone }).milestone
+      return { id: row.id, at: row.at.toISOString(), from: "me" as const, fromName: "You", kind: "milestone" as const, text: row.body.replace(/^[^:]+:\s*/, "") || (step ? MILESTONE_WORDS[step] : ""), voice: false, photo: null, photoSubject: null, origin: null }
+    }
     const mine = row.actorType === "driver"
     const photo = row.kind === "photo" ? (row.data as unknown as PhotoData) : null
     const request = row.data.request === "photo" && typeof row.data.subject === "string" ? String(row.data.subject) : null

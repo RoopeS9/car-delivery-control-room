@@ -455,6 +455,10 @@ async function performEffects(proposal: ProposalRow, actor: Actor): Promise<{ af
       const lastOut = events.filter((event) => event.channel !== "internal" && (event.recipientType === "site" || event.recipientType === "customer")).at(-1)
       const answersThem = Boolean(lastIn && (!lastOut || lastIn.at > lastOut.at))
       await sendDraft()
+      // A delivery confirmation expects no answer: once it is out, the delivery case is done.
+      if ((await getCase(proposal.caseId))?.kind === "HANDOVER") {
+        return { after: { status: "RESOLVED", waitingOn: null, waitingFor: null, nextAction: next, checkInMinutes: null }, result: { event_ids: ids, parked: true } }
+      }
       if (answersThem) {
         return { after: { status: "AGENT_WORKING", waitingOn: "the agent", waitingFor: "agent", nextAction: `The agent carries on from what ${draft?.to_name ?? "they"} said.`, checkInMinutes: 3 }, result: { event_ids: ids, parked: false, answered: true } }
       }

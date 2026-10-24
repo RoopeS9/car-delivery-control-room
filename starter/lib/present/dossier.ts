@@ -258,9 +258,11 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
     if (ingestedIds.has(call.id)) continue
     const item = roboCallItem(call)
     // The call service stamps calls with its own wall clock, which can be ahead of the simulated one.
-    if (item.at && !isBefore(item.at, now)) item.detail = [item.detail, "Timed by the call service's own clock, not the simulated clock."].filter(Boolean).join(" ")
+    const ahead = Boolean(item.at && !isBefore(item.at, now))
+    if (ahead) item.detail = [item.detail, "Timed by the call service's own clock, not the simulated clock."].filter(Boolean).join(" ")
     behind.push(item)
-    recent.push({ id: item.id, at: call.startedAt, text: item.title })
+    // A delivery run from the Demo page walks the order's future; its calls say so instead of reading as done.
+    recent.push({ id: item.id, at: call.startedAt, text: ahead ? `${item.title} (simulated delivery run, ahead of the clock)` : item.title })
   }
 
   // Where the dossier service has typed a record, its evidence word wins over ours, except for judgements made here against the clock.

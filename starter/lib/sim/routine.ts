@@ -3,7 +3,7 @@
 // quiet moving order that no demo scenario touches. `npm run sim:seed-routine`
 // runs the real agent on them; the demo reset can keep the results.
 
-import { inArray, isNull, notInArray, or } from "drizzle-orm"
+import { and, inArray, isNull, like, notInArray, or } from "drizzle-orm"
 import { crDb } from "@/lib/cr/db"
 import { resetCrData } from "@/lib/cr/queries"
 import { crAgentRuns, crCases, crEffects, crEvents, crProposals, crTelemetry } from "@/lib/cr/schema"
@@ -42,12 +42,20 @@ export async function routineCaseCount(): Promise<number> {
  * cases, messages and agent runs stay; everything else goes, telemetry included
  * (it is regenerated from the sim clock). Autonomy settings always stay.
  */
+/**
+ * Messages the app filed in the order conversations (sent customer and site messages, the operator's helpdesk):
+ * rows with an `app-` id. The dataset's own messages stay.
+ */
+async function clearAppMessages(keep: string[]): Promise<void> {
+  const { conversations, messages } = await import("@/lib/schema")
+  const db = crDb()
+  await db.delete(messages).where(and(like(messages.id, "msg-app-%"), keep.length ? notInArray(messages.orderId, keep) : undefined))
+  await db.delete(conversations).where(and(like(conversations.id, "conv-app-%"), keep.length ? notInArray(conversations.orderId, keep) : undefined))
+}
+
 export async function clearDemoData(options: { keepRoutine: boolean }): Promise<void> {
-  if (!options.keepRoutine) {
-    await clearVoiceData()
-    return resetCrData()
-  }
-  const keep = await routineOrderIds()
+  const keep = options.keepRoutine ? await routineOrderIds() : []
+  await clearAppMessages(keep)
   if (keep.length === 0) {
     await clearVoiceData()
     return resetCrData()

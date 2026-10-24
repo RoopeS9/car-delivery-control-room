@@ -11,6 +11,7 @@ import { simNowIso } from "@/lib/cr/clock"
 import { buildEffectiveOrder } from "@/lib/cr/effective"
 import { latestPositions, latestTelemetry, listCases, listEffects, listEvents, listProposals, type TelemetryRow } from "@/lib/cr/queries"
 import { crCalls, crCallTurns } from "@/lib/voice/schema"
+import { lifecycleByOrder, lifecycleOf, milestoneEvents, overlayAssignment, overlayLane, overlayReservation, overlayStatus, syntheticEvents, type Lifecycle } from "@/lib/cr/lifecycle"
 import { syncTelemetry } from "@/lib/sim/sync"
 import { Directory, snapshotNames } from "./actors"
 import { type Bundle, type CrSlice, emptyCr, type PlaceRow, type RelatedRow, type SiteRow } from "./bundle"
@@ -159,8 +160,27 @@ export function makeBundle(input: {
   related: Record<string, RelatedRow[] | undefined>
   bundleOrderRefs: Record<string, string>
   cr: CrSlice
+  /** The driver's reports in this app, laid over the snapshot (see lib/cr/lifecycle.ts). */
+  lifecycle?: Lifecycle
 }): Bundle {
-  const { shared, order } = input
+  const { shared } = input
+  const lifecycle = input.lifecycle && Object.keys(input.lifecycle).length ? input.lifecycle : undefined
+  const order = lifecycle ? { ...input.order, status: overlayStatus(input.order.status, lifecycle), displayLane: overlayLane(input.order.displayLane, input.order.status, lifecycle) } : input.order
+  let related = input.related
+  let events = input.events
+  if (lifecycle) {
+    const assignments = (related.work_assignments ?? []).map((row) => ({ ...row, details: overlayAssignment({ ...row.details, id: row.id } as Record<string, unknown>, lifecycle) }))
+    const reservations = (related.travel_reservations ?? []).map((row) => ({ ...row, details: overlayReservation(row.details as Record<string, unknown>, lifecycle) }))
+    related = { ...related, work_assignments: assignments, ...(related.travel_reservations ? { travel_reservations: reservations } : {}) }
+    const collected = lifecycle.COLLECTED ?? lifecycle.DELIVERED
+    const assignment = assignments.find((row) => row.id === collected?.data.assignment_id)
+    const segmentId = Array.isArray(assignment?.details.segment_ids) ? String(assignment.details.segment_ids[0] ?? "") || null : null
+    const synthetic = syntheticEvents(order.id, lifecycle, (related.transport_points ?? []).map((row) => ({ ...row.details, id: row.id })), segmentId, input.order.status)
+    events = [...events, ...synthetic.map((row) => ({
+      id: String(row.id), orderId: order.id, command: String(row.command), targetType: String(row.target_type), targetId: String(row.target_id),
+      recordedAt: new Date(String(row.recorded_at)), details: row,
+    }) as (typeof operationalEvents.$inferSelect))]
+  }
   return {
     snapshotAt: shared.snapshotAt,
     order: {
@@ -189,18 +209,18 @@ export function makeBundle(input: {
       id: message.id, orderId: message.orderId, conversationId: message.conversationId, authorType: message.authorType,
       body: message.body, authoredAt: iso(message.authoredAt), details: message.details,
     })),
-    events: input.events.map((event) => ({
+    events: events.map((event) => ({
       id: event.id, orderId: event.orderId, command: event.command, targetType: event.targetType, targetId: event.targetId,
       recordedAt: iso(event.recordedAt), details: event.details,
     })),
-    related: input.related,
+    related,
     places: shared.places,
     sites: shared.sites,
     dir: input.dir,
     inboxThreads: inboxFor(shared, order.id),
     bundleOrderRefs: input.bundleOrderRefs,
     cr: { ...input.cr, effective: buildEffectiveOrder(order.id,
-      Object.entries(input.related).flatMap(([collection, records]) => (records ?? []).map((record) => ({ collection, details: record.details }))), input.cr.effects) },
+      Object.entries(related).flatMap(([collection, records]) => (records ?? []).map((record) => ({ collection, details: record.details }))), input.cr.effects) },
   }
 }
 
@@ -217,6 +237,7 @@ export async function loadBoardBundles(): Promise<{ snapshotAt: string | null; s
     db.select().from(operationalEvents).where(inArray(operationalEvents.command, ["vehicle.picked_up", "vehicle.delivered"])),
     loadCr(),
   ])
+  const lifecycles = lifecycleByOrder(await milestoneEvents().catch(() => []))
   const group = <T extends { orderId: string | null }>(items: T[]) => {
     const map = new Map<string, T[]>()
     for (const item of items) {
@@ -262,6 +283,7 @@ export async function loadBoardBundles(): Promise<{ snapshotAt: string | null; s
     related: relatedByOrder.get(order.id) ?? {},
     bundleOrderRefs: {},
     cr: cr.byOrder.get(order.id) ?? emptyCr(cr.now),
+    lifecycle: lifecycles.get(order.id),
   }))
   return { snapshotAt: shared.snapshotAt, simNow: cr.now, bundles }
 }
@@ -372,9 +394,10 @@ export async function loadOrder(id: string): Promise<OrderLoad | null> {
   const bundle = makeBundle({
     shared, dir, order, customer, items, alerts: orderAlerts, conversations: threads, messages: orderMessages,
     events: visibleEvents, related: relatedRows, bundleOrderRefs, cr: cr.byOrder.get(order.id) ?? emptyCr(cr.now),
+    lifecycle: await lifecycleOf(order.id).catch(() => undefined),
   })
   return {
-    order, customer, pickup, delivery, pickupSite: pickupSite ?? null, deliverySite: deliverySite ?? null, items,
+    order: { ...order, status: bundle.order.status, displayLane: bundle.order.lane }, customer, pickup, delivery, pickupSite: pickupSite ?? null, deliverySite: deliverySite ?? null, items,
     alerts: orderAlerts, threads, messages: orderMessages, events: visibleEvents, related, bundleOrderRefs, drivers: linkedDrivers, bundle,
   }
 }

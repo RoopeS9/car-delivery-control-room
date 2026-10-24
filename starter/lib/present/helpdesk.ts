@@ -131,7 +131,7 @@ export async function recordSentDraft(input: { orderId: string; caseKind: string
 /** The conversation category a case's message belongs to. */
 const CASE_CATEGORY: Record<string, string> = {
   VEHICLE_WARNING: "vehicle_condition", BREAKDOWN: "vehicle_condition", ACCIDENT: "vehicle_condition", DELAY: "schedule_and_eta", MISSED_CONNECTION: "ferry_and_route",
-  KEYS_ACCESS: "vehicle_custody", EXPENSE: "costs_and_payments", DRIVER_QUESTION: "driver_travel", SITE_QUESTION: "pickup_and_release", OPERATOR_QUESTION: "order_information",
+  KEYS_ACCESS: "vehicle_custody", EXPENSE: "costs_and_payments", DRIVER_QUESTION: "driver_travel", SITE_QUESTION: "pickup_and_release", OPERATOR_QUESTION: "order_information", HANDOVER: "delivery_and_receiver",
 }
 
 // ---------------------------------------------------------------- the inbox

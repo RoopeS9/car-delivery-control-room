@@ -1,7 +1,9 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useRef, useState } from "react"
+import type { Milestone } from "@/lib/cr/lifecycle"
 import type { FeedMessage, GpsData, ObdData } from "@/lib/cr/types"
 import type { SimObd } from "@/lib/sim/motion"
 import { fmtDateTime, fmtMoney, fmtRange } from "@/lib/present/time"
@@ -184,6 +186,7 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow, onJob }
         if (response?.ok) setReadings(await response.json() as Readings)
       }} />}
       <JobCard job={job} />
+      <StepCard job={job} driverId={driver.id} onDone={(line) => add([line])} />
 
       <section className={styles.thread} aria-label="Messages with Bahn" aria-live="polite">
         {thread.length === 0 && streaming === null && <p className={styles.threadEmpty}>
@@ -257,6 +260,9 @@ function Bubble({ message, onAnswer }: { message: ThreadMessage; onAnswer: (() =
         : <small>Calls open in the voice screen, which is not installed in this build. Reply here instead.</small>}
     </div>
   }
+  if (message.kind === "milestone") {
+    return <p className={styles.stepLine} role="status"><Icon name="check" size={13} /> {message.text} <span>{time} UTC</span></p>
+  }
   if (message.kind === "safety") {
     return <div className={styles.safety} role="alert">
       <span className={styles.who}>Safety instruction · {time} UTC</span>
@@ -311,11 +317,92 @@ function CarBar({ readings, onConnect }: { readings: Readings | null; onConnect:
   </div>
 }
 
+/** What the button says for each step. */
+const STEP_ACTION: Record<Milestone, string> = {
+  ARRIVED_PICKUP: "I'm at the pickup",
+  COLLECTED: "Car and keys collected",
+  CHECKED_IN: "Checked in at the terminal",
+  ARRIVED_DELIVERY: "I'm at the delivery address",
+  DELIVERED: "Hand over the car",
+}
+
+/**
+ * The delivery's steps, one tap each, in order. Collecting and handing over ask for the keys counted; the handover
+ * asks who took the car. Each report shows on the map and the order at once; the handover brings operations the
+ * customer's delivery confirmation to approve.
+ */
+function StepCard({ job, driverId, onDone }: { job: DriverJob; driverId: string; onDone: (line: ThreadMessage) => void }) {
+  const router = useRouter()
+  const [busy, setBusy] = useState(false)
+  const [form, setForm] = useState(false)
+  const [keys, setKeys] = useState(2)
+  const [receiver, setReceiver] = useState("")
+  const [error, setError] = useState("")
+  // Going straight past an optional arrival to the step after it.
+  const [skipped, setSkipped] = useState<Milestone | null>(null)
+  const done = job.steps.filter((step) => step.at).length
+  const last = [...job.steps].reverse().find((step) => step.at)
+  if (job.status === "DELIVERED" || !job.next) {
+    return <section className={`${styles.steps} ${styles.stepsDone}`} aria-label="Delivery steps">
+      <p><Icon name="check" size={14} /> <b>Delivered.</b> {last ? `${last.label}, ${last.at!.slice(11, 16)} UTC.` : ""} Thank you.</p>
+    </section>
+  }
+  const next = skipped && job.steps.some((step) => step.milestone === skipped && !step.at) ? skipped : job.next
+  const needsForm = next === "COLLECTED" || next === "DELIVERED"
+  // An arrival is optional: from it the driver can go straight to the step after.
+  const skipTo: Milestone | null = next === "ARRIVED_PICKUP" ? "COLLECTED" : next === "ARRIVED_DELIVERY" ? "DELIVERED" : null
+
+  async function report(milestone: Milestone) {
+    if (milestone === "DELIVERED" && !receiver.trim()) { setError("Write who took the car and keys."); return }
+    setBusy(true)
+    setError("")
+    try {
+      const response = await fetch("/api/channels/driver/milestone", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ orderRef: job.reference, driverId, milestone, keys: milestone === "COLLECTED" || milestone === "DELIVERED" ? keys : null, receiverName: milestone === "DELIVERED" ? receiver.trim() : null }),
+      })
+      const result = await response.json() as { eventId?: string; at?: string; text?: string; error?: string }
+      if (!response.ok || !result.eventId) throw new Error(result.error ?? "The step could not be recorded.")
+      onDone({ id: result.eventId, at: result.at ?? new Date().toISOString(), from: "me", fromName: "You", kind: "milestone", text: result.text ?? STEP_ACTION[milestone], voice: false, photo: null, photoSubject: null, origin: null })
+      setForm(false)
+      setSkipped(null)
+      router.refresh()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The step could not be recorded.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return <section className={styles.steps} aria-label="Delivery steps">
+    <div className={styles.stepHead}>
+      <ol className={styles.stepDots} aria-label={`${done} of ${job.steps.length} steps done`}>
+        {job.steps.map((step) => <li key={step.milestone} className={step.at ? styles.stepDone : step.milestone === next ? styles.stepNow : ""} title={`${step.label}${step.at ? `, ${step.at.slice(11, 16)} UTC` : ""}`} />)}
+      </ol>
+      <span className={styles.stepLast}>{last ? `${last.label} ${last.at!.slice(11, 16)} UTC` : "Nothing reported yet"}</span>
+    </div>
+    {form && needsForm ? <div className={styles.stepForm}>
+      {next === "DELIVERED" && <label>Who took the car?<input value={receiver} onChange={(event) => setReceiver(event.target.value)} placeholder="Name of the person at the desk" autoFocus /></label>}
+      <label>Keys handed {next === "DELIVERED" ? "over" : "to you"}
+        <select value={keys} onChange={(event) => setKeys(Number(event.target.value))}>{[1, 2, 3, 4].map((count) => <option key={count} value={count}>{count}</option>)}</select>
+      </label>
+      <div className={styles.stepButtons}>
+        <button type="button" onClick={() => void report(next)} disabled={busy}>{busy ? "Recording…" : next === "DELIVERED" ? "Confirm handover" : "Confirm collection"}</button>
+        <button type="button" className={styles.quiet} onClick={() => { setForm(false); setSkipped(null) }} disabled={busy}>Cancel</button>
+      </div>
+    </div> : <div className={styles.stepButtons}>
+      <button type="button" onClick={() => (needsForm ? setForm(true) : void report(next))} disabled={busy}>{busy ? "Recording…" : STEP_ACTION[next]}</button>
+      {skipTo && <button type="button" className={styles.quiet} onClick={() => { setSkipped(skipTo); setForm(true) }} disabled={busy}>{STEP_ACTION[skipTo]}</button>}
+    </div>}
+    {error && <p className={styles.stepError} role="alert">{error}</p>}
+  </section>
+}
+
 function JobCard({ job }: { job: DriverJob }) {
   const [open, setOpen] = useState(false)
   return <section className={styles.job} aria-label="Your job">
     <button type="button" className={styles.jobHead} onClick={() => setOpen((value) => !value)} aria-expanded={open}>
-      <span className={styles.jobKicker}>{job.status === "IN_PROGRESS" ? "Driving now" : "Next job"} · <span className="mono">{job.reference}</span></span>
+      <span className={styles.jobKicker}>{job.status === "IN_PROGRESS" ? "Driving now" : job.status === "DELIVERED" ? "Delivered" : "Next job"} · <span className="mono">{job.reference}</span></span>
       <b>{job.vehicle.title}{job.vehicle.plate ? <span className="mono"> · {job.vehicle.plate}</span> : null}</b>
       <span className={styles.jobRoute}>{job.pickup.city} <Icon name="arrow" size={13} /> {job.delivery.city}</span>
       <Icon name="chevron" size={16} className={`${styles.chevron}${open ? ` ${styles.chevronOpen}` : ""}`} />
@@ -349,7 +436,9 @@ function JobCard({ job }: { job: DriverJob }) {
 
 /** The one time that matters next, for the folded card. */
 function nextLine(job: DriverJob): string {
+  if (job.status === "DELIVERED") return "Handed over. Nothing more to do on this job."
   if (job.status === "ASSIGNED" && job.pickupSlot) return `Pick up ${fmtRange(job.pickupSlot.startAt, job.pickupSlot.endAt, job.pickupSlot.timezone)}`
+  if (job.ferry?.checkInConfirmed) return job.ferry.departureAt ? `Checked in. Ferry departs ${fmtDateTime(job.ferry.departureAt, job.ferry.timezone)}` : "Checked in for the ferry"
   if (job.ferry?.checkInCutoffAt) return `Ferry check-in by ${fmtDateTime(job.ferry.checkInCutoffAt, job.ferry.timezone)}`
   if (job.ferry) return job.ferry.departureAt ? `Ferry departs ${fmtDateTime(job.ferry.departureAt, job.ferry.timezone)}` : "Ferry sailing time unknown"
   if (job.deliveryPromise) return `Deliver ${fmtRange(job.deliveryPromise.startAt, job.deliveryPromise.endAt, job.deliveryPromise.timezone)}`

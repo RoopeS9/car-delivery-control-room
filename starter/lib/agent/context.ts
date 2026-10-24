@@ -6,6 +6,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm"
 import { crDb } from "@/lib/cr/db"
 import { effectiveOrder, type EffectiveBooking, type EffectiveOrder } from "@/lib/cr/effective"
 import { latestTelemetry } from "@/lib/cr/queries"
+import { lifecycleOf, overlayAssignment, overlayReservation, overlayStatus } from "@/lib/cr/lifecycle"
 import type { Audience, GpsData, ObdData, SourceRef } from "@/lib/cr/types"
 import { addresses, alerts, conversations, customers, drivers, messages, orderItems, orders, relatedRecords, sites, vehicles } from "@/lib/schema"
 import { firstName, localTime, money, relative, utcTime } from "./format"
@@ -70,7 +71,7 @@ export async function loadOrderFacts(orderId: string): Promise<OrderFacts | null
   const db = crDb()
   const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1)
   if (!order) return null
-  const [customerRows, itemRows, addressRows, related, alertRows, conversationRows, terminalRows] = await Promise.all([
+  const [customerRows, itemRows, addressRows, related, alertRows, conversationRows, terminalRows, lifecycle] = await Promise.all([
     db.select().from(customers).where(eq(customers.id, order.customerId)).limit(1),
     db.select({ item: orderItems, vehicle: vehicles }).from(orderItems).innerJoin(vehicles, eq(orderItems.vehicleId, vehicles.id))
       .where(eq(orderItems.orderId, orderId)),
@@ -79,10 +80,14 @@ export async function loadOrderFacts(orderId: string): Promise<OrderFacts | null
     db.select().from(alerts).where(eq(alerts.orderId, orderId)).orderBy(asc(alerts.triggeredAt)),
     db.select().from(conversations).where(and(eq(conversations.orderId, orderId), eq(conversations.status, "OPEN"))),
     db.select().from(relatedRecords).where(eq(relatedRecords.collection, "ferry_terminals")),
+    lifecycleOf(orderId).catch(() => undefined),
   ])
   const siteIds = [order.pickupSiteId, order.deliverySiteId].filter((id): id is string => Boolean(id))
   const siteRows = siteIds.length ? await db.select().from(sites).where(inArray(sites.id, siteIds)) : []
-  const byCollection = (name: string) => related.filter((row) => row.collection === name).map((row) => row.details)
+  // The driver's reports in this app (collected, checked in, handed over) are laid over the snapshot.
+  const overlay = (name: string, details: Raw): Raw => name === "work_assignments" ? overlayAssignment({ ...details, id: details.id ?? null }, lifecycle)
+    : name === "travel_reservations" ? overlayReservation(details, lifecycle) : details
+  const byCollection = (name: string) => related.filter((row) => row.collection === name).map((row) => overlay(name, row.details))
 
   const details = byCollection("order_endpoint_details")
   const endpoint = (end: End, addressId: string, siteId: string | null): Endpoint => {
@@ -108,7 +113,7 @@ export async function loadOrderFacts(orderId: string): Promise<OrderFacts | null
   return {
     id: order.id,
     reference: order.reference,
-    status: order.status,
+    status: overlayStatus(order.status, lifecycle),
     routeKind: order.routeKind,
     readiness: str(order.details.readiness_status),
     customer: { id: order.customerId, name: customer?.name ?? "Unknown customer", country: customer?.country ?? "" },

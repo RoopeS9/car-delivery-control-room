@@ -138,3 +138,25 @@
 .call p { margin: 2px 0 8px; font-size: 14px; color: var(--ink); }
 .call small { display: block; font-size: 12px; color: var(--muted); }
 .call .callButton { width: max-content; }
+
+/* ── Delivery steps ─────────────────────────────────────────────────────── */
+.steps { margin: 8px 12px 0; padding: 10px 12px; border-radius: 14px; background: var(--tray); box-shadow: 0 0 0 1px var(--hair-soft); display: grid; gap: 8px; }
+.stepsDone { background: var(--teal-bg); color: var(--teal-ink); box-shadow: none; }
+.stepsDone p { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.stepHead { display: flex; align-items: center; gap: 10px; }
+.stepDots { display: flex; gap: 4px; list-style: none; margin: 0; padding: 0; }
+.stepDots li { width: 18px; height: 6px; border-radius: 3px; background: var(--hair); }
+.stepDots .stepDone { background: var(--teal); }
+.stepDots .stepNow { background: var(--ink); }
+.stepLast { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stepButtons { display: flex; flex-wrap: wrap; gap: 8px; }
+.stepButtons button { height: 34px; padding: 0 14px; border-radius: 999px; border: 0; background: var(--ink); color: var(--birch); font-size: 13px; font-weight: 600; }
+.stepButtons button:disabled { opacity: 0.6; }
+.stepButtons .quiet { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1px var(--hair); }
+.stepForm { display: grid; gap: 8px; }
+.stepForm label { display: grid; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.stepForm input, .stepForm select { height: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--hair); background: var(--birch); color: var(--ink); font-size: 14px; font-weight: 400; }
+.stepError { font-size: 12.5px; color: var(--red-ink); }
+.stepLine { margin: 6px 8px; font-size: 12.5px; font-weight: 600; color: var(--teal-ink); text-align: center; }
+.stepLine svg { display: inline; vertical-align: -2px; margin-right: 3px; }
+.stepLine span { margin-left: 4px; font-weight: 400; color: var(--subtle); white-space: nowrap; }
