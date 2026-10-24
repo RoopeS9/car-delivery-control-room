@@ -25,8 +25,10 @@ const ATTRIBUTION = 'Tiles &copy; <a href="https://www.esri.com/">Esri</a>, HERE
 const POLL_MS = 3000
 const GLIDE_MS = 1400
 const PULSE_MS = 9000
-/** Below this zoom, orders waiting in one city fold into a single harbour mark. */
-const FAN_ZOOM = 7
+/** Below this zoom, orders waiting close together fold into a harbour mark; from here up every order is its own mark. */
+const FAN_ZOOM = 6
+/** Harbour marks gather cities whose marks would sit within this many pixels. */
+const CLUSTER_PX = 28
 
 type ChartTheme = "dark" | "light"
 
@@ -296,14 +298,21 @@ export function ChartHome({ initial }: { initial: ChartView }) {
         place(node.orderId, [node.lat, node.lng], vesselHtml(node, isSelected), tipHtml(node), 26, [13, 13], zFor("vessel", node.attention, isSelected), select, node.trail, node.orderId)
       }
     }
-    for (const [city, group] of berths) {
-      const sorted = [...group].sort((a, b) => rank[b.attention] - rank[a.attention] || a.reference.localeCompare(b.reference))
-      if (!fanOut && sorted.length > 1) {
-        const first = sorted[0]
-        place(`harbour:${city}`, [first.lat, first.lng], harbourHtml(sorted), harbourTip(city.split("|")[0], sorted), 32, [16, 16], zFor("harbour", first.attention),
-          () => map.current?.flyTo([first.lat, first.lng], FAN_ZOOM + 1, { duration: 0.7 }), null, null)
-        continue
+    // Below FAN_ZOOM, cities whose berths would overlap on screen share one harbour mark (greedy, most urgent city first).
+    // From FAN_ZOOM up nothing is grouped; only orders at the very same point fan out around it.
+    const urgency = (group: ChartNode[]) => Math.max(...group.map((node) => rank[node.attention]))
+    const cities = [...berths].sort((a, b) => urgency(b[1]) - urgency(a[1]) || b[1].length - a[1].length)
+    const harbours: { key: string; anchor: ChartNode; nodes: ChartNode[]; point: { x: number; y: number }; names: string[] }[] = []
+    if (!fanOut) {
+      for (const [city, group] of cities) {
+        const point = map.current.latLngToLayerPoint([group[0].lat, group[0].lng])
+        const near = harbours.find((harbour) => Math.hypot(harbour.point.x - point.x, harbour.point.y - point.y) < CLUSTER_PX)
+        if (near) { near.nodes.push(...group); near.names.push(city.split("|")[0]); near.key += `+${city}` }
+        else harbours.push({ key: `harbour:${city}`, anchor: group[0], nodes: [...group], point, names: [city.split("|")[0]] })
       }
+    }
+    const spread = (group: ChartNode[]) => {
+      const sorted = [...group].sort((a, b) => rank[b.attention] - rank[a.attention] || a.reference.localeCompare(b.reference))
       sorted.forEach((node, index) => {
         const [dx, dy] = sorted.length === 1 ? [0, 0] : fan(index)
         const isSelected = node.orderId === selectedId
@@ -311,6 +320,14 @@ export function ChartHome({ initial }: { initial: ChartView }) {
         place(node.orderId, [node.lat, node.lng], berthHtml(node, isSelected), tipHtml(node), size, [Math.round(size / 2 - dx), Math.round(size / 2 - dy)], zFor("berth", node.attention, isSelected),
           (event?: { originalEvent?: Event }) => { event?.originalEvent?.stopPropagation(); setSelectedId(node.orderId) }, null, node.orderId)
       })
+    }
+    if (fanOut) for (const [, group] of berths) spread(group)
+    for (const harbour of harbours) {
+      if (harbour.nodes.length === 1) { spread(harbour.nodes); continue }
+      const sorted = [...harbour.nodes].sort((a, b) => rank[b.attention] - rank[a.attention] || a.reference.localeCompare(b.reference))
+      const at = harbour.anchor
+      place(harbour.key, [at.lat, at.lng], harbourHtml(sorted), harbourTip(harbour.names.join(", "), sorted), 32, [16, 16], zFor("harbour", sorted[0].attention),
+        () => map.current?.flyTo([at.lat, at.lng], Math.max(FAN_ZOOM, (map.current?.getZoom() ?? 5) + 1), { duration: 0.6 }), null, null)
     }
     for (const [key, entry] of markers.current) {
       if (seen.has(key)) continue
@@ -394,7 +411,7 @@ export function ChartHome({ initial }: { initial: ChartView }) {
     const node = byId.get(id)
     setSelectedId(id)
     if (node && map.current) {
-      const target = map.current.getZoom() < FAN_ZOOM && node.kind === "berth" ? FAN_ZOOM + 1 : Math.max(map.current.getZoom(), 6)
+      const target = Math.max(map.current.getZoom(), FAN_ZOOM)
       map.current.flyTo([node.lat, node.lng], target, { duration: 0.7 })
     }
   }, [byId])
