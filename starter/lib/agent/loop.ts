@@ -306,7 +306,8 @@ async function caseNotes(request: TurnRequest, caseRow: CaseRow, facts: OrderFac
 
 function effortFor(request: TurnRequest): Effort {
   if (request.effort) return request.effort
-  return request.trigger === "inbound" || request.trigger === "telemetry" ? fastEffort() : deepEffort()
+  // An operator waiting at the Ask box is a person waiting too: a read-only answer runs at the fast effort.
+  return request.trigger === "inbound" || request.trigger === "telemetry" || request.trigger === "ask" ? fastEffort() : deepEffort()
 }
 
 async function deliver(request: TurnRequest, caseRow: CaseRow, facts: OrderFacts, reply: string, extra: Record<string, unknown> = {}): Promise<{ eventId: string | null; held: boolean }> {
