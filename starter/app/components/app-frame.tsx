@@ -28,6 +28,17 @@ const GROUPS: { label: string; links: NavLink[] }[] = [
   ] },
 ]
 
+/** Pages for the team: the simulated apps and test screens, out of the way of the operator's navigation. */
+const MORE: { href: string; label: string }[] = [
+  { href: "/driver", label: "Driver app" },
+  { href: "/site", label: "Pickup site app" },
+  { href: "/demo", label: "Demo panel" },
+  { href: "/board", label: "All orders board" },
+  { href: "/queue", label: "Needs you queue" },
+  { href: "/agent", label: "How the agent works" },
+  { href: "/driver/voice/test", label: "Voice test page" },
+]
+
 /**
  * The one frame: the left navigation and the page beside it. On the map the
  * navigation folds to a thin rail of icons and counts and opens over the map
@@ -42,6 +53,7 @@ export function AppFrame({ children, section, snapshotAt, board = false, rail = 
   extra?: ReactNode
 }) {
   const [open, setOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   useEffect(() => {
     if (!open) return
     const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false) }
@@ -73,6 +85,12 @@ export function AppFrame({ children, section, snapshotAt, board = false, rail = 
       </nav>
       {rail && open && extra}
       <div className="sidebar-foot">
+        <details className="nav-more" open={moreOpen} onToggle={(event) => setMoreOpen((event.target as HTMLDetailsElement).open)}>
+          <summary onClick={(event) => { if (folded) { event.preventDefault(); setOpen(true); setMoreOpen(true) } }} title="More pages">
+            <Icon name="dot" size={14} /><span className="nav-text">More…</span>
+          </summary>
+          <ul>{MORE.map((item) => <li key={item.href}><Link href={item.href} className="nav-more-link">{item.label}</Link></li>)}</ul>
+        </details>
         <ThemeToggle />
         <p>{snapshotAt ? `Snapshot ${fmtDateTime(snapshotAt)}` : "Fictional snapshot"}<br />Fictional data · nothing real is booked or sent</p>
       </div>

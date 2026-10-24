@@ -267,6 +267,7 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
   if (slot?.tone === "warn") watching.push({ id: "w-slot", tone: "warn", at: slot.start, text: `Pickup slot ${t.at(slot.start)}: ${slot.note}`, why: "The slot is the selected pickup window; nothing in the records shows the car collected.", sources: ["Pickup slot in the records"] })
   for (const item of open) {
     if (need && item.title === need.title) continue
+    if (item.kind === "decision") continue
     const since = chainSteps.find((step) => step.text.toLowerCase().includes(item.title.toLowerCase().replace(/^open alert: /, "").slice(0, 20)))?.at ?? item.at
     const conflict = item.kind === "claim"
     watching.push({
@@ -309,14 +310,17 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
     const where = placeLabel ?? ""
     let state = `${first} is driving it to ${header.to.city}`
     if (phoneQuiet && gpsAt) state = `${first}'s phone has been quiet since ${t.at(gpsAt)}, last seen ${where.replace(/^(On the road|Last app position|Stopped) /, "")}`
-    else if (/^Stopped|^Pulling into/.test(where)) state = `${first} has stopped ${where.replace(/^Stopped /, "")}`
+    else if (/^Pulling into/.test(where)) state = `${first} is ${where.charAt(0).toLowerCase()}${where.slice(1)}`
+    else if (/^Stopped/.test(where) || car?.stoppedNote) state = `${first} has stopped ${where.replace(/^Stopped /, "")}`
+    else if (/service area|parking|rest area/i.test(where) && !/^On the road/.test(where)) state = `${first} has stopped at ${where}`
     else if (/^On the ferry/.test(where)) state = `${first} is on the ferry to ${car?.ferry?.destinationName ?? header.to.city}`
     else if (/^At /.test(where)) state = `${first} is waiting ${where.charAt(0).toLowerCase()}${where.slice(1)}`
     else if (/^Near the delivery/.test(where)) state = `${first} is near the delivery address in ${header.to.city}`
     let timing = ""
     if (etaDate && promiseDate?.end && promiseRange) {
       const late = minutesBetween(promiseDate.end, etaDate.start) ?? 0
-      timing = phoneQuiet ? `; the driver app's last estimate was ${t.at(etaDate.start)} against the ${promiseRange} promise`
+      const halted = !/^(\w+) is (driving|on the ferry|near)/.test(state)
+      timing = phoneQuiet || halted ? `; the driver app's last estimate was ${t.at(etaDate.start)} against the ${promiseRange} promise`
         : late > 0 ? `, about ${duration(late)} late against the ${promiseRange} promise by the driver app's estimate`
         : `, expected ${t.at(etaDate.start)}, inside the ${promiseRange} promise`
     } else if (promiseRange) timing = `; promised ${promiseRange}`
