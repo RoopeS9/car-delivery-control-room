@@ -44,7 +44,8 @@ decision card where every fact shows its source.*
 | Map | Simulated phone GPS for moving orders, every position labelled "simulated" with its age. |
 | Drivability | Agent may give **safety-only** advice immediately ("stop the car now", "stay safe off the road"). Any "you can keep driving" needs an operator yes. The car owner (customer) decides recovery. |
 | Codebase | Extend `starter/` (Next.js 16, Postgres, Drizzle). Keep the old board at `/board`. |
-| Model | Claude via the official `@anthropic-ai/sdk`. Default `claude-opus-5-5`; model and effort come from env vars so we can tune for latency. |
+| Model access | Claude **through OpenRouter** (our event credits), using the official `@anthropic-ai/sdk` pointed at OpenRouter's Anthropic-compatible endpoint. Opus 5.5 for the demo; cheaper models while developing. See 4.2. |
+| Product name | **Road Desk**. |
 | Queue scope | The "Needs you" queue shows **only our road and driver cases** (`cr_cases`). Other dataset orders that need a person stay on the old board, reached by one quiet link with a count. |
 | After a decision | When an action needs a human outside the system (e.g. "call the dealer"), the **operator does it and logs the outcome** in one line; the agent picks the case up from there. The operator can also give the agent a free-text instruction instead of approving. |
 | Demo device | Driver app runs in a **second browser window on the same laptop** (localhost, so the mic works without HTTPS). |
@@ -60,7 +61,11 @@ These are enforced **in code** (the tool executor), not only in the prompt.
    pays Bahn (`orders.customer_id`). A pickup or delivery site whose
    `sites.customer_id` equals the order's customer counts as the customer.
    Messages to a customer are always a proposal that a person approves; this
-   can never be set to automatic.
+   can never be set to automatic. **Replies count too:** when a customer writes
+   in, the agent drafts the reply and a person approves it.
+   In this dataset the delivery site belongs to the customer on 63 orders
+   (including all our scenario orders), while the pickup site does on only 4.
+   So pickup desks are normally fine to contact, but receiving dealers are not.
 2. **Approval before change.** Bookings, dates and promises, costs, driver
    reassignment, "continue driving" clearance and customer messages all go
    through a proposal. Looking things up and asking drivers or sites questions
@@ -127,9 +132,15 @@ UTC): "Where do I leave the keys?" or "Can I claim this parking receipt?" The
 agent answers from the order and site records, or files the expense as a
 proposal, and closes the case. In the queue it shows as "handled by agent".
 
-**D. Pickup site asks for an ETA.** A site contact writes "When is the driver
-here?" The agent answers only about that order, from the simulated GPS and
-plan, saying where the estimate comes from.
+**D. Pickup site asks about the driver.** CD-420442, pickup at Orvendin Cars
+Stockholm (not the customer), site desk **Uma Aldermere** (contact confirmed
+from the site profile), selected pickup slot **22 Oct from 08:00 UTC**, driver
+Kasper Darevik, assignment status `ASSIGNED`. Uma writes "Is your driver still
+coming tomorrow morning?" The agent answers only about this order, from the
+assignment and slot records, and says what it does not know: "Kasper Darevik
+is booked for your slot tomorrow from 08:00 UTC. He has not started the
+journey yet, so there is no live position; we will message you if anything
+changes." No customer, price or other-order details.
 
 **E. Overview.** Map and queue with ~100 orders: only a handful need a person.
 
@@ -207,9 +218,42 @@ pending `cr_proposals` count as "needs a person". Keep `npm run smoke` passing.
 ### 4.2 Agent (`lib/agent/`)
 
 Read the `claude-api` skill or the live Anthropic docs before writing this
-code. Do not guess SDK names. Key points for the current API:
+code. Do not guess SDK names.
 
-- `@anthropic-ai/sdk`, model from `AGENT_MODEL` (default `claude-opus-5-5`).
+**Model access via OpenRouter** (verified 24 Oct with a real tool call on
+`anthropic/claude-opus-5.5`: tool use, `strict` tool schemas and
+`output_config.effort` all work):
+
+```ts
+import Anthropic from "@anthropic-ai/sdk"
+const client = new Anthropic({
+  baseURL: "https://openrouter.ai/api",        // no /v1: the SDK adds it
+  apiKey: null,
+  authToken: process.env.OPENROUTER_API_KEY,   // sent as Authorization: Bearer
+})
+// model ids use OpenRouter names: "anthropic/claude-opus-5.5",
+// "anthropic/claude-sonnet-5.5", "anthropic/claude-haiku-5.5"
+```
+
+- Put all of this in one module (`lib/agent/client.ts`) so nothing else knows
+  about OpenRouter.
+- Not available through OpenRouter: token counting (`count_tokens`); do not
+  rely on Anthropic beta-only parameters such as server-side refusal
+  `fallbacks`. Handle `stop_reason: "refusal"` by handing the case to a person.
+- Each response's `usage.cost` reports dollars spent. Log it in `cr_agent_runs`
+  and show the running total on `/demo`.
+- **Budget:** $60 in total (three $20 keys). The keys stop working a day after
+  the event. A short Opus 5.5 tool call cost $0.003; expect roughly $0.05–0.15
+  per agent turn with full order context. Use prompt caching (stable system
+  prompt + rulebook first), develop on `anthropic/claude-sonnet-5.5` or
+  `-haiku-5.5`, and switch to Opus 5.5 for the demo and video. The simulated
+  driver always uses Haiku 5.5.
+- **Never commit a key.** Keys live in `starter/.env` (gitignored) or the
+  cloud instance's environment settings.
+
+Key points for the current API:
+
+- Model from `AGENT_MODEL` (default `anthropic/claude-opus-5.5`).
 - Opus 5.5 thinking cannot be disabled; control depth with
   `output_config.effort`. Use `AGENT_EFFORT_FAST` (default `low`) for driver
   chat and voice turns, `AGENT_EFFORT_DEEP` (default `medium`) for case
@@ -220,7 +264,6 @@ code. Do not guess SDK names. Key points for the current API:
   passes through our gate and is logged** to `cr_agent_runs` and `cr_events`.
 - Stream for long turns. Cache the system prompt + rulebook (stable prefix
   first, volatile content last).
-- Include the server-side refusal `fallbacks` option, as the skill recommends.
 
 **One agent, three audiences.** The same loop runs with a different role
 preamble and tool subset depending on who it is talking to:
@@ -495,7 +538,7 @@ Local (and any cloud machine with Docker), from the repo root:
 
 ```sh
 cd starter
-cp .env.example .env          # add ANTHROPIC_API_KEY
+cp .env.example .env          # add OPENROUTER_API_KEY
 npm ci
 docker compose up -d --wait
 npm run db:push
@@ -512,13 +555,16 @@ optional for agent work; skip `attachments:seed` and the app still runs
 Env vars to add to `starter/.env.example`:
 
 ```
-ANTHROPIC_API_KEY=
-AGENT_MODEL=claude-opus-5-5
+OPENROUTER_API_KEY=
+AGENT_MODEL=anthropic/claude-sonnet-5.5     # switch to anthropic/claude-opus-5.5 for the demo
+SIM_DRIVER_MODEL=anthropic/claude-haiku-5.5
 AGENT_EFFORT_FAST=low
 AGENT_EFFORT_DEEP=medium
 SIM_NOW=2026-10-21T09:00:00Z
 SIM_DRIVER_ENABLED=true
 ```
+
+Remove the unused `ANTHROPIC_API_KEY` line from `.env.example`.
 
 Read `starter/AGENTS.md`: this Next.js version differs from what models
 remember. Check `node_modules/next/dist/docs/` before writing routes or

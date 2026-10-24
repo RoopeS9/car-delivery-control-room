@@ -54,6 +54,23 @@ Checked / changed / rejected:
   options and per-action effects (4.2b), live judging prep, a second cloud
   instance for stream C (we ended up with three cloud instances, one each for A, B and C).
 
+## 2026-10-24 · RoopeS + Claude Code (local) · open questions
+
+Asked: resolve the plan's open questions.
+
+Got / decided:
+- Our event credits are OpenRouter keys, not Anthropic keys. Before changing
+  the plan, the agent made one real tool call through OpenRouter's
+  Anthropic-compatible endpoint (Opus 5.5, strict tool schema, effort) to
+  check it works with the official Anthropic SDK. It did ($0.003). Third-party
+  docs found by search were treated as hints only, not facts.
+- Checked the data for the customer rule: the delivery site is the paying
+  customer on 63 orders, the pickup site on only 4, so the "site owned by the
+  customer counts as the customer" rule really matters.
+- Picked scenario D from the data (CD-420442, Stockholm pickup desk).
+- Customer replies always need approval, even when the customer wrote first.
+- Product name: Road Desk.
+
 ## 2026-10-24 ~12:15 UTC · Claude Code (stream A agent) · M0 foundation
 
 Asked: do M0 (shared contract) since `lib/cr/` did not exist, then move on to
