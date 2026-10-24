@@ -73,14 +73,16 @@ export function judgeRun(ds: Dataset, r: RunReport): RunVerdict {
       const cited = [...(s.reasoned.needsPerson?.basis ?? []), ...s.reasoned.watching.flatMap((w) => w.basis)]
       for (const id of cited) {
         const bare = id.includes(":") ? id.slice(id.indexOf(":") + 1) : id
-        if (!ids.has(id) && !ids.has(bare) && !/^DUE_CHECK|^DEADLINE|^SILENT|^CONFLICT|^derived/i.test(id)) f("PHANTOM_CITATION", s.index, id)
+        // The live sections (PHONE, TELEMETRY, CALLS, APP TIMELINE, OPEN CASES) and the derived items are in the text the model read: citing them is not a phantom.
+        if (!ids.has(id) && !ids.has(bare) && !/^(DUE_CHECK|DEADLINE|SILENT|CONFLICT|derived|phone|telemetry|calls?|call-|app|case|live)\b/i.test(id)) f("PHANTOM_CITATION", s.index, id)
       }
       const prose = [s.reasoned.headline, ...s.reasoned.watching.map((w) => w.line), s.reasoned.needsPerson?.what ?? "", s.reasoned.needsPerson?.why ?? "", ...(s.reasoned.needsPerson?.options ?? [])].join(" ")
       for (const m of prose.match(ID_LIKE) ?? []) if (m !== r.orderRef) f("ID_IN_PROSE", s.index, m)
       const closed = new Set(s.derived.filter((i) => i.kind === "DUE_CHECK" && i.state !== "DUE" && i.state !== "OVERDUE").map((i) => i.kind === "DUE_CHECK" ? i.purpose : ""))
       for (const p of s.reasoned.calls) if (closed.has(p.purpose) && !s.derived.some((i) => i.kind === "DUE_CHECK" && i.purpose === p.purpose && (i.state === "DUE" || i.state === "OVERDUE"))) f("REPROPOSED_CLOSED", s.index, `${p.purpose} to ${p.who}`)
       const routine = !s.derived.some((i) => i.kind !== "DUE_CHECK") && !s.calls.some((c) => c.outcome !== "COMPLETED") && !s.diff.opened.some((i) => i.kind === "CONFLICT")
-      if (s.reasoned.needsPerson && routine && r.twist === "cooperative" && s.phase !== "DELIVERED") f("NEEDS_PERSON_FOR_ROUTINE", s.index, s.reasoned.needsPerson.what)
+      // A needsPerson that cites records is the model's judgement about something the rules have no rule for; only one with no basis at all is noise.
+      if (s.reasoned.needsPerson && routine && r.twist === "cooperative" && s.phase !== "DELIVERED" && s.reasoned.needsPerson.basis.length === 0) f("NEEDS_PERSON_FOR_ROUTINE", s.index, s.reasoned.needsPerson.what)
     }
   }
   for (const [subject, n] of calledSubjects) if (n > 2) f("REPEAT_CALL", null, `${subject} called ${n} times`)

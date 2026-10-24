@@ -130,7 +130,10 @@ export async function runDelivery(ds: Dataset, orderId: string, report: RunRepor
       const step: RunStep = { index, label: instant.label, asOf, phase: d.phase.phase, basis: d.phase.basis, derived, diff, reasoned: null, reasonCostUsd: 0, calls: [], modelOnlyCalls: [], notes: [] }
       if (report.mode === "LIVE" && !live.pulledFrom) step.notes.push("the app did not answer: built from the dataset and stored calls only")
       report.steps.push(step)
-      const woken = diff.opened.length + diff.changed.length + diff.closed.length > 0 || index === 0
+      // A check that turned DONE is not news on its own (the call that closed it was the news); anything else
+      // closing (a deadline no longer at risk, a gap filled, a conflict gone) still is.
+      const newsworthyClosed = diff.closed.filter((i) => i.kind !== "DUE_CHECK")
+      const woken = diff.opened.length + diff.changed.length + newsworthyClosed.length > 0 || index === 0
       if (!woken) { step.notes.push("nothing changed in the derived layer: the model was not woken"); opts.onStep?.(report); continue }
       // 1. the reasoning step reads the dossier and the derived items
       try {
