@@ -52,6 +52,10 @@
 .transcript p { font-size: 14px; line-height: 1.45; }
 .turn-who { font-size: 12px; font-weight: 600; color: var(--brown); }
 .turn-who span { font-weight: 400; color: var(--subtle); margin-left: 4px; }
+/* Hearing the call: the line's voices, rendered on the call service. */
+.play-call { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.play-turn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-left: 6px; padding: 0; border: 0; border-radius: 50%; background: var(--hair-soft); color: var(--brown); vertical-align: middle; }
+.play-turn:hover, .play-turn.on { background: var(--teal-bg); color: var(--teal-ink); }
 .turn-slot, .turn-tool { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--green-ink); }
 .turn-tool { color: var(--muted); }
 .turn-tool.escalate { padding: 5px 8px; border-radius: 8px; background: var(--red-bg); color: var(--red-ink); font-weight: 500; }

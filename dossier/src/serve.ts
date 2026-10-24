@@ -8,7 +8,7 @@
 //   GET  /calls?ref=CD-xxxxxx             -> stored CallRecords (all, or for one order), newest first
 //   GET  /calls/:id                       -> one CallRecord
 import { createServer } from "node:http"
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { buildDossier, loadDataset } from "./build"
 import { briefFor } from "./brief"
 import { CallPurpose, CallRecord, type CallBrief } from "./live"
@@ -18,10 +18,12 @@ import { composeBrief, reason, renderDossier, type ReasonRun } from "./reason"
 import { ingestTranscript, runLlmCall } from "./llm-call"
 import { reviewCall } from "./review"
 import { cardText, contextPrompt } from "./context"
+import { renderCallAudio, ttsEnabled } from "./tts"
 
 const root = new URL("../", import.meta.url)
 const callsDir = new URL("data/out/calls/", root)
-mkdirSync(callsDir, { recursive: true })
+const audioDir = new URL("data/out/audio/", root)
+mkdirSync(callsDir, { recursive: true }); mkdirSync(audioDir, { recursive: true })
 const ds = loadDataset(new URL("data/dataset/", root))
 const byRef = new Map(ds.rows.orders.map((o) => [o.reference, o.id]))
 const purposeFor = (p: (typeof PERSONAS)[number]): CallPurpose => (p.inbound ? "DRIVER_INBOUND" : p.role === "PICKUP_SITE_DESK" ? "PICKUP_READINESS" : "DRIVER_START_CHECK")
@@ -140,7 +142,13 @@ createServer(async (req, res) => {
       const job: Job = { id: `job-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, personaId: persona.id, mode, startedAt: new Date().toISOString(), status: "running" }
       jobs.set(job.id, job)
       void (async () => {
-        try { const r = await runLlmCall(d, persona, purposeFor(persona), at); store(r.record); job.call = r.record; job.note = { costUsd: r.costUsd, briefBy: r.briefBy }; job.review = r.record.direction === "OUTBOUND" ? reviewCall(r.record) : null; job.status = "done" }
+        try {
+          const r = await runLlmCall(d, persona, purposeFor(persona), at); store(r.record)
+          // Speech for every turn, after the record is stored: a failed render never loses the call.
+          const spoken = await renderCallAudio(r.record, audioDir); if (spoken.rendered) store(spoken.call)
+          job.call = spoken.call; job.note = { costUsd: r.costUsd + spoken.costUsd, briefBy: r.briefBy, audio: ttsEnabled() ? { rendered: spoken.rendered, costUsd: spoken.costUsd, failed: spoken.failed } : null }
+          job.review = r.record.direction === "OUTBOUND" ? reviewCall(r.record) : null; job.status = "done"
+        }
         catch (e) { job.status = "failed"; job.error = (e as Error).message.slice(0, 400) }
       })()
       if (url.searchParams.get("sync") === "1") { while (job.status === "running") await new Promise((ok) => setTimeout(ok, 500)); return job.status === "done" ? json(res, 201, { ...job.call, review: job.review }) : json(res, 502, { error: job.error }) }
@@ -160,6 +168,14 @@ createServer(async (req, res) => {
       } catch (e) { return json(res, 502, { error: (e as Error).message.slice(0, 400) }) }
     }
     if (parts[0] === "calls" && parts[1] === "jobs" && parts[2]) { const j = jobs.get(parts[2]); return j ? json(res, 200, { id: j.id, status: j.status, personaId: j.personaId, startedAt: j.startedAt, call: j.call ?? null, review: j.review ?? null, note: j.note ?? null, error: j.error ?? null }) : json(res, 404, { error: "no such job" }) }
+    if (parts[0] === "calls" && parts[1] && parts[2] === "audio" && parts[3]) {
+      // A simulated call's turn, spoken (rendered with SIM_TTS=1).
+      const c = calls.get(parts[1]); const turn = c?.turns.find((t) => String(t.seq) === parts[3])
+      if (!c || !turn?.audioKey || !/^[a-z0-9-]+\/\d+\.mp3$/i.test(turn.audioKey)) return json(res, 404, { error: "no audio for that turn" })
+      const file = new URL(turn.audioKey, audioDir)
+      if (!existsSync(file)) return json(res, 404, { error: "audio file missing" })
+      res.writeHead(200, { "content-type": "audio/mpeg", "cache-control": "public, max-age=86400" }); return res.end(readFileSync(file))
+    }
     if (parts[0] === "calls" && parts[1] && parts[2] === "review") { const c = calls.get(parts[1]); return c ? json(res, 200, reviewCall(c)) : json(res, 404, { error: "no such call" }) }
     if (parts[0] === "calls" && parts[1]) { const c = calls.get(parts[1]); return c ? json(res, 200, c) : json(res, 404, { error: "no such call" }) }
     if (parts[0] === "calls") {

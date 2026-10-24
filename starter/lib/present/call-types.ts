@@ -2,7 +2,7 @@
 
 export type CallScenario = { id: string; orderRef: string; role: string; mood: string; purpose: string; inbound: boolean; title: string }
 
-export type CallTurn = { seq: number; speaker: "CALLER" | "CALLEE" | string; startedAt: string; endedAt?: string | null; text: string }
+export type CallTurn = { seq: number; speaker: "CALLER" | "CALLEE" | string; startedAt: string; endedAt?: string | null; text: string; audioKey?: string | null }
 export type CallSlot = { value: { slot: string; value: unknown }; turnSeq: number; quote: string }
 export type CallToolCall = { name?: string; tool?: string; reason?: string; args?: Record<string, unknown>; turnSeq?: number; [key: string]: unknown }
 

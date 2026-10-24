@@ -10,6 +10,7 @@ import { CallOverlay, type CallTarget } from "../line/call-screen"
 import { recall, remember } from "../role-memory"
 import "./calls.css"
 import { ClaimsList, MUST_NOT_WORDS, Scorecard } from "./review-parts"
+import { PlayCallButton, PlayTurnButton, useCallPlayer } from "./call-audio"
 
 
 
@@ -210,12 +211,14 @@ function CallRecordView({ call, review }: { call: CallRecord; review: CallReview
   // The service always records Road Desk's voice as CALLER and the other party as CALLEE, whoever dialled.
   const nameOf = (speaker: string) => speaker === "CALLER" ? "Road Desk" : callee
   const ours = (speaker: string) => speaker === "CALLER"
+  const player = useCallPlayer(call)
 
   return <div className="call-record">
     <div className="call-facts">
       <span className={`chip tone-${call.outcome === "COMPLETED" ? "ok" : call.outcome === "ESCALATED" ? "danger" : "warn"}`}>{labelIn(call.outcome)}</span>
       {triage && <span className={`chip triage triage-${String(triage.urgency ?? "").toLowerCase()}`}>Triage: {labelIn(String(triage.urgency ?? "unknown"))}{triage.situation ? `, ${labelIn(String(triage.situation)).toLowerCase()}` : ""}</span>}
       <span className="calls-quiet">{fmtDateTime(call.startedAt)}{call.endedAt ? ` to ${fmtDateTime(call.endedAt).split(" ").slice(-2).join(" ")}` : ""} · {call.engine === "SIMULATED_LLM" ? "Model-simulated" : call.engine === "SIMULATED" ? "Scripted" : "Call"} · attempt {call.attempt ?? 1}</span>
+      <PlayCallButton player={player} />
     </div>
     {triage?.quote && <p className="call-quote">Triage rests on turn {String(triage.turnSeq ?? "")}: <q>{String(triage.quote)}</q></p>}
     {call.direction === "OUTBOUND" && (review ? <Scorecard review={review} /> : <p className="calls-quiet">Reviewing the call…</p>)}
@@ -224,7 +227,7 @@ function CallRecordView({ call, review }: { call: CallRecord; review: CallReview
       {call.direction === "OUTBOUND" && call.brief && <CardColumn brief={call.brief} />}
       <ol className="transcript" aria-label="Transcript">
         {call.turns.map((turn) => <li key={turn.seq} id={`turn-${turn.seq}`} className={ours(turn.speaker) ? "us" : "them"}>
-          <span className="turn-who">{nameOf(turn.speaker)} <span>turn {turn.seq} · {fmtDateTime(turn.startedAt).split(" ").slice(-2).join(" ")}</span></span>
+          <span className="turn-who">{nameOf(turn.speaker)} <span>turn {turn.seq} · {fmtDateTime(turn.startedAt).split(" ").slice(-2).join(" ")}</span><PlayTurnButton player={player} seq={turn.seq} has={!!turn.audioKey} /></span>
           <p>{turn.text}</p>
           {slotsByTurn.get(turn.seq)?.map((slot) => <span key={slot.value.slot} className="turn-slot"><Icon name="check" size={12} />{slotLabel(slot.value.slot)}: {slotValue(slot.value.value)}</span>)}
           {toolsByTurn.get(turn.seq)?.map((tool, index) => <span key={index} className={`turn-tool${tool.name === "ESCALATE_TO_OPERATOR" ? " escalate" : ""}`}><Icon name="alert" size={12} />{tool.name === "ESCALATE_TO_OPERATOR" ? "Handed to an operator" : labelIn(String(tool.name ?? "tool"))}{tool.argument ? `: ${readToolArgument(tool.argument)}` : ""}</span>)}
