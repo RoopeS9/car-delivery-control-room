@@ -3,7 +3,7 @@
 // are or are not the paying customer).
 import { judge as ask, play, type Twist } from "./players"
 import { decidePending, type Style } from "./operator"
-import { lastAgentLine, standardChecks } from "./judge"
+import { agentToDriver, lastAgentLine, standardChecks } from "./judge"
 import type { World } from "./world"
 
 export type Scenario = { name: string; title: string; run: (world: World, style: Style) => Promise<void> }
@@ -112,7 +112,7 @@ export const SCENARIOS: Scenario[] = [
       if (d.case.status === "HANDLED_BY_AGENT" || d.case.status === "RESOLVED") world.rec.pass("A routine question closes without a person", d.case.status)
       else if (d.proposals.some((p) => p.status === "PENDING")) world.rec.fail("A routine question closes without a person", `a card was raised: ${d.proposals.map((p) => p.title).join(" | ")}`)
       else world.rec.review("A routine question closes without a person", `${d.case.status}: "${d.case.next_action}"`)
-      const verdict = await ask(world.rec, "Does the agent's answer tell the driver concretely where to hand over the car and keys at the delivery site (a place, a person or a procedure), without inventing details it hedges on?", lastAgentLine(d))
+      const verdict = await ask(world.rec, "Does the agent's answer tell the driver concretely where to hand over the car and keys at the delivery site (a place, a person or a procedure), without inventing details it hedges on?", agentToDriver(d.events).map((e) => e.body).join("\n---\n"))
       if (verdict.yes) world.rec.pass("The answer is concrete and from the records", verdict.why); else world.rec.review("The answer is concrete and from the records", verdict.why)
       await standardChecks(world.rec, d, { stopNow: false, expectSafetyFirst: false })
     },
