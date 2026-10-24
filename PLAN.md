@@ -331,6 +331,7 @@ dataset).
 | Telemetry fault | Simulator writes a `dtc` or warning event | **Proactive**: opens a case and contacts the driver first ("Are you safe?") before any human sees it. |
 | Operator decision | Approve / edit / reject / log outcome / instruct | Continues the case: executes the approved effect, informs the driver, proposes the next step. |
 | Operator question | "Ask the agent" box | Read-only answer with sources; never changes anything from this box. |
+| Call urgent / call ended | Voice (4.6): `call_urgent` when urgency is `EMERGENCY` or `URGENT`, `call_ended` at hang-up | Reads the transcript, slots and telemetry; writes issues, candidate solutions and decision cards with turn-level evidence. |
 
 **One run at a time per case.** Runs are serialised per case (a simple lock
 row or in-process queue). A message that arrives mid-run is stored as an event
@@ -389,14 +390,11 @@ POST /api/channels/photos              multipart upload -> { photoId } (stored v
 GET  /api/channels/driver/:driverId/feed?since=ISO   -> agent-initiated messages for the driver app
 ```
 
-- `mode: "voice"` makes the agent answer in 1–2 short spoken sentences, with
-  no lists or markdown.
-- The voice code only owns the browser side: capturing speech, transcribing
-  it, POSTing the text, and speaking the streamed reply. It never calls
-  Claude directly.
+- Voice calls use their own routes and interviewer (section 4.6), not this
+  endpoint. `mode` stays in the contract with `"chat"` as the normal value.
 - Agent-initiated messages (the proactive trigger) reach the driver app by
-  polling `feed` every 2 s. In voice mode, an incoming agent message rings the
-  call screen.
+  polling `feed` every 2 s. A feed item `{ kind: "call", callId }` rings the
+  voice call screen.
 
 **Live updates:** operator pages poll `GET /api/cases?since=` and
 `GET /api/cases/:id?since=` every 2–3 s. Only agent replies stream.
@@ -467,26 +465,149 @@ petrol cars.
   and keeps the results. The queue's "Handled by the agent" section then holds
   genuine traces, not fake rows. Reset keeps or drops them by flag.
 
-### 4.6 Voice
+### 4.6 Voice: the driver call (`lib/voice/`, `app/api/voice/`, `app/driver/voice/`)
 
-- Voice is a transport layer over the same agent turn. A transcript turn
-  becomes a `voice_turn` event; the agent reply is spoken.
-- **Version 1:** the browser's Web Speech API (SpeechRecognition +
-  speechSynthesis) in Chrome. Call screen: big call button, live transcript,
-  mute, end call, and a "switch to chat" link. Use push-to-talk first;
-  hands-free with silence detection if stable.
-- Behind a small `VoiceProvider` interface so we can swap in a hosted
-  speech-to-text and text-to-speech service later. Check the live Anthropic
-  docs for native audio support before picking one.
-- Voice replies must be short (1–2 sentences) and use the fast effort level.
-- The call ends when the playbook's facts are collected; the agent says what
-  happens next ("An operator is calling the dealer now. Stay with the car.").
-- Fallback for the demo: the chat path must work alone. Record video in a
-  quiet room.
-- The live demo runs the driver app in a second window on the same laptop
-  (`localhost` counts as a secure context, so the mic works). A phone over
-  the local network would need HTTPS, which we are not doing.
-- Voice uses the channel contract in 4.2c and nothing else.
+**Goal.** A short, low-latency call that asks the right questions in the right
+order and leaves a **reliable transcript of record**. Deep reasoning happens
+*after* (or beside) the call, by the main agent working on that transcript.
+
+**Design: two layers.**
+
+1. **Interviewer (live, fast).** Runs during the call. Fast model
+   (`VOICE_INTERVIEW_MODEL`, default `anthropic/claude-sonnet-5.5`, effort
+   `low`), order context **preloaded at call start** (order, vehicle, route,
+   promise, latest OBD codes and GPS), no tool loop in the hot path. Its job is
+   slot-filling from a checklist, not diagnosis. It never gives mechanical
+   advice beyond the safety tier.
+2. **Analyst (after the call, thorough).** The main road agent (section 4.2,
+   Opus) reads the finished transcript, the extracted facts and telemetry, and
+   produces issues and candidate solutions: cases and decision cards whose
+   evidence points at transcript turns. For `EMERGENCY` and `URGENT` calls it
+   starts as soon as urgency is known, in parallel with the rest of the call,
+   and updates when the call ends.
+
+Measured on 24 Oct through OpenRouter: Opus 5.5 took 5.9 s to its first words
+(too slow for live turns); Sonnet 5.5 took 0.84 s and Haiku 5.5 0.75 s;
+ElevenLabs Flash speech 0.63 s to first audio for a full sentence;
+transcription of a 9 s clip took about 1.1 s with each of
+`openai/whisper-large-v3-turbo`, `openai/gpt-4o-transcribe`,
+`elevenlabs/scribe-v2` and `deepgram/nova-3`, all accurate. Moshi or another
+full-duplex speech model is **not** on OpenRouter today. Speech-to-speech
+models (`openai/gpt-audio`) exist, but a chained pipeline (speech-to-text →
+model → text-to-speech) gives us an explicit text transcript by construction,
+so we use it. `VoiceProvider` keeps the door open to swap later.
+
+**The interview script** (data in `lib/voice/interview/*.ts`, wording shared
+with the rulebook):
+
+1. **Urgency first, always.** A fixed opening that uses what we already know:
+   - agent-initiated after an OBD fault: *"Hi Leo, this is Road Desk. Your car
+     just reported an engine fault. Are you and the car safe right now, or is
+     this an emergency?"*
+   - driver-initiated: *"Road Desk here. First: are you safe, and is this
+     urgent?"*
+
+   The answer is classified as:
+   - `EMERGENCY`: injury, fire, smoke, an accident, or standing on the
+     carriageway. Immediately say to call 112 and get to safety (safety
+     instruction). Raise the case to the top of the queue now and alert the
+     operator. Keep the rest of the call minimal.
+   - `URGENT`: the car can't or shouldn't continue, or a deadline is at risk
+     within hours. Run the full checklist, then hand over fast.
+   - `ROUTINE`: a question that doesn't block the trip. Short checklist; the
+     agent can usually finish it.
+
+   The classification is stored with the quote and time it came from.
+2. **What is happening?** Pick the situation: warning light, breakdown,
+   accident, delay or missed connection, keys or access, expense, or another
+   question.
+3. **Slot-filling per situation.** Ask only what's missing, and **confirm
+   what we already know instead of asking** ("The car reports a misfire; is the
+   engine light flashing?", "Your phone puts you near Osnabrück on the A1; are
+   you at a service area?"). For a warning light the slots are: safe place
+   (yes/no and where), light colour and flashing, symptoms (shaking, noise,
+   smell, smoke), engine off, photo of the dashboard (ask the driver to send
+   it in the app after the call), anything else we should know. At most about
+   6 questions.
+4. **Read-back.** *"So: you're stopped at the Osnabrück-Nord service area,
+   engine light flashing, car shaking, no smoke. Is that right?"* A correction
+   from the driver updates the slots.
+5. **Next step and goodbye.** Say what happens next and who does it
+   (*"An operator is calling the dealer now. Please stay with the car; we'll
+   message you within 15 minutes."*).
+
+**Pipeline per turn.**
+
+- **Turn detection:** voice activity detection in the browser (hands-free),
+  with push-to-talk as a toggle for noisy rooms.
+- **Live text:** Chrome `SpeechRecognition`, used for speed. It drives the
+  interviewer immediately.
+- **Text of record:** in parallel, the same utterance is recorded
+  (`MediaRecorder`), uploaded, stored in the object store, and transcribed
+  server-side (`VOICE_STT_MODEL`, default `openai/gpt-4o-transcribe`; JSON
+  body with base64 `input_audio`, verified). The stored transcript uses this
+  text. When it differs from the live text, keep both. If Chrome recognition
+  fails, `VOICE_LIVE_STT=server` makes the server transcript the live input
+  too, for about +1 s per turn.
+- **Speech out:** ElevenLabs via OpenRouter `POST /api/v1/audio/speech`
+  (`VOICE_TTS_MODEL=elevenlabs/eleven-flash-v2.5`). It needs a voice **ID**,
+  not a name; `21m00Tcm4TlvDq8ikWAM` is verified. Speak sentence by sentence
+  as the reply streams. Pre-render the fixed phrases (fillers like "One
+  moment, I'm checking the car's data", goodbyes) as cached MP3s. Fallback:
+  browser `speechSynthesis`.
+- **Echo:** driver app and speakers on the same laptop means the mic hears
+  the agent. Use `getUserMedia({ audio: { echoCancellation: true,
+  noiseSuppression: true } })` and **mute the mic while the agent speaks**
+  (half-duplex). Barge-in only with a headset.
+- **Latency target:** about 2 s from the driver going quiet to the agent's
+  first audio (voice detection ~0.4 s + model ~0.8 s + speech ~0.6 s).
+- **Keys stay on the server.** The browser only talks to our own
+  `/api/voice/*` routes.
+
+**Transcript of record** (tables, owned by voice; register them in the
+drizzle schema without touching other streams' tables):
+
+| Table | Fields |
+|---|---|
+| `cr_calls` | `id, case_id, order_id, driver_id, direction ('AGENT_INITIATED'\|'DRIVER_INITIATED'), started_at, ended_at, urgency, urgency_turn_id, situation, slots jsonb, readback_confirmed bool, end_reason, recording_key` |
+| `cr_call_turns` | `id, call_id, seq, speaker ('agent'\|'driver'), started_at, ended_at, text_live, text_final, stt_model, audio_key, interrupted bool` |
+
+Each extracted slot stores `{ value, turn_id, quote, confidence }`, so every
+fact the analyst uses points to the exact turn (and audio clip) it came from.
+Extraction uses a strict tool schema (verified to work through OpenRouter).
+
+**Routes (voice owns these).**
+
+```
+POST /api/voice/calls                    { orderRef, driverId, direction } -> { callId, opening: { text, audioUrl } }
+POST /api/voice/calls/:id/turns          multipart: audio clip + liveText -> stream: interviewer reply text + sentence audio URLs
+POST /api/voice/calls/:id/end            { reason } -> { transcriptUrl } and fires the analyst trigger
+GET  /api/voice/calls/:id                transcript, slots, urgency (used by the case page)
+POST /api/voice/speak                    { text, voice } -> audio/mpeg (server-side TTS proxy, cached by text)
+```
+
+**Hooks into other streams.**
+
+- **Stream A (agent):** a new trigger `call_ended` (and `call_urgent` as soon
+  as urgency is `EMERGENCY` or `URGENT`) carrying `callId`. The agent reads
+  the call via `GET /api/voice/calls/:id` and writes cases and proposals with
+  turn-level evidence (`source_refs` kind `cr_call_turns`). Until A ships it,
+  voice records an event and the trigger is a no-op.
+- **Stream C (driver app):** voice exports `<CallScreen orderRef driverId
+  direction />` from `app/driver/voice/`. C mounts it in the driver app and
+  rings it when the feed (4.2c) carries an agent-initiated call.
+- **Stream B (control room):** the case page shows the call as a transcript
+  block: speaker, time, a play button per turn, and the urgency badge with
+  its quote.
+- **Chat stays on the 4.2c channel contract.** Voice calls do not go through
+  `/api/channels/driver/messages`.
+
+**Simulated driver voice (for the video):** the simulated driver (4.5) can
+speak with a second ElevenLabs voice, so the recording sounds like a real
+two-person call. In the live demo, a teammate plays the driver.
+
+**Demo fallback:** the chat path must work alone. Record the video in a quiet
+room.
 
 ### 4.7 Control room UI
 
@@ -562,6 +683,12 @@ AGENT_EFFORT_FAST=low
 AGENT_EFFORT_DEEP=medium
 SIM_NOW=2026-10-21T09:00:00Z
 SIM_DRIVER_ENABLED=true
+VOICE_INTERVIEW_MODEL=anthropic/claude-sonnet-5.5
+VOICE_STT_MODEL=openai/gpt-4o-transcribe
+VOICE_LIVE_STT=browser                    # or server
+VOICE_TTS_MODEL=elevenlabs/eleven-flash-v2.5
+VOICE_TTS_VOICE_AGENT=21m00Tcm4TlvDq8ikWAM
+VOICE_TTS_VOICE_DRIVER=                   # a second ElevenLabs voice id, verify before use
 ```
 
 Remove the unused `ANTHROPIC_API_KEY` line from `.env.example`.
@@ -586,7 +713,7 @@ that contract. Changes to it are announced to the team.
 | A. Agent | Cloud instance 1 | `lib/agent/`, `rulebook/`, `knowledge/` (except `routes/`), `app/api/agent/`, `app/api/cases/`, `app/api/channels/` (server side of 4.2c) | M0 contract, loop, tools, gates, triggers, decisions, prompts, playbooks, DTC base, traces, gating tests |
 | B. Control room | Cloud instance 2 | `app/page.tsx`, `app/orders/`, `app/map/`, `app/agent/`, `app/components/`, `globals.css`, `lib/present/` | Queue, decision card, timeline, ask-the-agent box, map, agent page, dark mode |
 | C. Driver app and simulation | Cloud instance 3 | `app/driver/` (except `voice/`), `app/site/`, `app/demo/`, `lib/sim/`, `app/api/sim/`, `knowledge/routes/`, `public/sim/` | Driver app shell, site chat, OBD/GPS sim, scenarios, simulated driver, dashboard photo, routine seed |
-| V. Voice | Teammate | `app/driver/voice/`, `lib/voice/` | Call screen, speech-to-text, text-to-speech, `VoiceProvider`, against the 4.2c contract only |
+| V. Voice | Local agent (run by RoopeS) | `app/driver/voice/`, `lib/voice/`, `app/api/voice/` | Call screen, interviewer, transcript of record, speech in and out, `VoiceProvider` (section 4.6) |
 | Plan and integration | RoopeS + local Claude Code | `PLAN.md`, `PROCESS.md`, `README.md` | Plan, contract changes, review and integration, demo script, video, write-up |
 
 Start order: instance 1 pushes the M0 contract (`lib/cr/`) and the channel
