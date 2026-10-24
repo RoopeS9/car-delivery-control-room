@@ -137,7 +137,7 @@ export async function recordInboundCustomer(input: { orderId: string; caseKind: 
     const conversationId = id("conv")
     const details: Record<string, unknown> = {
       assignment_id: null, category, channel: "email", counterparty_id: input.customerId, counterparty_type: "customer", counterparty_name_snapshot: input.customerName,
-      id: conversationId, order_id: input.orderId, started_at: input.at, status: "OPEN", updated_at: input.at, waiting_on: "BAHN", opened_by_case: true,
+      id: conversationId, order_id: input.orderId, started_at: input.at, status: "OPEN", updated_at: input.at, waiting_on: null, opened_by_case: true,
     }
     await db.insert(conversations).values({ id: conversationId, orderId: input.orderId, category, channel: "email", status: "OPEN", updatedAt: new Date(input.at), details })
     ;[thread] = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1)
@@ -148,7 +148,7 @@ export async function recordInboundCustomer(input: { orderId: string; caseKind: 
     id: id("msg"), language: null, order_id: input.orderId, recipient_id: null, recipient_type: "operator", visibility: "PUBLIC", simulated: true,
   }
   await db.insert(messages).values({ id: message.id, orderId: input.orderId, conversationId: thread.id, authorType: "customer", body: input.body, authoredAt: new Date(input.at), details: message })
-  await db.update(conversations).set({ updatedAt: new Date(input.at), details: { ...thread.details, updated_at: input.at, waiting_on: "BAHN" } }).where(eq(conversations.id, thread.id))
+  await db.update(conversations).set({ updatedAt: new Date(input.at), details: { ...thread.details, updated_at: input.at, waiting_on: null } }).where(eq(conversations.id, thread.id))
   return { conversationId: thread.id, messageId: message.id }
 }
 

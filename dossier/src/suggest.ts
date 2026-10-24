@@ -5,6 +5,7 @@ import { z } from "zod"
 import type { Dossier } from "./dossier"
 import { derive, renderDerived } from "./derived"
 import { chat, renderDossier } from "./reason"
+import { items } from "./brief"
 
 /** The conversation as the app holds it, flattened for the prompt. */
 export const SuggestThread = z.object({
@@ -54,9 +55,23 @@ Rules:
 6. Match the channel: chat and WhatsApp replies are one to three short sentences; an email has a one-line greeting, two to five sentences, and ends with "Bahn Road Desk". No markdown, no emoji, no placeholders in brackets: if a fact is missing, do not invent it, ask for it or leave it out.
 7. caution says in one sentence what the operator must check before sending this draft, or is null when nothing is thin.
 8. summary is one line for the operator: what they want, and what the dossier says about it. internalNote is one line the operator may file as an internal note on the thread, or null.
-9. Answer with JSON only, matching the schema exactly. No markdown.`
+9. Answer with JSON only, matching the schema exactly. No markdown.
+10. Times in the dossier are UTC (they end in Z). A time you write to a person is local to the place it concerns, with its zone: use the "Key times, local" lines as written, never relabel a UTC time with a local zone.`
 
 const SCHEMA = `{"language": string (BCP-47, e.g. "de"), "summary": string, "suggestions": [{"stance": "ANSWER"|"ASK"|"HOLD"|"ESCALATE"|"IDENTIFY", "label": string (<= 6 words, names the stance for the operator), "body": string, "basis": string[] (dossier item ids, or "thread"), "caution": string|null}] (1..3), "internalNote": string|null}`
+
+/** The windows a reply most often quotes, already in the place's own time: the model copies them instead of converting. */
+export function keyTimes(d: Dossier): string {
+  const words: Record<string, string> = { CUSTOMER_DELIVERY_PROMISE: "Delivery promise", SELECTED_PICKUP_SLOT: "Pickup slot" }
+  const lines = items(d, "time_windows").filter((i) => i.record.is_selected && words[i.record.purpose]).map((i) => {
+    const zone = i.record.timezone || "UTC"
+    const fmt = (iso: string) => new Intl.DateTimeFormat("en-GB", { timeZone: zone, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZoneName: "short" }).format(new Date(iso))
+    return `- ${words[i.record.purpose]}: ${fmt(i.record.start_at)} to ${fmt(i.record.end_at)} (${zone})`
+  })
+  return lines.length ? `## Key times, local
+${lines.join("\n")}
+` : ""
+}
 
 export function renderThread(t: SuggestThread): string {
   const who = t.counterparty ? `${t.counterparty.name} (${t.counterparty.kind})` : "an unknown sender"
@@ -80,7 +95,7 @@ export async function suggestReplies(d: Dossier | null, thread: SuggestThread, o
   const model = opts.model ?? process.env.SUGGEST_MODEL ?? "deepseek/deepseek-v4-flash"
   const user = [
     renderThread(thread), "",
-    d ? renderDossier(d, { maxHistory: 15 }) + "\n" + renderDerived(derive(d)) : "## No order is linked to this conversation\nThere is no dossier. Identify the order or answer general policy; state no order facts.",
+    d ? keyTimes(d) + renderDossier(d, { maxHistory: 15 }) + "\n" + renderDerived(derive(d)) : "## No order is linked to this conversation\nThere is no dossier. Identify the order or answer general policy; state no order facts.",
   ].join("\n")
   const system = RULES + "\n\nOutput schema:\n" + SCHEMA
   let feedback: string | undefined, cost = 0, parsed: z.infer<typeof Output> | undefined, raw = ""
