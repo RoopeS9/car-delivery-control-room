@@ -117,6 +117,15 @@ function card(row: QueueRow, source: string): ChartCard {
   }
 }
 
+const PERSON_SOURCES = new Set(["Work item", "Incident", "Support inbox", "Earlier agent proposal"])
+
+/** A queue row that is a decision waiting for a person, as opposed to a signal worth watching. */
+export function needsPerson(row: QueueRow): boolean {
+  if (row.origin === "agent") return true
+  const source = row.reasons[0]?.source ?? null
+  return source != null && PERSON_SOURCES.has(source)
+}
+
 /** "Mon 10:00" in a zone. */
 function weekdayClock(iso: string, zone: string | null): string {
   return new Intl.DateTimeFormat("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: zone ?? "UTC" }).format(new Date(iso)).replace(",", "")
@@ -135,7 +144,9 @@ export function buildChart(input: { bundles: Bundle[]; fleet: FleetCar[]; sample
   const { bundles, fleet, samples, snapshotAt, now } = input
   const queue = buildQueue(bundles, snapshotAt, now)
   const attentionOf = new Map<string, { attention: ChartAttention; row: QueueRow }>()
-  for (const row of queue.decide) attentionOf.set(row.orderId, { attention: "decide", row })
+  // Red means a decision is actually waiting for a person: one of the agent's cards or hand-overs, or an operator item
+  // in the records (a work item, an incident, a support thread). An open alert or a conversation is a signal: amber.
+  for (const row of queue.decide) attentionOf.set(row.orderId, { attention: needsPerson(row) ? "decide" : "watch", row })
   for (const row of queue.agentWorking) if (!attentionOf.has(row.orderId)) attentionOf.set(row.orderId, { attention: "agent", row })
   for (const row of queue.waiting) if (!attentionOf.has(row.orderId)) attentionOf.set(row.orderId, { attention: "watch", row })
 
@@ -176,7 +187,8 @@ export function buildChart(input: { bundles: Bundle[]; fleet: FleetCar[]; sample
       return row.details.kind === "FERRY" && row.details.status === "BOOKED" && row.details.check_in_confirmation !== "CONFIRMED_BY_GATE_SCAN" && minutes != null && minutes >= 0 && minutes < 6 * 60
     })
     const conflict = rows(bundle, "endpoint_claims").some((row) => !str(row.details.resolved_at) && str(row.details.status) !== "RESOLVED")
-    const watchReason = riskyDate ? `${riskyDate.label}: ${riskyDate.note ?? "at risk"}` : cutoffNear ? "Ferry check-in closes soon, no gate scan yet" : phoneQuiet ? "Phone quiet" : conflict ? "Two records disagree" : found?.attention === "watch" ? found.row.statusLabel : null
+    const signalRow = found && !needsPerson(found.row) && found.attention === "watch" ? found.row : null
+    const watchReason = signalRow && found?.row.origin === "records" && queue.decide.includes(found.row) ? found.row.headline.replace(/^Open alert: /, "") : riskyDate ? `${riskyDate.label}: ${riskyDate.note ?? "at risk"}` : cutoffNear ? "Ferry check-in closes soon, no gate scan yet" : phoneQuiet ? "Phone quiet" : conflict ? "Two records disagree" : found?.attention === "watch" ? found.row.statusLabel : null
     const attention: ChartAttention = found && found.attention !== "watch" ? found.attention : watchReason ? "watch" : "fine"
     const tone: Tone = attention === "decide" ? (found?.row.tone ?? "danger") : attention === "watch" ? "warn" : attention === "agent" ? "accent" : "neutral"
     const promise = keyDates.find((date) => date.key === "promise")
@@ -266,7 +278,7 @@ export function buildChart(input: { bundles: Bundle[]; fleet: FleetCar[]; sample
 
   return {
     simNow: now, snapshotAt, nodes, routes, ports, counts,
-    needs: queue.decide.map((row) => card(row, row.origin === "agent" ? "Road agent" : "From the records")),
+    needs: queue.decide.filter(needsPerson).map((row) => card(row, row.origin === "agent" ? "Road agent" : "From the records")),
     handled: queue.handled.map((row) => card(row, "Road agent")),
     quiet: { agentWorking: queue.agentWorking.length, waiting: queue.waiting.length, routine: queue.routine.length },
   }

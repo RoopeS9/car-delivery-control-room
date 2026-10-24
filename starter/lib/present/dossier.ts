@@ -276,7 +276,8 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
     for (const card of kase.pending) need ??= { title: card.title, ask: card.recommendation ?? card.rationale, since: card.createdAt, sinceLabel: t.at(card.createdAt), href: `/orders/${bundle.order.id}#case` }
   }
   const open = view.attention.filter((item) => item.kind !== "case")
-  const pressing = open.find((item) => item.tone === "danger" || item.tone === "warn")
+  // Only an operator item is a need (red); an open alert or a conversation is a signal and goes to Watching (amber).
+  const pressing = open.find((item) => (item.tone === "danger" || item.tone === "warn") && ["work", "incident", "inbox", "proposal"].includes(item.kind))
   // The path ends at the conversation: the case's call, the alert's thread, else the liveliest open thread.
   const liveThread = [...view.threads].filter((thread) => thread.status !== "CLOSED" && thread.status !== "RESOLVED").sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0] ?? view.threads[0] ?? null
   const threadAnchor = liveThread ? `#thread-${liveThread.id}` : "#timeline"
@@ -316,7 +317,7 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
     const since = chainSteps.find((step) => step.text.toLowerCase().includes(item.title.toLowerCase().replace(/^open alert: /, "").slice(0, 20)))?.at ?? item.at
     const conflict = item.kind === "claim"
     watching.push({
-      id: `w-${item.recordId}`, tone: item.tone, at: item.at,
+      id: `w-${item.recordId}`, tone: item.tone === "danger" && ["alert", "owned_alert", "conversation", "waiting", "claim"].includes(item.kind) ? "warn" : item.tone, at: item.at,
       text: conflict ? `Records disagree: ${item.title}` : `${item.title.replace(/^(Open|Owned) alert: /, "")}${item.kind === "alert" || item.kind === "owned_alert" || item.kind === "work" ? ` under review since ${t.at(since)}` : ""}`,
       why: item.detail ?? "From the records.", sources: [label(item.kind === "owned_alert" ? "alert" : item.kind)],
     })
