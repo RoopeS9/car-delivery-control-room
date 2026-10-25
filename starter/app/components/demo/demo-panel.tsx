@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from "react"
 import styles from "../../demo/demo.module.css"
 import { recall, remember } from "../role-memory"
 
-type Scenario = { name: string; title: string; orderRef: string | null; description: string; started: boolean; links: { label: string; href: string }[] }
+type Scenario = { name: string; title: string; orderRef: string | null; description: string; started: boolean; runLabel?: string | null; links: { label: string; href: string }[] }
 type FleetRow = {
   reference: string; orderId: string; vehicleTitle: string; driverName: string; driverId: string
   phone: "LIVE" | "STALE" | "NONE"; state: string; placeLabel: string; speedKmh: number; fault: string | null; quietFrom: string | null
@@ -163,7 +163,7 @@ export function DemoPanel({ onFocus }: { onFocus?: (driverId: string, orderRef: 
             {scenario.started
               ? <span className="chip tone-accent"><span className="chip-dot" />Running</span>
               : <button type="button" className={styles.primary} disabled={busy !== null} onClick={() => void run(scenario.name)}>
-                {busy === scenario.name ? "Starting…" : "Run"}
+                {busy === scenario.name ? "Starting…" : scenario.runLabel ?? "Run"}
               </button>}
           </div>
         </li>)}
