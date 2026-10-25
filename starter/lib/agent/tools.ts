@@ -701,8 +701,10 @@ async function answerCardRefusal(state: TurnState, proposal: ProposalInput): Pro
   if (proposal.action_type === "CHANGE_PROMISE" && await openPromiseProposal(state.caseRow.id)) {
     return `a new date already waits for the customer's answer. If they answered, an operator records it in the case's Delivery promise block; ${reply}`
   }
-  if (proposal.action_type === "OPERATOR_DECISION" && /\b(agree\w*|accept\w*|answer\w*|record\w*|confirm\w*)\b/i.test(proposal.title)
-    && await unrecordedCustomerAnswer(state.caseRow.id)) {
+  // About their answer: agreed or accepted, or recording or confirming the customer's date. "Confirm the tow?" is not.
+  const aboutAnswer = /\b(agree\w*|accept\w*|answer\w*)\b/i.test(proposal.title)
+    || (/\b(record\w*|confirm\w*|log\w*)\b/i.test(proposal.title) && /\b(customer|agreement|date|delivery|promise|window)\b/i.test(proposal.title))
+  if (proposal.action_type === "OPERATOR_DECISION" && aboutAnswer && await unrecordedCustomerAnswer(state.caseRow.id)) {
     return `no card is needed to record the customer's answer: an operator records it in the case's Delivery promise block, and the case already waits on that; ${reply}`
   }
   return null
