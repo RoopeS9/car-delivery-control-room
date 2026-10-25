@@ -5,6 +5,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { simNowIso } from "@/lib/cr/clock"
+import { AppFrame } from "../components/app-frame"
 import { listContacts, loadContact, loadSiteThread, type SiteContact } from "./data"
 import { SiteChat } from "./site-chat"
 import styles from "./site.module.css"
@@ -23,12 +24,12 @@ export default async function SitePage({ searchParams }: { searchParams: Search 
   if (!contactId) return <Picker />
   const contact = await loadContact(contactId)
   if (!contact) {
-    return <main className={styles.page}><div className={styles.state}><h1>Contact not found</h1><p><Link href="/site">Pick a place</Link></p></div></main>
+    return <AppFrame section="site"><main className={styles.page}><div className={styles.state}><h1>Contact not found</h1><p><Link href="/site">Pick a place</Link></p></div></main></AppFrame>
   }
   const thread = await loadSiteThread(contact)
-  return <main className={styles.page}>
+  return <AppFrame section="site"><main className={styles.page}>
     <SiteChat key={contact.id} contact={contact} initialThread={thread} serverNow={simNowIso()} />
-  </main>
+  </main></AppFrame>
 }
 
 async function Picker() {
@@ -36,7 +37,7 @@ async function Picker() {
   const demo = contacts.filter((contact) => DEMO_CONTACTS.includes(contact.id))
   const pickup = contacts.filter((contact) => !demo.includes(contact) && contact.boundary === "PICKUP")
   const delivery = contacts.filter((contact) => !demo.includes(contact) && contact.boundary === "DELIVERY")
-  return <main className={styles.page}>
+  return <AppFrame section="site"><main className={styles.page}>
     <header className={styles.pickerHead}>
       <p className={styles.kicker}>Bahn site chat · demo</p>
       <h1>Which desk is writing?</h1>
@@ -47,7 +48,7 @@ async function Picker() {
         <h2>{group.title} <span>{group.list.length}</span></h2>
         <ul>{group.list.map((contact) => <li key={contact.id}><ContactRow contact={contact} /></li>)}</ul>
       </section>)}
-  </main>
+  </main></AppFrame>
 }
 
 function ContactRow({ contact }: { contact: SiteContact }) {
