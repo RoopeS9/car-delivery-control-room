@@ -212,8 +212,9 @@ export async function loadDriver(driverId: string): Promise<{ id: string; name: 
       deliveryPromise,
       roadDeskBookings: effective.bookings.filter((booking) => booking.source.kind === "cr_effects")
         .map((booking) => ({ kind: booking.kind, reference: booking.reference, status: booking.status })),
-      ferry: segment.transport_mode === "DRIVE_WITH_FERRY" ? currentFerrySchedule(effective, orderReservations) : null,
-      historicalFerries: historicalFerrySchedules(effective, orderReservations),
+      // The packet's sailings carry no zone; the driver checks in and sails from the pickup side's terminal.
+      ferry: segment.transport_mode === "DRIVE_WITH_FERRY" ? withZone(currentFerrySchedule(effective, orderReservations), pickup.timezone) : null,
+      historicalFerries: historicalFerrySchedules(effective, orderReservations).map((booking) => withZone(booking, pickup.timezone)),
       ...stepsOf(live.lifecycles.get(order.id) ?? {}, segment.transport_mode === "DRIVE_WITH_FERRY" && orderReservations.some((row) => row.kind === "FERRY" && row.status === "BOOKED"), {
         // What the records already say happened before this app was in the driver's hand.
         // The record's pickup event; without one, a started assignment is a collection only if the order is on the road.
@@ -230,6 +231,10 @@ export async function loadDriver(driverId: string): Promise<{ id: string; name: 
 }
 
 /** The steps as reported in the app, or as the records already have them (a collection before the app was used). */
+function withZone<T extends { timezone: string } | null>(booking: T, zone: string): T {
+  return booking ? { ...booking, timezone: zone } : booking
+}
+
 function stepsOf(lifecycle: Lifecycle, ferry: boolean, recorded: Partial<Record<Milestone, string | null>>): Pick<DriverJob, "steps" | "next"> {
   const steps = MILESTONES.filter((step) => ferry || step !== "CHECKED_IN")
   const at = (milestone: Milestone) => lifecycle[milestone]?.at ?? recorded[milestone] ?? null

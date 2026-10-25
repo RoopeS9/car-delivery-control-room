@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import type { Milestone } from "@/lib/cr/lifecycle"
 import type { FeedMessage, GpsData, ObdData } from "@/lib/cr/types"
 import type { SimObd } from "@/lib/sim/motion"
-import { fmtDateTime, fmtMoney, fmtRange } from "@/lib/present/time"
+import { fmtClock, fmtDateTime, fmtMoney, fmtRange, zoneName } from "@/lib/present/time"
 import { Icon } from "../components/icons"
 import { personColor } from "@/lib/present/color"
 import { fetchFeed, sendMessage, shrinkImage, uploadPhoto } from "./channel"
@@ -223,7 +223,7 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow, onJob }
     {!job && <div className={styles.state}><h1>No work right now</h1><p>{driver.name} has no current or upcoming job in the records.</p></div>}
 
     {job && <>
-      {job.status === "IN_PROGRESS" && <CarBar readings={readings} onConnect={async () => {
+      {job.status === "IN_PROGRESS" && <CarBar job={job} readings={readings} onConnect={async () => {
         await fetch(`/api/sim/connect/${job.reference}`, { method: "POST" }).catch(() => undefined)
         const response = await fetch(`/api/sim/telemetry/${job.reference}`, { cache: "no-store" }).catch(() => null)
         if (response?.ok) setReadings(await response.json() as Readings)
@@ -240,7 +240,7 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow, onJob }
           return <div key={message.id}>
             {index === 0 && message.origin === "dataset" && <p className={styles.divider}>Earlier on this job</p>}
             {firstNew && <p className={styles.divider}>Today</p>}
-            <Bubble message={message} onAnswer={() => setCalling(true)} />
+            <Bubble message={message} onAnswer={() => setCalling(true)} job={job} />
           </div>
         })}
         {streaming !== null && <div className={`${styles.bubble} ${styles.theirs}`}>
@@ -290,12 +290,26 @@ function fromFeed(message: FeedMessage): ThreadMessage {
   }
 }
 
-function Bubble({ message, onAnswer }: { message: ThreadMessage; onAnswer: (() => void) | null }) {
+/**
+ * A time as the driver's phone shows it: in the zone the driver is in then. Before the ferry lands that is the pickup
+ * side, after it the delivery side, and the delivery's own steps are at the delivery. In UTC a driver in Germany had
+ * to do sums on the motorway (review R25).
+ */
+export function phoneClock(job: DriverJob | null, iso: string | null | undefined, atDelivery = false): string {
+  if (!iso) return ""
+  const zone = !job ? "UTC" : atDelivery || (job.ferry?.arrivalAt && iso >= job.ferry.arrivalAt) ? job.delivery.timezone : job.pickup.timezone
+  const name = zone === "UTC" ? "UTC" : zoneName(new Date(iso), zone)
+  return `${fmtClock(iso, zone)} ${name}`
+}
+
+const DELIVERY_SIDE: readonly Milestone[] = ["ARRIVED_DELIVERY", "DELIVERED"]
+
+function Bubble({ message, onAnswer, job }: { message: ThreadMessage; onAnswer: (() => void) | null; job: DriverJob | null }) {
   const mine = message.from === "me"
-  const time = new Date(message.at).toISOString().slice(11, 16)
+  const time = phoneClock(job, message.at)
   if (message.kind === "call") {
     return <div className={styles.call} role="status">
-      <span className={styles.who}>Road Desk is calling · {time} UTC</span>
+      <span className={styles.who}>Road Desk is calling · {time}</span>
       <p>{message.text}</p>
       {onAnswer
         ? <button type="button" className={styles.callButton} onClick={onAnswer}><PhoneIcon /> Answer</button>
@@ -303,11 +317,11 @@ function Bubble({ message, onAnswer }: { message: ThreadMessage; onAnswer: (() =
     </div>
   }
   if (message.kind === "milestone") {
-    return <p className={styles.stepLine} role="status"><Icon name="check" size={13} /> {message.text} <span>{time} UTC</span></p>
+    return <p className={styles.stepLine} role="status"><Icon name="check" size={13} /> {message.text} <span>{time}</span></p>
   }
   if (message.kind === "safety") {
     return <div className={styles.safety} role="alert">
-      <span className={styles.who}>Safety instruction · {time} UTC</span>
+      <span className={styles.who}>Safety instruction · {time}</span>
       <p>{message.text}</p>
     </div>
   }
@@ -319,11 +333,11 @@ function Bubble({ message, onAnswer }: { message: ThreadMessage; onAnswer: (() =
         ? <img className={styles.photo} src={message.photo} alt={message.photoSubject ? `Photo of the ${message.photoSubject}` : "Photo"} />
         : <p>Photo sent{message.photoSubject ? `: ${message.photoSubject}` : ""}</p>
       : <p>{message.text}</p>}
-    <span className={styles.meta}>{message.voice ? "Spoken · " : ""}{time} UTC</span>
+    <span className={styles.meta}>{message.voice ? "Spoken · " : ""}{time}</span>
   </div>
 }
 
-function CarBar({ readings, onConnect }: { readings: Readings | null; onConnect: () => Promise<void> }) {
+function CarBar({ readings, onConnect, job }: { readings: Readings | null; onConnect: () => Promise<void>; job: DriverJob | null }) {
   const [connecting, setConnecting] = useState(false)
   if (!readings) return <div className={styles.carBar}><span className={styles.carState}>Connecting to the car…</span></div>
   const obd = readings.obd
@@ -332,7 +346,7 @@ function CarBar({ readings, onConnect }: { readings: Readings | null; onConnect:
   const warn = readings.mil !== "OFF"
   const state = !obd ? "No car data"
     : !obd.data.engine_on ? "Engine off"
-    : quiet ? `No signal from the car since ${obd.at.slice(11, 16)} UTC`
+    : quiet ? `No signal from the car since ${phoneClock(job, obd.at)}`
     : (obd.data.speed_kmh ?? 0) > 0 ? "Driving" : "Engine running"
   const ago = age === null ? "" : age < 60 ? `${age} s ago` : age < 3600 ? `${Math.round(age / 60)} min ago` : `${Math.round(age / 3600)} h ago`
   return <div className={`${styles.carBar}${warn ? ` ${styles.carWarn}` : ""}`}>
@@ -350,12 +364,12 @@ function CarBar({ readings, onConnect }: { readings: Readings | null; onConnect:
       <EngineIcon /> Check-engine light {readings.mil === "FLASHING" ? "flashing" : "on"}
       {readings.codes.length > 0 && <span className="mono"> · {readings.codes.join(" ")}</span>}
     </p>}
-    {obd && <dl className={`${styles.carValues}${quiet || !obd.data.engine_on ? ` ${styles.carValuesOld}` : ""}`} title={quiet ? `Last reading at ${obd.at.slice(11, 19)} UTC` : undefined}>
+    {obd && <dl className={`${styles.carValues}${quiet || !obd.data.engine_on ? ` ${styles.carValuesOld}` : ""}`} title={quiet ? `Last reading at ${phoneClock(job, obd.at)}` : undefined}>
       {obd.data.speed_kmh !== undefined && <div><dt>Speed</dt><dd className="num">{obd.data.speed_kmh}<small> km/h</small></dd></div>}
       {obd.data.coolant_c !== undefined && <div><dt>Coolant</dt><dd className="num">{Math.round(obd.data.coolant_c)}<small> °C</small></dd></div>}
       {obd.data.battery_v !== undefined && <div><dt>Battery</dt><dd className="num">{obd.data.battery_v}<small> V</small></dd></div>}
     </dl>}
-    {readings.gps?.data.place_label && <p className={styles.carPlace}><Icon name="pin" size={13} /> {readings.gps.data.place_label} <span>· simulated GPS, {readings.gps.at.slice(11, 16)} UTC</span></p>}
+    {readings.gps?.data.place_label && <p className={styles.carPlace}><Icon name="pin" size={13} /> {readings.gps.data.place_label} <span>· simulated GPS, {phoneClock(job, readings.gps.at)}</span></p>}
   </div>
 }
 
@@ -389,7 +403,7 @@ function StepCard({ job, driverId, onDone }: { job: DriverJob; driverId: string;
   const last = [...job.steps].reverse().find((step) => step.at)
   if (job.status === "DELIVERED" || !job.next) {
     return <section className={`${styles.steps} ${styles.stepsDone}`} aria-label="Delivery steps">
-      <p><Icon name="check" size={14} /> <b>Delivered.</b> {last ? `${last.label}, ${last.at!.slice(11, 16)} UTC.` : ""} Thank you.</p>
+      <p><Icon name="check" size={14} /> <b>Delivered.</b> {last ? `${last.label}, ${phoneClock(job, last.at, true)}.` : ""} Thank you.</p>
     </section>
   }
   const next = skipped && job.steps.some((step) => step.milestone === skipped && !step.at) ? skipped : job.next
@@ -433,9 +447,9 @@ function StepCard({ job, driverId, onDone }: { job: DriverJob; driverId: string;
   return <section className={styles.steps} aria-label="Delivery steps">
     <div className={styles.stepHead}>
       <ol className={styles.stepDots} aria-label={`${done} of ${job.steps.length} steps done`}>
-        {job.steps.map((step) => <li key={step.milestone} className={step.at ? styles.stepDone : step.milestone === next ? styles.stepNow : ""} title={`${step.label}${step.at ? `, ${step.at.slice(11, 16)} UTC` : ""}`} />)}
+        {job.steps.map((step) => <li key={step.milestone} className={step.at ? styles.stepDone : step.milestone === next ? styles.stepNow : ""} title={`${step.label}${step.at ? `, ${phoneClock(job, step.at, DELIVERY_SIDE.includes(step.milestone))}` : ""}`} />)}
       </ol>
-      <span className={styles.stepLast}>{last ? `${last.label} ${last.at!.slice(11, 16)} UTC` : "Nothing reported yet"}</span>
+      <span className={styles.stepLast}>{last ? `${last.label} ${phoneClock(job, last.at, DELIVERY_SIDE.includes(last.milestone))}` : "Nothing reported yet"}</span>
     </div>
     {form && needsForm ? <div className={styles.stepForm}>
       {next === "DELIVERED" && <label>Who took the car?<input value={receiver} onChange={(event) => setReceiver(event.target.value)} placeholder="Name of the person at the desk" autoFocus /></label>}
@@ -486,7 +500,7 @@ function JobCard({ job }: { job: DriverJob }) {
       <StopBlock stop={job.pickup} title="Pick-up" />
       <StopBlock stop={job.delivery} title="Delivery" />
       {job.ferry && <p className={styles.jobNote}>Current ferry to {job.ferry.destination ?? "an unrecorded destination"}{job.ferry.reference ? <>, booking <span className="mono">{job.ferry.reference}</span></> : null}.
-        {job.ferry.arrivalAt && <> Arrival {fmtDateTime(job.ferry.arrivalAt, job.ferry.timezone)}.</>}
+        {job.ferry.arrivalAt && <> Arrival {fmtDateTime(job.ferry.arrivalAt, job.delivery.timezone)}.</>}
         {job.ferry.priceAmount !== null && <> Price {fmtMoney(job.ferry.priceAmount * 100, job.ferry.currency)}.</>}
         {job.ferry.simulated && " Simulated booking."}
         {job.ferry.checkInConfirmed ? " Check-in confirmed." : " Check-in not confirmed yet."}</p>}

@@ -61,9 +61,17 @@ export async function chat(system: string, messages: { role: "user" | "assistant
   return { text: (body.choices[0]?.message.content ?? "").trim(), costUsd: body.usage?.cost ?? 0 }
 }
 
-/** SQL against the sandbox database through the postgres container. Values are passed as a literal-quoted statement; only the harness writes here. */
+/**
+ * SQL against the sandbox database: through the postgres container on the team's box, or, with NIGHT_DATABASE_URL,
+ * with a local psql (a machine without Docker). Values are passed as a literal-quoted statement; only the harness
+ * writes here.
+ */
 export function sql(statement: string): string {
-  return execFileSync("docker", ["exec", "-i", "bahn-pg", "psql", "-U", "controlroom", "-At", "-F", "|", DB, "-c", statement], { encoding: "utf8", timeout: 20000 }).trim()
+  const url = process.env.NIGHT_DATABASE_URL
+  const args = ["-At", "-F", "|", "-c", statement]
+  return (url
+    ? execFileSync("psql", [url, ...args], { encoding: "utf8", timeout: 20000 })
+    : execFileSync("docker", ["exec", "-i", "bahn-pg", "psql", "-U", "controlroom", DB, ...args], { encoding: "utf8", timeout: 20000 })).trim()
 }
 export const q = (value: string) => `'${value.replace(/'/g, "''")}'`
 

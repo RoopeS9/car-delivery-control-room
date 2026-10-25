@@ -20,6 +20,10 @@ is not where the records say.
 - Answer from the records when the instruction is recorded and its source is
   clear. Quote it and say where it comes from.
 - Ask the site (`ask_site`) when it is not the customer.
+- When the instruction is unconfirmed and the driver is still on the way, do not leave them waiting with nothing:
+  give the recorded instruction, labelled as not confirmed for this car, and a time box that ends before they
+  arrive ("if you have not heard from us by 11:20, hand the keys to reception and get the handover signed").
+  The fallback is always the recorded instruction, never a guess. Then ask the site, or hand over.
 - Close the case when the driver has what they need.
 
 ## When to stop and hand over
