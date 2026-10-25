@@ -44,11 +44,17 @@ export function syncTelemetry(now?: Date): Promise<SyncResult> {
  * and events already stored: a GPS fix "in 8 min", reply deadlines that never come. Once per process, before the first
  * sync, the clock moves up to just after the newest stored sample or event. A demo reset marks it done.
  */
-async function catchUpClock(): Promise<void> {
+export async function catchUpClock(): Promise<void> {
   if (holder.__simClockCaughtUp) return
   holder.__simClockCaughtUp = true
-  const result = await crDb().execute(sql`SELECT greatest((SELECT max(at) FROM cr_telemetry), (SELECT max(at) FROM cr_events)) AS at`)
-  const latest = (result as unknown as { at: string | Date | null }[])[0]?.at
+  let latest: string | Date | null | undefined
+  try {
+    const result = await crDb().execute(sql`SELECT greatest((SELECT max(at) FROM cr_telemetry), (SELECT max(at) FROM cr_events)) AS at`)
+    latest = (result as unknown as { at: string | Date | null }[])[0]?.at
+  } catch (error) {
+    holder.__simClockCaughtUp = false // try again on the next call
+    throw error
+  }
   const behindMs = latest ? new Date(latest).getTime() - simNow().getTime() : 0
   if (behindMs > 0) advanceSimClock(Math.ceil(behindMs / 60000))
 }

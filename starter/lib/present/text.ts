@@ -34,7 +34,8 @@ function runsOf(line: string): Run[] {
 
 /**
  * The agent answers in light markdown: paragraphs, "- " bullets and **bold**. Nothing else is
- * interpreted, and the result is plain data for React to render, never HTML.
+ * interpreted (backticks, heading marks and "---" lines are dropped), and the result is plain data for React to
+ * render, never HTML.
  */
 export function blocksOf(text: string): Block[] {
   const blocks: Block[] = []
@@ -43,7 +44,11 @@ export function blocksOf(text: string): Block[] {
   const endParagraph = () => { if (paragraph.length) blocks.push({ type: "p", runs: runsOf(paragraph.join(" ")) }); paragraph = [] }
   const endList = () => { if (list) blocks.push({ type: "ul", items: list }); list = null }
   for (const raw of text.split("\n")) {
-    const line = raw.trim()
+    // Inline code, heading marks and separator lines are markup the agent sometimes writes; people read the words.
+    const line = raw.trim().replace(/`([^`]+)`/g, "$1")
+    if (/^([-*_])\1{2,}$/.test(line)) { endParagraph(); endList(); continue }
+    const heading = /^#{1,6}\s+(.+)$/.exec(line)
+    if (heading) { endParagraph(); endList(); blocks.push({ type: "p", runs: [{ text: heading[1].replace(/\*\*/g, ""), bold: true }] }); continue }
     const bullet = /^[-*•]\s+(.+)$/.exec(line)
     if (!line) { endParagraph(); endList(); continue }
     if (bullet) { endParagraph(); (list ??= []).push(runsOf(bullet[1])); continue }

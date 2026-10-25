@@ -26,6 +26,9 @@ describe("the agent's light markdown becomes plain data for React", () => {
 
   test("nothing in, nothing out", () => {
     assert.deepEqual(blocksOf(""), [])
+    assert.deepEqual(blocksOf("Here it is:\n\n---\n\n## Next\nA `promise-change` card."), [
+      { type: "p", runs: [{ text: "Here it is:" }] }, { type: "p", runs: [{ text: "Next", bold: true }] }, { type: "p", runs: [{ text: "A promise-change card." }] },
+    ])
     assert.deepEqual(blocksOf("\n  \n"), [])
   })
 })

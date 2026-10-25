@@ -1,12 +1,13 @@
 // The order record, read out section by section. Every value here points back to
 // a record in the API response; the view adds labels, names and grouping.
 
+import { OPEN_CASE_STATUSES, type ObdData } from "@/lib/cr/types"
 import { needsPersonItem } from "./tone-rule"
 import { chosenWindows, deriveAttention, deriveKeyDates, latestTracking, strongestTone, windowSource, windowViews } from "./attention"
 import {
   type Bundle, type RelatedRow, activePoints, bool, journeyPlan, list, num, obj, recordedAt, refCount, rows, str, strings,
 } from "./bundle"
-import { callTranscriptViews, caseViews, mergedTimeline, promiseView, telemetryStrip } from "./cases"
+import { CASE_KIND_LABELS, callTranscriptViews, caseViews, mergedTimeline, promiseView, telemetryStrip } from "./cases"
 import { describeEvent } from "./events"
 import { humanize, label, labelIn, laneLabel } from "./labels"
 import { dayKey, fmtDateTime, fmtDay, fmtDayHeading, fmtMoney, fmtRange, fmtWeekday, isBefore, relativeTo } from "./time"
@@ -738,6 +739,9 @@ function dayWord(iso: string | null, snapshotAt: string | null, zone: string | n
   return `on ${fmtWeekday(iso, zone)}`
 }
 
+/** Road Desk case kinds that stop the car, when its dongle reads 0 km/h. */
+const STOP_KINDS = new Set(["VEHICLE_WARNING", "BREAKDOWN", "ACCIDENT"])
+
 /** The lane's headline and facts, then the open exception when the attention list holds one. */
 function buildStory(bundle: Bundle, keyDates: KeyDate[], assignments: AssignmentView[], offers: OfferView[], journey: JourneyView, attention: AttentionItem[]): Story {
   const story = laneStory(bundle, keyDates, assignments, offers, journey)
@@ -796,14 +800,19 @@ function laneStory(bundle: Bundle, keyDates: KeyDate[], assignments: AssignmentV
     const clock = (iso: string, zone: string | null) => fmtClockIn(iso, zone)
     // The problem first, when there is one: an operator reads "late" before the name. Then the consequences the
     // records support: the promise, and the driver's next scheduled step after the arrival.
-    const headline = late && eta && promise
+    // Road Desk's open case and the car's own dongle can say it has stopped; "is driving it" would read wrong next to them.
+    const obd = bundle.cr.obd?.data as ObdData | undefined
+    const stopCase = obd && (obd.speed_kmh ?? 1) === 0 ? bundle.cr.cases.find((row) => OPEN_CASE_STATUSES.includes(row.status) && STOP_KINDS.has(row.kind)) ?? null : null
+    const headline = stopCase
+      ? `${driver ?? "The driver"} has stopped with it on the way to ${to.city}: ${(CASE_KIND_LABELS[stopCase.kind] ?? "a problem").toLowerCase()}.`
+      : late && eta && promise
       ? `Late to ${to.city}: ETA ${clock(eta.start, eta.zone)}, promised by ${clock(promise.end ?? promise.start, promise.zone)}.`
       : driver ? `${driver} is driving it from ${from.city} to ${to.city}.` : `It is on the road from ${from.city} to ${to.city}.`
     const nextDuty = eta && active ? active.steps.filter((step) => step.status !== "COMPLETED" && step.scheduledStart && step.scheduledStart > eta.start).sort((a, b) => a.scheduledStart!.localeCompare(b.scheduledStart!))[0] ?? null : null
     const dutyMargin = nextDuty && eta ? Math.round((Date.parse(nextDuty.scheduledStart!) - Date.parse(eta.start)) / 60000) : null
     const facts = [
       ...(late && driver ? fact("Driver", driver, `${from.city} → ${to.city}`) : []),
-      ...fact("ETA", eta ? fmtDateTime(eta.start, eta.zone) : null, eta?.note?.replace(/^stale signal received /, "driver app, stale, ").replace(/^coarse signal received /, "driver app, coarse, ").replace(/; unverified$/, "") ?? null, late ? "warn" : eta?.tone === "danger" ? "warn" : eta?.tone ?? "neutral"),
+      ...fact("ETA", eta ? fmtDateTime(eta.start, eta.zone) : null, stopCase ? "driver app, from before the car stopped" : eta?.note?.replace(/^stale signal received /, "driver app, stale, ").replace(/^coarse signal received /, "driver app, coarse, ").replace(/; unverified$/, "") ?? null, late ? "warn" : eta?.tone === "danger" ? "warn" : eta?.tone ?? "neutral"),
       ...fact("Promise", promise ? `by ${fmtDateTime(promise.end ?? promise.start, promise.zone)}` : null, marginText, margin != null && margin < 0 ? "danger" : margin != null && margin < 30 ? "warn" : "neutral"),
       ...(late && margin != null && margin < 0 ? fact("If nothing changes", `delivery ${minutes(-margin)} late`, "the receiver is not told yet; a promise change needs the customer's agreement", "warn") : []),
       ...(nextDuty && dutyMargin != null ? fact("Driver's next step", `${nextDuty.title} ${clock(nextDuty.scheduledStart!, eta?.zone ?? null)}`, dutyMargin < 0 ? `${minutes(-dutyMargin)} after the ETA: missed` : dutyMargin < 90 ? `${minutes(dutyMargin)} after the ETA: tight` : `${minutes(dutyMargin)} after the ETA`, dutyMargin < 0 ? "danger" : dutyMargin < 90 ? "warn" : "neutral") : []),

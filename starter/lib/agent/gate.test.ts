@@ -117,6 +117,15 @@ describe("M1: a CONTACT_CUSTOMER action cannot execute without approval", () => 
     assert.equal(promise.changes[0].after, "Fri 23 Oct 12:00 CEST", "the UTC instant stays in the value, not the words")
   })
 
+  test("a fact the model gave without sources is stored with none, so the card can say so", async () => {
+    const caseRow = await newCase()
+    const { proposal: row } = await submitProposal({ audience: "operator", caseRow, facts }, proposal("CONTACT_CUSTOMER", {
+      draft_message: customerDraft,
+      handover: { what_happened: "Test.", facts: [{ text: "The car stopped." } as never], agent_did: [], unknowns: [], recommendation: "Test.", alternatives: [] },
+    }))
+    assert.deepEqual(row.handover?.facts, [{ text: "The car stopped.", sources: [] }])
+  })
+
   test("while a new date waits for the customer's answer, a second date card is refused", async () => {
     const caseRow = await newCase()
     const open = await insertEffect({

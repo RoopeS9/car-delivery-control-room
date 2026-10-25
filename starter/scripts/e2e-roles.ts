@@ -191,6 +191,17 @@ const stories: Record<string, () => Promise<void>> = {
   },
 }
 
+/** Each story's order: its page and the queue must still render once the story has run. */
+const ORDERS: Record<string, string> = { A: "ord-00584", B: "ord-00322", C: "ord-00145", D: "ord-00442", F: "ord-00537", G: "ord-00439", H: "ord-00442", customer: "ord-00584" }
+
+async function pagesRender(name: string) {
+  for (const path of [`/api/orders/${ORDERS[name]}`, "/queue", `/orders/${ORDERS[name]}`]) {
+    const response = await fetch(APP + path, { cache: "no-store" })
+    await response.text()
+    check(`${path} renders`, response.ok, String(response.status))
+  }
+}
+
 async function main() {
   const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(stories)
   for (const name of wanted) {
@@ -198,6 +209,7 @@ async function main() {
     story = name
     await reset()
     try { await stories[name]() } catch (error) { check("ran without an error", false, error instanceof Error ? error.message : String(error)) }
+    if (ORDERS[name]) await pagesRender(name)
   }
   // KEEP=1 leaves the last story's records in place to read after a failure.
   if (!process.env.KEEP) await reset()

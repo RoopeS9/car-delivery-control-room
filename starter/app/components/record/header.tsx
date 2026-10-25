@@ -4,11 +4,15 @@ import Image from "next/image"
 import Link from "next/link"
 import type { RecordView, Tile } from "@/lib/present/types"
 import { fmtDay } from "@/lib/present/time"
+import { isRoadDeskItem } from "@/lib/present/tone-rule"
 import { Icon } from "../icons"
 
 export function RecordHero({ view, compact = false }: { view: RecordView; compact?: boolean }) {
   const { header, story, journey } = view
   const vehicle = header.vehicle
+  // Under a case panel, Road Desk's own card is already shown in full above: the story does not repeat it.
+  const shownAbove = new Set(compact ? view.attention.filter(isRoadDeskItem).map((item) => item.title) : [])
+  const facts = story.facts.filter((item) => !shownAbove.has(item.value))
   return <>
     {vehicle?.illustrationSlug && !compact && <figure className="cover">
       <Image src={`/car-images/${vehicle.illustrationSlug}.webp`} alt={`Illustration of a ${vehicle.title}`} fill sizes="(max-width: 900px) 100vw, 1040px" priority />
@@ -30,7 +34,7 @@ export function RecordHero({ view, compact = false }: { view: RecordView; compac
     </div>
     <div className="story">
       <p className={`story-headline tone-${story.tone}`}>{story.headline}</p>
-      {story.facts.length > 0 && <dl className="story-facts">{story.facts.map((item) => <div key={item.label + item.value} className={`story-fact tone-${item.tone}`}>
+      {facts.length > 0 && <dl className="story-facts">{facts.map((item) => <div key={item.label + item.value} className={`story-fact tone-${item.tone}`}>
         <dt>{item.label}</dt><dd><b>{item.value}</b>{item.note && <span>{item.note}</span>}</dd>
       </div>)}</dl>}
     </div>

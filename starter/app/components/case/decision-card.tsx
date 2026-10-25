@@ -157,7 +157,7 @@ export function DecisionCard({ card, onDecided }: { card: DecisionCardView; onDe
 
     {details > 0 && <details className="dcard-details">
       <summary><Icon name="chevron" size={12} />What the agent found ({details})</summary>
-      {card.facts.length > 0 && <section className="dcard-sec"><h3>What we know</h3><ul className="dcard-facts">{card.facts.map((fact, index) => <li key={index}><span>{fact.text}</span><Sources sources={fact.sources} /></li>)}</ul></section>}
+      {card.facts.length > 0 && <section className="dcard-sec"><h3>What we know</h3><ul className="dcard-facts">{card.facts.map((fact, index) => <li key={index}><span>{fact.text}</span>{fact.sources.length ? <Sources sources={fact.sources} /> : <span className="sources"><span className="source unsourced" title="The agent gave no record for this line">no source given</span></span>}</li>)}</ul></section>}
       {card.unknowns.length > 0 && <section className="dcard-sec"><h3>Still unknown</h3><ul className="dcard-unknowns">{card.unknowns.map((item, index) => <li key={index}>{item}</li>)}</ul></section>}
       {card.agentDid.length > 0 && <section className="dcard-sec"><h3>What the agent already did</h3><ul>{card.agentDid.map((item, index) => <li key={index}>{item}</li>)}</ul></section>}
       {card.evidence.length > 0 && <p className="dcard-evidence">Evidence: <Sources sources={card.evidence} /></p>}

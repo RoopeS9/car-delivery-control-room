@@ -32,7 +32,7 @@ export function OrderPane({ detail, onChange }: { detail: Detail; onChange: () =
     <CasePanel view={view} onChange={onChange} />
     <div className="order-divider"><h2>The order</h2><p>Everything below is from the order record.</p></div>
     <RecordHero view={view} compact />
-    <AttentionPanel view={view} />
+    <AttentionPanel view={view} belowCases />
     <ConversationsSection view={view} onChange={onChange} />
     <EvidenceSection view={view} />
     <DecisionsSection view={view} />

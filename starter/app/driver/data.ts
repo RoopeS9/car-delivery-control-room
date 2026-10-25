@@ -6,11 +6,12 @@
 import { and, asc, eq, inArray, or } from "drizzle-orm"
 import { crDb } from "@/lib/cr/db"
 import { effectiveOrder } from "@/lib/cr/effective"
-import { lifecycleByOrder, MILESTONE_WORDS, MILESTONES, milestoneEvents, nextMilestone, overlayAssignment, overlayReservation, type Lifecycle, type Milestone } from "@/lib/cr/lifecycle"
+import { simNow } from "@/lib/cr/clock"
+import { lifecycleByOrder, MILESTONE_WORDS, MILESTONES, milestoneEvents, overlayAssignment, overlayReservation, type Lifecycle, type Milestone } from "@/lib/cr/lifecycle"
 import { crEvents } from "@/lib/cr/schema"
 import type { PhotoData } from "@/lib/cr/types"
 import { currentFerrySchedule, historicalFerrySchedules, type BookingSchedule } from "@/lib/present/bookings"
-import { addresses, drivers, messages, orderItems, orders, relatedRecords, sites, vehicles } from "@/lib/schema"
+import { addresses, drivers, messages, operationalEvents, orderItems, orders, relatedRecords, sites, vehicles } from "@/lib/schema"
 
 type Row = Record<string, unknown>
 const str = (value: unknown) => (typeof value === "string" ? value : value == null ? null : String(value))
@@ -136,7 +137,7 @@ export async function loadDriver(driverId: string): Promise<{ id: string; name: 
   const assignments = live.rows.filter((row) => row.driver_id === driverId && (ACTIVE.includes(String(row.status)) || row.status === "DELIVERED"))
   const orderIds = [...new Set(assignments.map((row) => String(row.order_id)))]
   if (orderIds.length === 0) return { id: driver.id, name: driver.displayName, homeCity: driver.homeCity, jobs: [] }
-  const [orderRows, segments, points, windows, endpoints, reservations, itemRows] = await Promise.all([
+  const [orderRows, segments, points, windows, endpoints, reservations, itemRows, pickedUp] = await Promise.all([
     db.select().from(orders).where(inArray(orders.id, orderIds)),
     related("transport_segments", { orderIds }),
     related("transport_points", { orderIds }),
@@ -145,6 +146,8 @@ export async function loadDriver(driverId: string): Promise<{ id: string; name: 
     related("travel_reservations", { orderIds }),
     db.select({ item: orderItems, vehicle: vehicles }).from(orderItems).innerJoin(vehicles, eq(orderItems.vehicleId, vehicles.id))
       .where(inArray(orderItems.orderId, orderIds)),
+    db.select({ orderId: operationalEvents.orderId, at: operationalEvents.recordedAt }).from(operationalEvents)
+      .where(and(eq(operationalEvents.command, "vehicle.picked_up"), inArray(operationalEvents.orderId, orderIds))),
   ])
   const addressIds = points.map((row) => String(row.address_id))
   const [addressRows, siteRows] = await Promise.all([
@@ -211,7 +214,12 @@ export async function loadDriver(driverId: string): Promise<{ id: string; name: 
         .map((booking) => ({ kind: booking.kind, reference: booking.reference, status: booking.status })),
       ferry: segment.transport_mode === "DRIVE_WITH_FERRY" ? currentFerrySchedule(effective, orderReservations) : null,
       historicalFerries: historicalFerrySchedules(effective, orderReservations),
-      ...stepsOf(live.lifecycles.get(order.id) ?? {}, segment.transport_mode === "DRIVE_WITH_FERRY" && orderReservations.some((row) => row.kind === "FERRY" && row.status === "BOOKED")),
+      ...stepsOf(live.lifecycles.get(order.id) ?? {}, segment.transport_mode === "DRIVE_WITH_FERRY" && orderReservations.some((row) => row.kind === "FERRY" && row.status === "BOOKED"), {
+        // What the records already say happened before this app was in the driver's hand.
+        COLLECTED: assignment.status === "IN_PROGRESS" || assignment.status === "COMPLETED"
+          ? pickedUp.find((row) => row.orderId === order.id)?.at.toISOString() ?? str(assignment.started_at) ?? simNow().toISOString() : null,
+        CHECKED_IN: str(orderReservations.find((row) => row.kind === "FERRY" && row.status === "BOOKED" && row.check_in_confirmation === "CONFIRMED_BY_GATE_SCAN")?.check_in_confirmed_at),
+      }),
     })
   }
   const order = (job: DriverJob) => (job.status === "IN_PROGRESS" ? 0 : job.status === "ASSIGNED" ? 1 : 2)
@@ -219,9 +227,13 @@ export async function loadDriver(driverId: string): Promise<{ id: string; name: 
   return { id: driver.id, name: driver.displayName, homeCity: driver.homeCity, jobs }
 }
 
-function stepsOf(lifecycle: Lifecycle, ferry: boolean): Pick<DriverJob, "steps" | "next"> {
+/** The steps as reported in the app, or as the records already have them (a collection before the app was used). */
+function stepsOf(lifecycle: Lifecycle, ferry: boolean, recorded: Partial<Record<Milestone, string | null>>): Pick<DriverJob, "steps" | "next"> {
   const steps = MILESTONES.filter((step) => ferry || step !== "CHECKED_IN")
-  return { steps: steps.map((milestone) => ({ milestone, label: MILESTONE_WORDS[milestone], at: lifecycle[milestone]?.at ?? null })), next: nextMilestone(lifecycle, ferry) }
+  const at = (milestone: Milestone) => lifecycle[milestone]?.at ?? recorded[milestone] ?? null
+  // The step after the last one done; an arrival the driver went straight past stays skipped.
+  const last = Math.max(-1, ...steps.map((step, index) => (at(step) ? index : -1)))
+  return { steps: steps.map((milestone) => ({ milestone, label: MILESTONE_WORDS[milestone], at: at(milestone) })), next: steps[last + 1] ?? null }
 }
 
 function sourceWords(endpoint: Row | undefined, fromSite: boolean): string {

@@ -374,7 +374,8 @@ export async function submitProposal(ctx: GateContext, input: ProposalInput): Pr
     actionType: input.action_type,
     title: input.title.trim(),
     rationale: input.rationale.trim(),
-    handover: input.handover,
+    // A model can drop a fact's sources; the card then says so instead of the order page failing to render it.
+    handover: { ...input.handover, facts: (input.handover?.facts ?? []).map((fact) => ({ text: String(fact?.text ?? ""), sources: Array.isArray(fact?.sources) ? fact.sources : [] })) },
     changes: changes.length || messageOnly ? changes : input.proposed_window ? [{ label: input.action_type === "UPDATE_ETA" ? "ETA" : "Delivery promise", before: null, after: `${input.proposed_window.start_utc} – ${input.proposed_window.end_utc} UTC`, value: input.proposed_window }] : [],
     draftMessage: draft,
     bookingSelection: input.booking_selection ?? null,

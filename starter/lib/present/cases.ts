@@ -286,7 +286,7 @@ export function decisionCardView(bundle: Bundle, proposal: ProposalRow): Decisio
     title: plainText(bundle, proposal.title), rationale: plainText(bundle, proposal.rationale), status: proposal.status, statusLabel: status.label, tone: status.tone,
     pending: !decided,
     whatHappened: plainText(bundle, handover?.what_happened ?? null),
-    facts: (handover?.facts ?? []).map((fact) => ({ text: plainText(bundle, fact.text), sources: fact.sources.map(sourceChip) })),
+    facts: (handover?.facts ?? []).map((fact) => ({ text: plainText(bundle, fact.text), sources: (fact.sources ?? []).map(sourceChip) })),
     agentDid: (handover?.agent_did ?? []).map((line) => plainText(bundle, line)),
     unknowns: (handover?.unknowns ?? []).map((line) => plainText(bundle, line)),
     recommendation: plainText(bundle, handover?.recommendation ?? null),

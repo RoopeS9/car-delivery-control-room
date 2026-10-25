@@ -18,3 +18,8 @@ export function attentionTone(items: AttentionItem[], fallback: Tone): Tone {
   if (items.some((item) => item.kind !== "case")) return fallback === "danger" ? "warn" : fallback === "ok" ? "warn" : fallback
   return fallback === "danger" ? "warn" : fallback
 }
+
+/** Road Desk's own cases and cards, which a case panel on the order page already shows in full. */
+export function isRoadDeskItem(item: AttentionItem): boolean {
+  return item.kind === "decision" || item.kind === "case"
+}

@@ -3,7 +3,7 @@
 import type React from "react"
 
 import Link from "next/link"
-import { needsPersonItem } from "@/lib/present/tone-rule"
+import { isRoadDeskItem, needsPersonItem } from "@/lib/present/tone-rule"
 import { useState } from "react"
 import type { AttentionItem, JourneyGroup, JourneyLeg, JourneyStep, MessageView, ProposalView, RecordView, ThreadView } from "@/lib/present/types"
 import { fmtClock, fmtDateTime, fmtDay, relativeTo } from "@/lib/present/time"
@@ -26,8 +26,9 @@ function capitalise(text: string): string {
 
 /* ── Needs a person ─────────────────────────────────────────────────────── */
 
-export function AttentionPanel({ view }: { view: RecordView }) {
-  const items = view.attention
+export function AttentionPanel({ view, belowCases = false }: { view: RecordView; belowCases?: boolean }) {
+  const items = belowCases ? view.attention.filter((item) => !isRoadDeskItem(item)) : view.attention
+  if (belowCases && items.length === 0) return null
   // Same rule as the map: only an operator item or an agent's card is a need; alerts and conversations are watched.
   const needs = items.filter(needsPersonItem)
   const watching = items.filter((item) => !needsPersonItem(item))
