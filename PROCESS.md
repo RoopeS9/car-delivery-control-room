@@ -1510,3 +1510,49 @@ Checked: after every step, both typechecks, `npm test` 128/128 on the test datab
 a copy of `starter/`, so the running server's `.next` was not replaced; the same four filesystem warnings). The call
 service's GET routes answered the same from the old and the new code (a brief's own timestamp aside). No model was
 called.
+
+## 2026-10-25 ~07:00–08:10 UTC · RoopeS + Claude Code (cloud) · a cost slide, a hostile review, and fixing what it found
+
+Asked: three jobs, each for its own agent and in order: a one-slide business case against a Finnish operator at
+most 20 €/h (Roope added: include how many car issues an operator gets through); the overview and refactor above;
+then a critical review of the whole repo from Bahn's side by a separate model (Fable), and start fixing what it
+finds. Later, from another session's completion plan: the counts, the queue wording and the README.
+
+Got:
+- **The business case** (`BUSINESS-CASE.md`, one slide). The agent measured AI cost from what OpenRouter billed in
+  the traces (mean €0.12 an incident) and turn times, and took 2026 Finnish employer costs from ETK and Statistics
+  Finland. Checking its arithmetic held, but three things were changed before the slide: the title's range did not
+  match the table (€3–6 vs €2.5–6), "one incident's AI cost equals ~26 s of operator time" used the costliest
+  incident beside a mean, and "€14k a month saved" sat next to "a 24/7 seat costs €27k either way". The saving is
+  hours of work freed, which becomes money only as staff not added for load, peaks and growth; the slide says so.
+- **The review** (`REVIEW-BAHN.md`, 42 findings with file:line evidence). Its top claims were checked in the code
+  before acting: the stop instruction on a STOP_NOW code waited for the model (true: in trace A it went out after
+  five lookups); the safety lines and the "may drive on" patterns were English only while the agent answers in the
+  driver's language (true; the data's drivers live in DE 67, FI 49, FR 41, BE, DK, SE); the agent may call a
+  monitor-level fault "usually not critical" (true, the prompt allowed it, and trace G shows "not something that
+  should stop you immediately").
+- **Fixed (`02241f7`)**: a fault whose severity calls for it now sends "stop when safe" and "engine off" before the
+  model is asked anything, and fire, smoke or someone hurt in a driver's message sends the 112 line first. The six
+  fixed lines exist in Finnish, Swedish, German, Danish and French; they go out in the language the driver writes in,
+  or their home country's with English below. The clearance patterns, the stop check and the classifier-down
+  fallback cover those languages (with Unicode word edges: `\b` in JavaScript fails on "är" and "fumée"). No more
+  "usually not critical".
+- **A real run found what the tests could not.** With the Finnish line in the thread, the agent answered Leo, who
+  writes English, in Finnish, and switched back and forth. The prompt already said "English until they write"; the
+  model took the server's line as the conversation's language. The agent now reads such a line as its English text
+  with a note of the languages it went out in. The rerun: every agent message after the stop lines was in English.
+- **The counts and the queue** (`6d8ff7b`, from Roope and the completion plan). The map said 16 need a person, the
+  queue 20: the queue also put open alerts and quiet phones under "Needs your decision", each row headed by "Open
+  alert: …". A records row now needs a decision only when an item in it waits on a person (the map's rule); that
+  item leads the row; signals go to an amber "Worth a look". One team test said an urgent alert stays in "Needs your
+  decision"; its point was that the alert must not hide behind a waiting case, so the code keeps it visible as worth
+  a look and the test says that now. The packet's "source is a conversation, not a verified outcome" reads as words.
+- README: the live line is outside the repo and starts no agent turn; no `VOICE_PROVIDER` or `voice:test`; a model
+  table; the root `.env.example` points to the two real ones. Four screenshots of scenario A on the real agent.
+- Left for after the hackathon, as new features rather than fixes, and named in the plan as pilot conditions:
+  login and per-person identity (R1), timers without an open tab (R2), Slack/SMS alerts (R7), an EU-hosted model,
+  pseudonymisation and retention (R5).
+
+Checked: 133/133 tests, both typechecks, the build, smoke; the role harness on DeepSeek for A, F and G after the
+safety change (18/18), and scenario A twice more for the language fix and the screenshots. Map, board and queue
+show the same count. Spend: about $7.9 of the $10 (OpenRouter key at $10.82, $2.88 before the night).
