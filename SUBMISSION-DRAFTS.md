@@ -7,6 +7,11 @@ from a file in this repo (named in the margin notes), so nothing here needs a so
 
 ## 1. Demo video script (target 2:45, hard limit 3:00)
 
+> **Superseded.** The current script is `video/SCRIPT.md` (opener with the business claims, a roleplay with the simulator
+> as gremlin, the control room, a map timelapse, then us on camera). Music is in `video/MUSIC.md` and the timelapse brief in
+> `video/TIMELAPSE-BRIEF.md`. The slides are in the “Road Desk presentation” deck. The table below is the earlier,
+> screen-only version, kept as a fallback if there is no time to film the roleplay.
+
 About 400 spoken words at a calm pace. One voice, a screen recording. Run **Reset demo** first; the simulated driver
 is on (so the video needs no second person), the call service is up.
 
