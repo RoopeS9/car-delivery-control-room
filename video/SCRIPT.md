@@ -34,12 +34,12 @@ Minimum: **two people in front of the camera and one behind it.**
 | Role | Played by | Look |
 |---|---|---|
 | **Operator** (also the **shift lead** in scene 3) | one teammate | Hoodie, mug, feet on the desk, half asleep. In scene 3 the same person sits forward, lit by the map. The change is the joke. |
-| **Driver** (Leo) | one teammate | In a parked car, outdoors, daylight. Never filmed while moving. |
+| **Driver** (Leo) | one teammate | On a makeshift car set: two chairs and a paper-plate wheel (`video/SET-B-PROPS.md`). The low-budget look is part of the joke. |
 | **Simulator** | no actor | A hand on a mouse and a caption card. “THE SIMULATOR (it has no shame).” |
 | Us on camera (scene 5) | the whole team | Standing at a laptop, outdoors or at the desk set. |
 
 Sets: (A) the control room: a desk, a laptop, a second screen or a TV showing Road Desk, a mug, dim light for scene 3;
-(B) a parked car with a dashboard you can film into; (C) the team outdoors.
+(B) a makeshift car: two chairs, a paper-plate steering wheel and a cardboard dashboard; (C) the team outdoors or at the desk set.
 
 ## The script
 
@@ -62,7 +62,7 @@ what the agent actually said. Do not write the agent’s lines; use the real one
 |---|---|---|
 | **2a** 0:14–0:22 | Control room. The operator is slumped, feet up, mug in hand. Over the shoulder: the queue, calm. Title card: “09:00. A calm shift.” | Lo-fi groove (cue 2). **OPERATOR** (to self): “Quiet morning.” |
 | **2b** 0:22–0:29 | Cutaway: a hand clicks **Run** on “C. Routine question” in the demo panel. Caption card: *THE SIMULATOR: “Where are the keys?”* Then the queue: answered, nobody paged. | Cartoon pop. **OPERATOR** (eyes closed, sips): “Keys. Agent’s got it.” |
-| **2c** 0:29–0:37 | Cutaway: the hand slams **Run** on “A. Fresh warning light.” Caption: *THE SIMULATOR: warning light.* Cut to the driver’s car: a lit dashboard (the phone propped behind the wheel shows the app’s misfire dashboard picture), the driver rocking the seat to fake the shaking. | Alarm sting; music drops to a low pulse (cue 2b). **DRIVER:** “No no no no. What is that light? It’s shaking!” |
+| **2c** 0:29–0:37 | Cutaway: the hand slams **Run** on “A. Fresh warning light.” Caption: *THE SIMULATOR: warning light.* Cut to the makeshift car: a lit dashboard (a tablet or phone behind the wheel shows the app’s misfire dashboard picture), the driver rocking the chair to fake the shaking. | Alarm sting; music drops to a low pulse (cue 2b). **DRIVER:** “No no no no. What is that light? It’s shaking!” |
 | **2d** 0:37–0:46 | The driver’s phone buzzes. Insert: the real screen, Leo’s app, the stop line in Finnish with English underneath. The driver pulls over, hazards on, engine off. Types the reply. | Pulse stops. **DRIVER** (reads the Finnish, then quietly): “Okay, okay.” Types: “I’m safe, parked at the service area, engine off. The light was blinking and the car shook.” |
 | **2e** 0:46–0:53 | Insert: the agent’s real reply to Leo (in the last trace: “Leo, I’m glad you’re safe. An operator is now arranging what happens next… Please stay near the car, and we’ll message you as soon as there’s a plan.”). Close on the driver’s shoulders dropping. | Warm resolve (cue 2c). **DRIVER:** “…Okay. Somebody’s got this.” |
 | **2f** 0:53–1:03 | The operator’s screen pings: “1 needs you.” Mug down. Sits forward for the first time. Insert (3 s): the decision card, with its source chips. The operator phones the dealer (we only see the mouthing and a thumbs up), then types the outcome and presses “I’ll handle it.” | Back to the groove. **OPERATOR:** “Right. That one’s mine.” |
@@ -126,10 +126,10 @@ for every insert, and film the actors afterwards. Check the balance before you s
 - **Landscape, 4K at 30 fps, always.** Lock exposure and focus (hold the screen). Wipe the lens.
 - **Sound is most of it.** Record dialogue close to the mouth (a wired or wireless lav mic, or the phone a hand’s width away,
   never across a room). Record 20 seconds of silence in each place (room tone). Clap once at the start of each take.
-- **Car scene:** stay parked, handbrake on, hazards on, daylight, no moving shots from inside. A car park or a quiet lay-by.
-  Do not film in a service station or on private property without asking. Hide real number plates and keep strangers out
-  of the frame, because the video is public.
-- **Prop for the dashboard:** a second phone propped behind the wheel showing `starter/public/sim/dashboard-misfire.jpg`.
+- **Car scene:** there is no car, so build one: two chairs, a paper-plate steering wheel, a cardboard dashboard. The full
+  build, the camera angles and the sound are in `video/SET-B-PROPS.md`. If a real parked car turns up, film it parked,
+  hazards on, daylight, away from strangers and real number plates (the video is public).
+- **Prop for the dashboard:** a tablet, laptop or second phone behind the wheel showing `starter/public/sim/dashboard-misfire.jpg`.
 - **Every actor’s line twice:** once for the camera, once for a clean audio take.
 - Shoot **cutaways** (hands, mug, screen over the shoulder, feet on the desk) for 5–8 seconds each. They are what saves the edit.
 

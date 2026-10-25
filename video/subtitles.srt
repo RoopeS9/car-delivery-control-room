@@ -1,0 +1,133 @@
+1
+00:00:00,200 --> 00:00:03,400
+We built Road Desk: a control room
+where AI agents do the legwork,
+
+2
+00:00:03,400 --> 00:00:06,000
+and people make the calls.
+
+3
+00:00:06,200 --> 00:00:09,900
+On our estimates, a car issue drops
+from half an hour of an operator's time
+
+4
+00:00:09,900 --> 00:00:11,300
+to under ten minutes.
+
+5
+00:00:11,400 --> 00:00:14,000
+The AI behind it costs
+about twelve cents.
+
+6
+00:00:17,500 --> 00:00:19,500
+Quiet morning.
+
+7
+00:00:25,000 --> 00:00:27,500
+Keys. Agent's got it.
+
+8
+00:00:31,000 --> 00:00:36,000
+No no no no. What is that light?
+It's shaking!
+
+9
+00:00:40,500 --> 00:00:42,500
+Okay, okay.
+
+10
+00:00:49,000 --> 00:00:52,000
+...Okay. Somebody's got this.
+
+11
+00:00:55,000 --> 00:00:57,500
+Right. That one's mine.
+
+12
+00:01:11,000 --> 00:01:13,000
+Not now.
+
+13
+00:01:16,000 --> 00:01:18,000
+Hamburg.
+
+14
+00:01:20,000 --> 00:01:23,500
+The map shows every car,
+
+15
+00:01:23,500 --> 00:01:27,000
+and only the ones that need
+a person glow red.
+
+16
+00:01:42,000 --> 00:01:45,000
+We built it with coding agents
+working in parallel,
+
+17
+00:01:45,000 --> 00:01:48,000
+and we didn't take their first answer.
+
+18
+00:01:48,000 --> 00:01:53,500
+The strongest model was too slow for
+a phone call, so we split the voice in two.
+
+19
+00:01:53,500 --> 00:01:58,000
+At night, models played drivers
+and customers against the real app
+
+20
+00:01:58,000 --> 00:02:01,000
+and found sixteen faults.
+
+21
+00:02:01,000 --> 00:02:05,500
+A second model reviewed it from Bahn's side,
+
+22
+00:02:05,500 --> 00:02:10,000
+and now the stop instruction goes out
+before the model is even asked.
+
+23
+00:02:10,000 --> 00:02:14,500
+It's a prototype. The phones, GPS and ferries
+are simulated, there's no login yet,
+
+24
+00:02:14,500 --> 00:02:20,500
+and the savings are our estimates,
+not Bahn's numbers.
+
+25
+00:02:20,500 --> 00:02:24,500
+Next is a shadow pilot on one lane,
+with the agent drafting
+
+26
+00:02:24,500 --> 00:02:28,000
+and people still doing everything.
+
+27
+00:02:28,000 --> 00:02:32,000
+Then login, alerts, an EU-hosted model,
+
+28
+00:02:32,000 --> 00:02:36,000
+and more freedom for the agent,
+one action at a time, as it earns it.
+
+29
+00:02:36,200 --> 00:02:39,500
+We would love to show you
+Road Desk running.
+
+30
+00:02:39,500 --> 00:02:43,800
+Find us at [booth], or watch the repo.
