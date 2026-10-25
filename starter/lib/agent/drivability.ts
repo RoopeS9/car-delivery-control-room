@@ -18,6 +18,9 @@ import type { OrderFacts } from "./context"
 
 export type SafetyTemplate = { id: string; text: string; label: string }
 
+/** The languages the safety instructions are written in. English is the fallback and the operators' reading. */
+export type SafetyLanguage = "en" | "fi" | "sv" | "de" | "da" | "fr"
+
 /** The only safety instructions the agent can send on its own. `{name}` is the driver's first name. */
 export const SAFETY_TEMPLATES: readonly SafetyTemplate[] = [
   { id: "stop_when_safe", label: "Stop when safe", text: "{name}, please slow down and stop at the next safe place, then switch on your hazard lights." },
@@ -28,11 +31,117 @@ export const SAFETY_TEMPLATES: readonly SafetyTemplate[] = [
   { id: "wait_for_help", label: "Wait near the car", text: "Please stay in a safe place near the car. An operator is working out what happens next, and we will message you soon." },
 ]
 
-export function renderSafetyTemplate(id: string, driverFirstName: string | null): string | null {
+/**
+ * The same instructions in the drivers' other languages (Bahn's drivers live in Finland, Germany, France, Denmark,
+ * Sweden and Belgium). Fixed text, like the English: the model never writes a safety instruction.
+ */
+const TRANSLATIONS: Record<Exclude<SafetyLanguage, "en">, Record<string, string>> = {
+  fi: {
+    stop_when_safe: "{name}, hidasta ja pysähdy seuraavaan turvalliseen paikkaan. Laita sitten hätävilkut päälle.",
+    engine_off: "Sammuta moottori ja jätä se sammuksiin.",
+    do_not_drive_on: "Älä aja autolla pidemmälle ennen kuin päivystäjämme on vahvistanut, mitä seuraavaksi tehdään.",
+    leave_car_behind_barrier: "Nouse autosta liikenteestä poispäin olevalta puolelta ja mene kaiteen taakse, reilusti etäälle autosta.",
+    call_112: "Jos joku on loukkaantunut tai näet savua tai tulta, soita heti 112. Turvallisuutesi on tärkeintä.",
+    wait_for_help: "Pysy turvallisessa paikassa auton lähellä. Päivystäjämme selvittää, mitä seuraavaksi tehdään, ja viestimme sinulle pian.",
+  },
+  sv: {
+    stop_when_safe: "{name}, sakta ner och stanna på nästa säkra plats. Slå sedan på varningsblinkersen.",
+    engine_off: "Stäng av motorn och låt den vara avstängd.",
+    do_not_drive_on: "Kör inte bilen längre förrän en operatör hos oss har bekräftat vad som händer härnäst.",
+    leave_car_behind_barrier: "Kliv ur på sidan bort från trafiken och ställ dig bakom räcket, en bra bit från bilen.",
+    call_112: "Om någon är skadad, eller om du ser rök eller eld, ring 112 nu. Din säkerhet kommer först.",
+    wait_for_help: "Stanna på en säker plats nära bilen. En operatör hos oss tar reda på vad som händer härnäst, och vi hör av oss snart.",
+  },
+  de: {
+    stop_when_safe: "{name}, bitte fahren Sie langsamer und halten Sie an der nächsten sicheren Stelle an. Schalten Sie dann die Warnblinkanlage ein.",
+    engine_off: "Bitte stellen Sie den Motor ab und lassen Sie ihn aus.",
+    do_not_drive_on: "Bitte fahren Sie nicht weiter, bis ein Disponent bestätigt hat, wie es weitergeht.",
+    leave_car_behind_barrier: "Bitte steigen Sie auf der verkehrsabgewandten Seite aus und stellen Sie sich hinter die Leitplanke, mit Abstand zum Auto.",
+    call_112: "Wenn jemand verletzt ist oder Sie Rauch oder Feuer sehen, rufen Sie sofort die 112 an. Ihre Sicherheit geht vor.",
+    wait_for_help: "Bitte bleiben Sie an einem sicheren Ort in der Nähe des Autos. Ein Disponent klärt gerade, wie es weitergeht, und wir melden uns bald.",
+  },
+  da: {
+    stop_when_safe: "{name}, sæt farten ned og stop på det næste sikre sted. Tænd derefter havariblinket.",
+    engine_off: "Sluk motoren, og lad den være slukket.",
+    do_not_drive_on: "Kør ikke bilen længere, før en disponent hos os har bekræftet, hvad der skal ske.",
+    leave_car_behind_barrier: "Stig ud i siden væk fra trafikken, og stil dig bag autoværnet, et godt stykke fra bilen.",
+    call_112: "Hvis nogen er kommet til skade, eller du ser røg eller ild, så ring 112 nu. Din sikkerhed kommer først.",
+    wait_for_help: "Bliv på et sikkert sted i nærheden af bilen. En disponent hos os finder ud af, hvad der skal ske, og vi skriver til dig snart.",
+  },
+  fr: {
+    stop_when_safe: "{name}, ralentissez et arrêtez-vous au prochain endroit sûr, puis allumez vos feux de détresse.",
+    engine_off: "Coupez le moteur et laissez-le éteint.",
+    do_not_drive_on: "Ne roulez plus avec la voiture tant qu’un opérateur n’a pas confirmé la suite.",
+    leave_car_behind_barrier: "Sortez du côté opposé à la circulation et placez-vous derrière la glissière de sécurité, bien à l’écart de la voiture.",
+    call_112: "Si quelqu’un est blessé, ou si vous voyez de la fumée ou du feu, appelez le 112 maintenant. Votre sécurité passe avant tout.",
+    wait_for_help: "Restez dans un endroit sûr près de la voiture. Un opérateur organise la suite, et nous vous écrivons très bientôt.",
+  },
+}
+
+/** Whole words in any script: `\b` in JavaScript only knows ASCII letters, so it fails on "är", "rök" or "fumée". */
+export function anyWord(words: string, flags = "giu"): RegExp {
+  return new RegExp(`(?<!\\p{L})(?:${words})(?!\\p{L})`, flags)
+}
+
+/** Words that mark a language in a driver's own message; a few distinctive ones each, so Swedish and Danish part. */
+const LANGUAGE_WORDS: Record<SafetyLanguage, RegExp> = {
+  en: anyWord("the|and|is|my|you|what|with|have|not|there|i'm|it's|car|light|engine"),
+  fi: anyWord("ja|ei|on|ole|olen|mä|minä|auto|autossa|nyt|että|mitä|voin|kanssa|tämä|vilkkuu|palaa|moottori|valo"),
+  sv: anyWord("och|jag|inte|är|vad|lampan|någon|motorn|bilen|stannat"),
+  da: anyWord("og|jeg|ikke|hvad|lampen|nogen|også|motoren|holder"),
+  de: anyWord("und|ich|nicht|ist|das|der|die|ein|eine|wagen|jetzt|lampe|leuchtet|bin|habe"),
+  fr: anyWord("et|je|ne|pas|est|le|la|les|une|voiture|voyant|maintenant|suis|allumé"),
+}
+
+/** The language a driver wrote in, when the words make it clear; otherwise null. */
+export function detectLanguage(text: string): SafetyLanguage | null {
+  const scores = (Object.keys(LANGUAGE_WORDS) as SafetyLanguage[])
+    .map((language) => ({ language, score: text.match(LANGUAGE_WORDS[language])?.length ?? 0 }))
+    .sort((a, b) => b.score - a.score)
+  return scores[0].score >= 2 && scores[0].score > scores[1].score ? scores[0].language : null
+}
+
+const COUNTRY_LANGUAGE: Record<string, SafetyLanguage> = { FI: "fi", SE: "sv", DE: "de", AT: "de", DK: "da", FR: "fr", BE: "fr" }
+
+/**
+ * Which languages a safety instruction goes out in: the one the driver writes in, when their messages show it;
+ * otherwise their home country's language with English after it, since a guess must still be readable.
+ */
+export function safetyLanguages(driverTexts: string[], homeCountry: string | null | undefined): SafetyLanguage[] {
+  const written = detectLanguage(driverTexts.slice(-3).join(" "))
+  if (written) return [written]
+  const local = COUNTRY_LANGUAGE[String(homeCountry ?? "").toUpperCase()]
+  return local ? [local, "en"] : ["en"]
+}
+
+export function renderSafetyTemplate(id: string, driverFirstName: string | null, languages: SafetyLanguage[] = ["en"]): string | null {
   const template = SAFETY_TEMPLATES.find((entry) => entry.id === id)
   if (!template) return null
   const name = driverFirstName?.trim()
-  return name ? template.text.replace("{name}", name) : template.text.replace("{name}, p", "P")
+  const fill = (text: string) => name ? text.replace("{name}", name) : text.replace(/^\{name\}, (.)/, (_, first: string) => first.toUpperCase())
+  return [...new Set(languages)].map((language) => fill(language === "en" ? template.text : TRANSLATIONS[language][id] ?? template.text)).join("\n")
+}
+
+/**
+ * The instructions a reported fault calls for, from the code guide and the light alone: what the rulebook says to
+ * give for the severity (warning-light.md). Codes the guide does not know, and monitor-level ones, call for none.
+ */
+export function faultSafetyTemplates(codes: string[], mil: string | null | undefined): string[] {
+  const severities = codes.map((code) => troubleCode(code)?.severity)
+  if (mil === "FLASHING" || severities.includes("STOP_NOW")) return ["stop_when_safe", "engine_off"]
+  if (severities.includes("DRIVE_TO_SAFE_STOP")) return ["stop_when_safe"]
+  return []
+}
+
+/** A driver who reports fire, smoke or someone hurt gets the 112 line before the model reads anything. */
+const EMERGENCY = anyWord("smoke|smoking|fire|flames?|burning|hurt|injured|bleeding|savua?|tulta|liekk\\p{L}*|loukkaantu\\p{L}*|rök|eld|brinner|skadad|røg|ild|brænder|kommet til skade|rauch|feuer|brennt|verletzt|fumée|feu|brûle|blessée?s?")
+const NO_EMERGENCY = /(?<!\p{L})(?:no|not|ei|eikä|inget|ingen|keine?|kein|ikke|pas de|aucune?)\s+(?:\p{L}+\s+)?$/iu
+
+export function reportsEmergency(text: string): boolean {
+  for (const match of text.matchAll(EMERGENCY)) {
+    if (!NO_EMERGENCY.test(text.slice(Math.max(0, (match.index ?? 0) - 25), match.index))) return true
+  }
+  return false
 }
 
 // ---------------------------------------------------------------- patterns
@@ -43,6 +152,22 @@ const CONDITIONAL = /\b(?:until|unless|before|once|after|when)\b[^.!?\n]{0,25}\b
 
 /** The car as the subject: "the car can keep going", "it is still drivable", "the car is fine to drive". */
 const CAR_CLEARANCE = /\b(?:the car|your car|the vehicle|it)\s+(?:can|may|could|should be able to|is (?:fine|ok|okay|safe|good|able) to)\s+(?:keep going|continue|carry on|be driven|drive on|keep driving|go on|make it)\b|\b(?:the car|your car|the vehicle|it)\s+is\s+(?:still\s+|normally\s+|perfectly\s+)?(?:drivable|driveable|roadworthy|fine to drive|safe to drive)\b/gi
+
+/**
+ * The same clearance in the drivers' other languages: "Sie können weiterfahren", "voit jatkaa", "du kan köra vidare",
+ * "du kan fortsætte", "vous pouvez repartir", and "safe to drive" in each.
+ */
+const CLEARANCE_OTHER: readonly RegExp[] = [
+  anyWord("(?:du kannst|sie können|können sie|kannst du|dürfen sie|darfst du)[^.!?\\n]{0,40}?(?:weiterfahren|weiter fahren|losfahren|fahren)", "iu"),
+  anyWord("(?:ist|wäre) (?:es )?(?:sicher|unbedenklich|kein problem|in ordnung)[^.!?\\n]{0,20}(?:weiterzufahren|zu fahren)|(?:ruhig|problemlos|bedenkenlos) weiter(?:fahren)?", "iu"),
+  anyWord("(?:voit|voitte|saat|saatte)[^.!?\\n]{0,40}?(?:jatkaa|ajaa|ajella|lähteä)|turvallista (?:ajaa|jatkaa)", "iu"),
+  anyWord("(?:du kan|ni kan|du får|ni får)[^.!?\\n]{0,40}?(?:köra|fortsätta|åka vidare)|säkert att (?:köra|fortsätta)", "iu"),
+  anyWord("(?:du kan|i kan|du må|i må)[^.!?\\n]{0,40}?(?:køre|fortsætte)|sikkert at (?:køre|fortsætte)", "iu"),
+  anyWord("(?:vous pouvez|tu peux)[^.!?\\n]{0,40}?(?:continuer|rouler|repartir|conduire|reprendre la route)|(?:sans danger|sûr) de (?:rouler|conduire|continuer)", "iu"),
+]
+const NEGATION_OTHER = anyWord("nicht|kein\\p{L}*|ei|älä|inte|ikke|pas|jamais|aldrig|never|not", "iu")
+const OPERATOR_WORD = anyWord("disponent\\p{L}*|päivystäjä\\p{L}*|operaattori\\p{L}*|operatör\\p{L}*|opérateur\\p{L}*|operator\\p{L}*|operations", "iu")
+const CONDITION_WORD = anyWord("bis|sobald|erst|wenn|kunnes|ennen|kun|jälkeen|tills|innan|när|indtil|før|når|jusqu\\p{L}*|avant|quand|dès que|until|unless|before|once|after|when", "iu")
 
 /**
  * Finds text that tells a driver they may drive on. Negations ("it is not
@@ -63,14 +188,29 @@ export function findClearance(text: string): string | null {
     if (/\b(?:not|n't|cannot)\b/i.test(match[0]) || /\b(?:whether|if)\s*$/i.test(before) || CONDITIONAL.test(before)) continue
     return match[0]
   }
+  // In the other languages a negation inside the phrase ("Sie können nicht weiterfahren") and a sentence about an
+  // operator deciding first ("erst wenn der Disponent es bestätigt") do not clear anyone.
+  for (const pattern of CLEARANCE_OTHER) {
+    const match = pattern.exec(text)
+    if (!match) continue
+    const start = Math.max(text.lastIndexOf(".", match.index), text.lastIndexOf("!", match.index), text.lastIndexOf("?", match.index), text.lastIndexOf("\n", match.index)) + 1
+    const ends = [".", "!", "?", "\n"].map((mark) => text.indexOf(mark, match.index + match[0].length)).filter((at) => at >= 0)
+    const sentence = text.slice(start, ends.length ? Math.min(...ends) : text.length)
+    if (NEGATION_OTHER.test(match[0]) || /(?<!\p{L})(?:ob|jos|om|si)\s*$/iu.test(text.slice(start, match.index))) continue
+    if (OPERATOR_WORD.test(sentence) && CONDITION_WORD.test(sentence)) continue
+    return match[0]
+  }
   return null
 }
 
 /** An explicit instruction to stop: pull over, next safe place, engine off, hazards, behind the barrier, do not drive. */
-const STOP_INSTRUCTION = /\b(pull (over|in)|next safe place|stop (at|in|the car|now|safely)|switch (the engine|it) off|engine off|hazard lights|behind the barrier|do not (drive|continue|move the car)|don't (drive|continue|move the car)|stay (stopped|where you are|with the car))\b/i
+const STOP_INSTRUCTION = /\b(pull (over|in)|next safe place|stop (at|in|the car|now|safely)|switch (the engine|it) off|engine off|hazard lights|behind the barrier|do not (drive|continue|move the car)|don't (drive|continue|move the car)|stay (stopped|where you are|with the car))\b|(?<!\p{L})(?:halten sie an|motor ab|warnblink\p{L}*|leitplanke|nicht weiter|pysähdy|sammuta moottori|hätävilk\p{L}*|älä aja|stanna|stäng av motorn|varningsblink\p{L}*|kör inte|stop på|sluk motoren|havariblink\p{L}*|kør ikke|arrêtez-vous|coupez le moteur|feux de détresse|ne roulez plus)(?!\p{L})/iu
+
+/** A driver reporting a fault in their own language: a light, a breakdown, smoke, a shaking car, power loss. */
+const FAULT_REPORT_OTHER = anyWord("\\p{L}*(?:warnleuchte|kontrollleuchte)|panne|rauch|ruckelt|leistung|varoitusvalo|merkkivalo|vika\\p{L}*|savu\\p{L}*|tärisee|varningslampa|lampan lyser|rök|skakar|advarselslampe|lampen lyser|røg|ryster|voyant|fumée|tremble|perte de puissance", "iu")
 
 /** Words that make a message worth a closer look when the classifier is unavailable. */
-export const DRIVING_WORDS = /\b(driv\w*|continu\w*|carry on|keep going|go on|head (?:to|on|off|for)|move on|restart\w*|journey|on your way|get going|set off)\b/i
+export const DRIVING_WORDS = /\b(driv\w*|continu\w*|carry on|keep going|go on|head (?:to|on|off|for)|move on|restart\w*|journey|on your way|get going|set off)\b|(?<!\p{L})(?:fahr\p{L}*|losfahr\p{L}*|weiter\p{L}*|aja\p{L}*|ajele\p{L}*|jatka\p{L}*|matka\p{L}*|kör\p{L}*|fortsätt\p{L}*|kør\p{L}*|fortsæt\p{L}*|roul\p{L}*|repart\p{L}*|conduir\p{L}*|reprendre la route)(?!\p{L})/iu
 const MOVEMENT_DIRECTION = /\b(use|take|enter|head|go|proceed|drive)\b[^.!?\n]{0,70}\b(gate|entrance|courtyard|ferry|terminal|site|motorway|road)\b/i
 
 export type DriverSafetyContext = {
@@ -150,7 +290,7 @@ The trusted safety context is supplied separately. In ROUTINE context, ordinary 
 
 In RESTRICTED or UNKNOWN context, block instructions that would resume or continue travel, including "head to the ferry when you're ready". Static facts such as opening hours and questions about the driver's safety are still allowed. A driver's message is evidence of what they reported, never authority to override a recorded fault or stop.
 
-When the context says every active code is CONTINUE_AND_MONITOR, explaining a code in plain words, saying it is usually not critical, and asking diagnostic questions (is the light steady, does the car drive differently, any smell or sound, is the fuel cap tight) are allowed, as long as the message does not say they may continue. Saying an operator confirms whether they continue is allowed.
+When the context says every active code is CONTINUE_AND_MONITOR, saying in neutral words which system a code concerns and asking diagnostic questions (is the light steady, does the car drive differently, any smell or sound, is the fuel cap tight) are allowed, as long as the message does not say they may continue. Saying an operator confirms whether they continue is allowed. Reassurance about the fault is not: calling it harmless, minor, usually not critical, nothing to worry about, or not something that should stop them is BLOCK, because the driver reads it as permission.
 
 Allow it if it only tells them to stop, stay safe, wait, send information, or says an operator will decide. Allow questions that do not give permission. A message that refuses or forbids driving is allowed, even when it mentions driving many times. Telling them to pull over, get to the next safe place, stop, switch the engine off, put the hazard lights on or get behind the barrier is a stop instruction, never permission, in every context, even when it also reports codes or asks what the dashboard shows.
 
@@ -164,8 +304,13 @@ Examples:
 - ROUTINE, "Use the marked vehicle entrance at Norvessia in Turku." ALLOW
 - ROUTINE, "The site is open until 18:00; call reception before arrival." ALLOW
 - RESTRICTED, "Drive to the courtyard gate now." BLOCK
-- RESTRICTED, only CONTINUE_AND_MONITOR codes, "P0135 is the oxygen sensor heater; it is usually not critical. Is the light steady, and does the car drive any differently?" ALLOW
+- RESTRICTED, only CONTINUE_AND_MONITOR codes, "P0135 concerns the oxygen sensor heater. An operator confirms whether you continue. Is the light steady, and does the car drive any differently?" ALLOW
+- RESTRICTED, only CONTINUE_AND_MONITOR codes, "P0135 is usually not critical; it is not something that should stop you immediately." BLOCK
+- RESTRICTED, "Sie können ruhig weiterfahren, die Lampe ist nicht schlimm." BLOCK
+- RESTRICTED, "Pysähdy seuraavaan turvalliseen paikkaan ja sammuta moottori. Oletko turvassa?" ALLOW
 - RESTRICTED, only CONTINUE_AND_MONITOR codes, "It's only the oxygen sensor, so you can keep going." BLOCK
+
+The message may be in any language (Finnish, Swedish, German, Danish, French, English); judge it the same way.
 
 Answer with exactly one word: BLOCK or ALLOW.`
 
@@ -183,7 +328,8 @@ export async function screenDriverMessage(text: string, context?: { driverSaid?:
   if (phrase) return { allowed: false, layer: "pattern", reason: `"${phrase}"`, costUsd: 0 }
   let safety = context?.safety ?? { mode: "unknown" as const, reasons: ["Safety context not supplied."] }
   // Incoming claims can increase caution, never remove a recorded restriction.
-  if (safety.mode === "routine" && /\b(?:warning light|engine fault|reduced power|overheat\w*|smoke|burning smell|broken down|unsafe|not safe|can(?:not|'t) continue|safe to drive|should I (?:drive|continue))\b/i.test(context?.driverSaid ?? "")) {
+  if (safety.mode === "routine" && (/\b(?:warning light|engine fault|reduced power|overheat\w*|smoke|burning smell|broken down|unsafe|not safe|can(?:not|'t) continue|safe to drive|should I (?:drive|continue))\b/i.test(context?.driverSaid ?? "")
+    || FAULT_REPORT_OTHER.test(context?.driverSaid ?? ""))) {
     safety = { mode: "restricted", reasons: [...safety.reasons, "The driver reports a possible fault or asks for a safety judgement."] }
   }
   const fallback = (why: string): Screen => {

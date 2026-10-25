@@ -130,9 +130,13 @@ describe("scenario A wiring", () => {
 
     const events = await listEvents({ caseId })
     assert.ok(events.some((event) => event.kind === "dtc" && event.actorType === "obd"))
-    const safety = events.find((event) => event.channel === "safety")
-    assert.equal(safety?.recipientId, DRIVER)
-    assert.match(safety!.body, /^Sofia, please slow down and stop at the next safe place/, "the template, with the driver's name filled in by the server")
+    // A flashing light calls for "stop" and "engine off": the server sends both before the model is asked, in the
+    // driver's home language (Finnish) with English after it; the model's own call for the first is not sent twice.
+    const safety = events.filter((event) => event.channel === "safety")
+    assert.deepEqual(safety.map((event) => event.data.template_id), ["stop_when_safe", "engine_off"])
+    assert.ok(safety.every((event) => event.data.automatic === true && event.recipientId === DRIVER))
+    assert.match(safety[0].body, /^Sofia, hidasta ja pysähdy seuraavaan turvalliseen paikkaan[^\n]*\nSofia, please slow down and stop at the next safe place/, "the template, with the driver's name filled in by the server")
+    assert.match((model.requests[0] as { messages: { content: string }[] }).messages.at(-1)!.content, /The server already sent the safety instruction/)
     const reply = events.find((event) => event.id === result.replyEventId)
     assert.equal(reply?.recipientType, "driver")
     assert.equal(reply?.data.call, true, "proactive fault outreach rings the driver call surface")

@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import type Anthropic from "@anthropic-ai/sdk"
-import { appendEvent, getEvent, latestTelemetry, listProposals, resolveOrder, telemetrySince, updateCase } from "@/lib/cr/queries"
+import { appendEvent, getEvent, latestTelemetry, listEvents, listProposals, resolveOrder, telemetrySince, updateCase, type CaseRow } from "@/lib/cr/queries"
 import { crDb } from "@/lib/cr/db"
 import { sql } from "drizzle-orm"
 import { simNow } from "@/lib/cr/clock"
@@ -14,8 +14,8 @@ import {
   type CaseKind, type EventKind, type WaitingFor, type GpsData, type ObdData, type PhotoData, type SourceRef, type ToolCallTrace, type Urgency,
 } from "@/lib/cr/types"
 import { AGENT_ID } from "./config"
-import { contextFor, loadOrderFacts, type End } from "./context"
-import { DRIVING_WORDS, findClearance, loadDriverSafetyContext, renderSafetyTemplate, SAFETY_TEMPLATES, screenDriverMessage } from "./drivability"
+import { contextFor, loadOrderFacts, type End, type OrderFacts } from "./context"
+import { DRIVING_WORDS, findClearance, loadDriverSafetyContext, renderSafetyTemplate, safetyLanguages, SAFETY_TEMPLATES, screenDriverMessage } from "./drivability"
 import { firstName, localTime, relative, utcTime } from "./format"
 import {
   checkTool, DecisionError, gateNote, newFactsSince, openPromiseProposal, READ_TOOLS, recordedTravelSelection, submitProposal, TOOL_AUDIENCES,
@@ -163,7 +163,7 @@ export const TOOL_DEFINITIONS: Record<ToolName, Anthropic.Tool> = {
   },
   safety_instruction: {
     name: "safety_instruction",
-    description: `Send the driver one approved safety instruction at once; operators see exactly what was said. Only these templates exist: ${SAFETY_TEMPLATES.map((template) => `${template.id} ("${template.text.replace("{name}, p", "P")}")`).join("; ")}. Call it again for a second instruction.`,
+    description: `Send the driver one approved safety instruction at once, in their language; operators see exactly what was said. One already sent in the last ten minutes is not sent again. Only these templates exist: ${SAFETY_TEMPLATES.map((template) => `${template.id} ("${template.text.replace("{name}, p", "P")}")`).join("; ")}. Call it again for a second instruction.`,
     input_schema: obj({ template_id: { type: "string", enum: SAFETY_TEMPLATES.map((template) => template.id) } }),
   },
   ask_site: {
@@ -268,6 +268,31 @@ async function sendToDriver(state: TurnState, input: { body: string; channel: "d
     caseId: state.caseRow.id, orderId: state.facts.id, actorType: "agent", actorId: AGENT_ID, kind: "message", channel: input.channel,
     recipientType: "driver", recipientId: state.driverId, body: input.body, data: input.data ?? {},
   })
+}
+
+/**
+ * Send one fixed safety instruction in the driver's language (drivability.ts `safetyLanguages`). The same
+ * instruction sent on this case in the last ten minutes is not sent twice: the server sends the one a fault calls
+ * for before the model is asked anything, and the model may then ask for it too.
+ */
+export async function sendSafetyInstruction(input: {
+  caseRow: CaseRow; facts: OrderFacts; driverId: string; driverName: string | null; templateId: string; automatic?: boolean
+}): Promise<{ body: string; sentBefore: Date | null } | null> {
+  if (!SAFETY_TEMPLATES.some((template) => template.id === input.templateId)) return null
+  const earlier = (await listEvents({ caseId: input.caseRow.id, since: new Date(simNow().getTime() - 10 * 60000) }))
+    .filter((event) => event.channel === "safety" && event.data.template_id === input.templateId).at(-1)
+  if (earlier) return { body: earlier.body, sentBefore: earlier.at }
+  const written = (await listEvents({ orderId: input.facts.id }))
+    .filter((event) => event.actorType === "driver" && event.actorId === input.driverId && (event.kind === "message" || event.kind === "voice_turn"))
+    .map((event) => event.body)
+  const languages = safetyLanguages(written, input.facts.driverCountries.get(input.driverId))
+  const body = renderSafetyTemplate(input.templateId, firstName(input.driverName), languages)!
+  await appendEvent({
+    caseId: input.caseRow.id, orderId: input.facts.id, actorType: "agent", actorId: AGENT_ID, kind: "message", channel: "safety",
+    recipientType: "driver", recipientId: input.driverId, body,
+    data: { safety: true, template_id: input.templateId, languages, ...(input.automatic ? { automatic: true } : {}) },
+  })
+  return { body, sentBefore: null }
 }
 
 /**
@@ -531,10 +556,11 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
 
   async safety_instruction(state, input) {
     if (!state.driverId) return { content: "There is no driver on this order.", isError: true }
-    const body = renderSafetyTemplate(str(input.template_id), firstName(state.driverName))
-    if (!body) return { content: "No such safety template.", isError: true, gate: "REFUSED" }
-    await sendToDriver(state, { body, channel: "safety", data: { safety: true, template_id: str(input.template_id) } })
-    return { content: `Sent: "${body}"`, log: null }
+    const sent = await sendSafetyInstruction({ caseRow: state.caseRow, facts: state.facts, driverId: state.driverId, driverName: state.driverName, templateId: str(input.template_id) })
+    if (!sent) return { content: "No such safety template.", isError: true, gate: "REFUSED" }
+    if (sent.sentBefore) return { content: `Already sent at ${utcTime(sent.sentBefore)}, so not sent again: "${sent.body}"`, log: null }
+    state.sideEffects = true
+    return { content: `Sent: "${sent.body}"`, log: null }
   },
 
   async ask_site(state, input) {

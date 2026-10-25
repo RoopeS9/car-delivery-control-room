@@ -40,6 +40,8 @@ export type OrderFacts = {
   windows: Raw[]
   assignments: Raw[]
   driverNames: Map<string, string>
+  /** Each driver's home country, which picks the language of a safety instruction until they have written to us. */
+  driverCountries: Map<string, string>
   reservations: Raw[]
   options: Raw[]
   tracking: Raw[]
@@ -128,6 +130,7 @@ export async function loadOrderFacts(orderId: string): Promise<OrderFacts | null
     windows: byCollection("time_windows"),
     assignments,
     driverNames: new Map(driverRows.map((row) => [row.id, row.displayName])),
+    driverCountries: new Map(driverRows.map((row) => [row.id, row.homeCountry])),
     reservations: byCollection("travel_reservations").sort(byTime("departure_at")),
     options: byCollection("travel_options").sort(byTime("departure_at")),
     tracking: byCollection("tracking_observations").sort(byTime("observed_at")),

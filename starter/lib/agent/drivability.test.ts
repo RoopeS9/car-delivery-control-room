@@ -1,7 +1,10 @@
 import assert from "node:assert/strict"
 import { after, test } from "node:test"
 import { useTestLlm } from "./client"
-import { driverSafetyFromEvidence, findClearance, screenDriverMessage, type DriverSafetyContext } from "./drivability"
+import {
+  detectLanguage, driverSafetyFromEvidence, faultSafetyTemplates, findClearance, renderSafetyTemplate, reportsEmergency, safetyLanguages, screenDriverMessage,
+  type DriverSafetyContext,
+} from "./drivability"
 
 const key = process.env.OPENROUTER_API_KEY
 delete process.env.OPENROUTER_API_KEY
@@ -99,4 +102,47 @@ test("monitor-level codes allow diagnosis on chat but never clearance", async ()
   assert.equal(cleared.allowed, false)
   assert.equal(cleared.layer, "pattern")
   assert.equal((await screenDriverMessage("It is only the sensor; head to the ferry.", { safety: sensor })).allowed, false)
+})
+
+test("safety instructions go out in the language the driver writes, else their home country's with English after", () => {
+  assert.equal(detectLanguage("Moottorin valo vilkkuu ja auto tärisee, mitä teen?"), "fi")
+  assert.equal(detectLanguage("Lampan blinkar och bilen skakar, vad gör jag?"), "sv")
+  assert.equal(detectLanguage("Lampen blinker og bilen ryster, hvad gør jeg?"), "da")
+  assert.equal(detectLanguage("Die Motorlampe leuchtet und der Wagen ruckelt, ich bin auf der A7."), "de")
+  assert.equal(detectLanguage("Le voyant moteur est allumé et la voiture tremble."), "fr")
+  assert.equal(detectLanguage("OK"), null)
+  assert.deepEqual(safetyLanguages([], "DE"), ["de", "en"])
+  assert.deepEqual(safetyLanguages(["Ich bin sicher und der Motor ist aus."], "FI"), ["de"], "what they write beats where they live")
+  assert.deepEqual(safetyLanguages([], "US"), ["en"])
+  assert.equal(renderSafetyTemplate("stop_when_safe", null, ["fi", "en"]),
+    "Hidasta ja pysähdy seuraavaan turvalliseen paikkaan. Laita sitten hätävilkut päälle.\nPlease slow down and stop at the next safe place, then switch on your hazard lights.")
+  assert.match(renderSafetyTemplate("engine_off", "Anna", ["fr"])!, /^Coupez le moteur/)
+})
+
+test("the instruction a fault calls for comes from the code guide, and fire or smoke brings the 112 line, in any language", () => {
+  assert.deepEqual(faultSafetyTemplates(["P0300"], "ON"), ["stop_when_safe", "engine_off"])
+  assert.deepEqual(faultSafetyTemplates(["P0135"], "FLASHING"), ["stop_when_safe", "engine_off"], "a flashing light is a stop whatever the code")
+  assert.deepEqual(faultSafetyTemplates(["P0135"], "ON"), [], "monitor-level codes call for none")
+  assert.deepEqual(faultSafetyTemplates(["P9999"], "ON"), [], "an unknown code is the agent's to judge")
+  for (const text of ["There is smoke coming from the bonnet", "Konepellin alta tulee savua", "Es kommt Rauch aus dem Motor", "Det kommer rök", "Il y a de la fumée"]) assert.ok(reportsEmergency(text), text)
+  for (const text of ["No smoke, all fine", "ei savua", "kein Rauch", "J'ai allumé les feux de détresse", "Ich mache ein Bild"]) assert.ok(!reportsEmergency(text), text)
+})
+
+test("clearance is caught in the drivers' other languages; refusals and operator conditions are not", () => {
+  for (const text of ["Sie können ruhig weiterfahren, die Lampe ist nicht schlimm.", "Es ist sicher, weiterzufahren.", "Voit jatkaa matkaa normaalisti.", "Du kan köra vidare till färjan.", "Du kan fortsætte til færgen.", "Vous pouvez repartir doucement."]) {
+    assert.ok(findClearance(text), text)
+  }
+  for (const text of ["Sie können nicht weiterfahren.", "Bitte fahren Sie nicht weiter. Sie können erst weiterfahren, wenn ein Disponent es bestätigt hat.", "Älä aja pidemmälle. Voit jatkaa vasta kun päivystäjä on vahvistanut sen.", "Vous ne pouvez pas repartir.", "Vous pouvez repartir dès que l'opérateur confirme."]) {
+    assert.equal(findClearance(text), null, text)
+  }
+})
+
+test("with the classifier down, a message in another language about driving on is held in a restricted context", async () => {
+  useTestLlm(classifier(new Error("timeout")) as never)
+  const held = await screenDriverMessage("Fahren Sie langsam zur Fähre, das sollte gehen.", { safety: stopped })
+  assert.equal(held.allowed, false)
+  assert.equal(held.layer, "fail_closed")
+  const stop = await screenDriverMessage("Bleiben Sie bitte beim Auto. Sind Sie in Sicherheit?", { safety: stopped })
+  assert.equal(stop.allowed, true)
+  useTestLlm(null)
 })

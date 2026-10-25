@@ -18,7 +18,8 @@ import { activeDriverId, activeOrderForDriver, driverName, linkedRecordsOf, load
 import { decideProposal, logOutcome, openPromiseProposal, recordCustomerAnswer, refreshProposal, type DecisionOutcome } from "./gate"
 import { operatorPhrase } from "./timeline"
 import { runTurn, withCaseLock, type TurnResult } from "./loop"
-import type { FollowUp } from "./tools"
+import { faultSafetyTemplates, reportsEmergency } from "./drivability"
+import { sendSafetyInstruction, type FollowUp } from "./tools"
 
 export class ChannelError extends Error {
   constructor(public status: number, message: string) {
@@ -106,9 +107,11 @@ export async function handleDriverMessage(prepared: PreparedDriverMessage, onTex
       caseId: caseRow.id, orderId: facts.id, actorType: "driver", actorId: driverId, kind: voice ? "voice_turn" : "message", channel,
       recipientType: "agent", recipientId: AGENT_ID, body: text, data: { photo_ids: request.photoIds ?? [] },
     })
+    // Fire, smoke or someone hurt: the 112 line goes out before the model reads the message (review R3).
+    const emergency = reportsEmergency(text) ? await sendSafetyInstruction({ caseRow, facts, driverId, driverName: name, templateId: "call_112", automatic: true }) : null
     const result = await withCaseLock(caseRow.id, () => runTurn({
       caseId: caseRow.id, audience: "driver", trigger: "inbound", voice,
-      input: `${name ?? "The driver"} wrote${voice ? " (spoken, transcribed)" : ""}: "${text}"${request.photoIds?.length ? ` and sent ${request.photoIds.length} photo(s), listed above as [photo, event …].` : ""}`,
+      input: `${name ?? "The driver"} wrote${voice ? " (spoken, transcribed)" : ""}: "${text}"${request.photoIds?.length ? ` and sent ${request.photoIds.length} photo(s), listed above as [photo, event …].` : ""}${emergency && !emergency.sentBefore ? ` The server already sent them the 112 instruction: "${emergency.body}". Do not send it again; find out whether anyone is hurt and where they are.` : ""}`,
       counterpart: { type: "driver", id: driverId, name }, replyChannel: channel, onText,
     }))
     return { caseId: caseRow.id, result }
@@ -253,9 +256,17 @@ export async function handleTelemetryFault(request: TelemetryTriggerRequest): Pr
       })
     }
     const name = facts.driverNames.get(driverId) ?? null
+    // The instruction the codes call for is known from the code guide, so it goes out before the model is asked
+    // anything: a slow or failing turn cannot hold it back (review R3). The agent reads that it was sent.
+    const sent: string[] = []
+    for (const templateId of faultSafetyTemplates(codes, request.mil)) {
+      const result = await sendSafetyInstruction({ caseRow, facts, driverId, driverName: name, templateId, automatic: true })
+      if (result && !result.sentBefore) sent.push(result.body)
+    }
+    const already = sent.length ? ` The server already sent the safety instruction the codes call for: "${sent.join(" ")}". Do not send it again.` : ""
     const result = await withCaseLock(caseRow.id, () => runTurn({
       caseId: caseRow.id, audience: "driver", trigger: "telemetry",
-      input: `The car's OBD dongle just reported: ${summary}. ${name ?? "The driver"} has not written to us. Contact them first: make sure they are safe, give the safety instruction the severity calls for, and ask what they see.`,
+      input: `The car's OBD dongle just reported: ${summary}. ${name ?? "The driver"} has not written to us.${already} Contact them first: make sure they are safe, ${sent.length ? "" : "give the safety instruction the severity calls for, "}and ask what they see.`,
       counterpart: { type: "driver", id: driverId, name }, replyChannel: "driver_chat",
     }))
     return { caseId: caseRow.id, result }
