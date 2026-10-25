@@ -137,8 +137,11 @@ const stories: Record<string, () => Promise<void>> = {
       const all = await call<{ cases: Case[] }>(`/api/cases?since=${encodeURIComponent(new Date(0).toISOString())}`)
       return all.cases.find((item) => item.order_ref === "CD-420442" && item.status !== "AGENT_WORKING") ?? null
     }, 120)
-    await sleep(5000) // the case closes inside the turn; the reply is delivered as the turn ends
-    const events = row ? (await detail(row.id)).events : []
+    // The case closes inside the turn; the reply is delivered as the turn ends, seconds later.
+    const events = row ? await until(async () => {
+      const all = (await detail(row.id)).events
+      return all.some((event) => event.recipientType === "site") ? all : null
+    }, 60) ?? [] : []
     const answer = events.filter((event) => event.recipientType === "site").at(-1)?.body ?? ""
     check("the desk gets an answer about this order", /Kasper/.test(answer), answer.slice(0, 80))
     check("no promise to keep the desk posted", !/let you know|keep you (posted|updated)/i.test(answer))
