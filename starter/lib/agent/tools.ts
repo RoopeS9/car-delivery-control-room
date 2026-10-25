@@ -17,7 +17,10 @@ import { AGENT_ID } from "./config"
 import { contextFor, loadOrderFacts, type End } from "./context"
 import { DRIVING_WORDS, findClearance, loadDriverSafetyContext, renderSafetyTemplate, SAFETY_TEMPLATES, screenDriverMessage } from "./drivability"
 import { firstName, localTime, relative, utcTime } from "./format"
-import { checkTool, DecisionError, newFactsSince, openPromiseProposal, recordedTravelSelection, submitProposal, unrecordedCustomerAnswer, validateProposal, type GateContext, type ProposalInput, type ToolName } from "./gate"
+import {
+  checkTool, DecisionError, newFactsSince, openPromiseProposal, READ_TOOLS, recordedTravelSelection, submitProposal, TOOL_AUDIENCES,
+  unrecordedCustomerAnswer, validateProposal, type GateContext, type ProposalInput, type ToolName,
+} from "./gate"
 import { cityCoords, matchWarningLights, playbook, playbooks, troubleCode } from "./knowledge"
 import { findNearbyHelp, searchTravelOptions, type HelpKind, type TravelKind } from "./mocks"
 import { orderTimeline, renderLines } from "./timeline"
@@ -237,22 +240,14 @@ export const TOOL_DEFINITIONS: Record<ToolName, Anthropic.Tool> = {
   },
 }
 
-/** Tools that only read. The operator's "Ask the agent" box gets only these. */
-export const READ_ONLY_TOOLS: readonly ToolName[] = [
-  "get_order_context", "get_timeline", "get_telemetry", "get_active_codes", "lookup_trouble_code", "lookup_warning_light",
-  "analyse_photo", "find_nearby_help", "search_travel_options", "read_playbook",
-]
-
-/** Tools offered to each audience, in a fixed order so the prompt cache stays warm. */
+/**
+ * Tools offered to each audience, in a fixed order so the prompt cache stays warm. Who gets what is the gate's table
+ * (`TOOL_AUDIENCES`), so the tools the model is offered and the calls the gate allows cannot drift apart. The
+ * operator's "Ask the agent" box gets only the read tools.
+ */
 export function toolsFor(audience: GateContext["audience"], readOnly = false): Anthropic.Tool[] {
-  const names = (Object.keys(TOOL_DEFINITIONS) as ToolName[]).filter((name) => {
-    const allowed = { driver: 0, site: 1, operator: 2 }[audience]
-    return [
-      ["get_order_context", "get_telemetry", "get_active_codes", "lookup_trouble_code", "lookup_warning_light", "analyse_photo", "find_nearby_help", "read_playbook", "request_photo", "safety_instruction", "update_case", "wait_for", "hand_over", "close_case"],
-      ["get_order_context", "read_playbook", "hand_over", "close_case"],
-      ["get_order_context", "get_timeline", "get_telemetry", "get_active_codes", "lookup_trouble_code", "lookup_warning_light", "analyse_photo", "find_nearby_help", "search_travel_options", "read_playbook", "message_driver", "request_photo", "safety_instruction", "ask_site", "update_case", "wait_for", "propose_action", "escalate", "close_case"],
-    ][allowed].includes(name) && (!readOnly || READ_ONLY_TOOLS.includes(name))
-  })
+  const names = (Object.keys(TOOL_DEFINITIONS) as ToolName[])
+    .filter((name) => TOOL_AUDIENCES[name].includes(audience) && (!readOnly || READ_TOOLS.includes(name)))
   const books = playbooks().map((book) => book.name)
   return names.map((name) => {
     const tool = TOOL_DEFINITIONS[name]

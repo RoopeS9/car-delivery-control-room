@@ -80,7 +80,8 @@ export type GateContext = {
   systemHeld?: boolean
 }
 
-const READ_TOOLS: readonly ToolName[] = [
+/** Tools that only read. The operator's "Ask the agent" box gets only these. */
+export const READ_TOOLS: readonly ToolName[] = [
   "get_order_context", "get_timeline", "get_telemetry", "get_active_codes", "lookup_trouble_code", "lookup_warning_light",
   "analyse_photo", "find_nearby_help", "search_travel_options", "read_playbook",
 ]
