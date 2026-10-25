@@ -12,7 +12,7 @@ import type { Audience, Channel, ToolCallTrace } from "@/lib/cr/types"
 import { agentModel, llm, usageCost } from "./client"
 import { AGENT_ID, MAX_ITERATIONS, MAX_TOKENS, deepEffort, fastEffort, type Effort } from "./config"
 import { loadOrderFacts, type End, type OrderFacts } from "./context"
-import { loadDriverSafetyContext, screenDriverMessage, type Screen } from "./drivability"
+import { loadDriverSafetyContext, safetyLineForModel, screenDriverMessage, type Screen } from "./drivability"
 import { agentCouldNotFinish, ensureOpenCaseFields, replyDeadlineMinutes } from "./followup"
 import { gateNote, submitProposal } from "./gate"
 import { localTime, relative, utcTime } from "./format"
@@ -291,7 +291,8 @@ function eventLine(n: Awaited<ReturnType<typeof names>>, event: EventRow): strin
   const who = actorName(n, event.actorType, event.actorId)
   const to = event.recipientType ? ` → ${actorName(n, event.recipientType, event.recipientId)}` : ""
   const tag = event.kind === "photo" ? ` [photo, event ${event.id}]` : event.channel === "safety" ? " [safety instruction]" : ""
-  return `[${utcTime(event.at)}] ${who}${to} (${event.channel.replace(/_/g, " ")})${tag}: ${event.body}`
+  const body = event.channel === "safety" ? safetyLineForModel(event.body, event.data) : event.body
+  return `[${utcTime(event.at)}] ${who}${to} (${event.channel.replace(/_/g, " ")})${tag}: ${body}`
 }
 
 /** "2026-10-21 09:02 UTC (simulated clock); local: Wed 21 Oct 11:02 CEST at pickup, ..." so the agent never has to work out offsets. */

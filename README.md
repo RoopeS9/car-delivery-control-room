@@ -8,6 +8,17 @@ and prepares approval-gated decisions.
 
 **Submission deadline: Sun 25 Oct, 13:00 UTC.**
 
+## What it looks like
+
+Scenario A with the real agent: a Bentley's dongle reports a flashing engine light on a German motorway.
+
+| | |
+|---|---|
+| ![Needs you: the agent's card first, then what the records raise](screenshots/queue.png) | ![The order page with the agent's decision card and its draft to the dealer](screenshots/order-card.png) |
+| **Needs you.** The agent's card leads; below it, what the records raise for a person. Signals without a person waiting sit under "Worth a look". | **The order.** One card: what happened, the recommendation, the draft to the dealer (not sent), and Send, Edit, I'll handle it, Tell the agent instead or Reject. |
+| ![The map of every delivery](screenshots/map.png) | ![The driver's phone: safety line first, then the agent's questions](screenshots/driver.png) |
+| **The map.** Every delivery on its route; red needs a person, amber is worth a look. | **The driver's phone.** The stop instruction went out before the agent's first word, in the driver's home language with English below; the agent then writes in the driver's language. |
+
 ## Run from a fresh clone
 
 You need Node.js 24 or newer, npm and Docker with Compose.

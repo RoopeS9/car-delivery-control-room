@@ -263,7 +263,7 @@ export async function handleTelemetryFault(request: TelemetryTriggerRequest): Pr
       const result = await sendSafetyInstruction({ caseRow, facts, driverId, driverName: name, templateId, automatic: true })
       if (result && !result.sentBefore) sent.push(result.body)
     }
-    const already = sent.length ? ` The server already sent the safety instruction the codes call for: "${sent.join(" ")}". Do not send it again.` : ""
+    const already = sent.length ? ` The server already sent the safety instruction the codes call for: "${sent.join(" ")}". Do not send it again. It went out in their home language with English below; that does not set yours: write in English until they write.` : ""
     const result = await withCaseLock(caseRow.id, () => runTurn({
       caseId: caseRow.id, audience: "driver", trigger: "telemetry",
       input: `The car's OBD dongle just reported: ${summary}. ${name ?? "The driver"} has not written to us.${already} Contact them first: make sure they are safe, ${sent.length ? "" : "give the safety instruction the severity calls for, "}and ask what they see.`,

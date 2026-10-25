@@ -9,6 +9,7 @@ import type { SourceRef } from "@/lib/cr/types"
 import { customers, drivers, messages, operationalEvents, relatedRecords } from "@/lib/schema"
 import { AGENT_ID, AGENT_NAME } from "./config"
 import { utcTime } from "./format"
+import { safetyLineForModel } from "./drivability"
 
 export type TimelineLine = { at: string; who: string; channel: string; text: string; source: SourceRef }
 
@@ -65,7 +66,7 @@ function crEventLine(n: Names, event: EventRow): TimelineLine {
     at: event.at.toISOString(),
     who: `${who}${to}`,
     channel: event.channel.replace(/_/g, " "),
-    text: event.kind === "photo" ? `[photo, event ${event.id}] ${event.body}` : event.body,
+    text: event.kind === "photo" ? `[photo, event ${event.id}] ${event.body}` : event.channel === "safety" ? safetyLineForModel(event.body, event.data) : event.body,
     source: event.sourceRefs.find((ref) => ref.kind === "cr_call_turns") ?? { kind: "cr_events", id: event.id, label: `${who}, ${event.channel.replace(/_/g, " ")}, ${utcTime(event.at)}`, at: event.at.toISOString() },
   }
 }

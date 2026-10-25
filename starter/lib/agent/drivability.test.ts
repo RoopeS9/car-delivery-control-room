@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { after, test } from "node:test"
 import { useTestLlm } from "./client"
 import {
-  detectLanguage, driverSafetyFromEvidence, faultSafetyTemplates, findClearance, renderSafetyTemplate, reportsEmergency, safetyLanguages, screenDriverMessage,
+  detectLanguage, driverSafetyFromEvidence, faultSafetyTemplates, findClearance, renderSafetyTemplate, reportsEmergency, safetyLanguages, safetyLineForModel, screenDriverMessage,
   type DriverSafetyContext,
 } from "./drivability"
 
@@ -145,4 +145,11 @@ test("with the classifier down, a message in another language about driving on i
   const stop = await screenDriverMessage("Bleiben Sie bitte beim Auto. Sind Sie in Sicherheit?", { safety: stopped })
   assert.equal(stop.allowed, true)
   useTestLlm(null)
+})
+
+test("the agent reads a safety line sent in another language in English, so it does not take that language as the driver's", () => {
+  const data = { template_id: "stop_when_safe", languages: ["fi", "en"] }
+  assert.equal(safetyLineForModel("Leo, hidasta ja pysähdy…\nLeo, please slow down…", data),
+    "Please slow down and stop at the next safe place, then switch on your hazard lights. (sent in Finnish and English, their home country's language; it does not set the language you write in)")
+  assert.equal(safetyLineForModel("Please switch the engine off and leave it off.", { template_id: "engine_off", languages: ["en"] }), "Please switch the engine off and leave it off.")
 })

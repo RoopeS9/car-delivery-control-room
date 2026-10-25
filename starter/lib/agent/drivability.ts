@@ -122,6 +122,20 @@ export function renderSafetyTemplate(id: string, driverFirstName: string | null,
   return [...new Set(languages)].map((language) => fill(language === "en" ? template.text : TRANSLATIONS[language][id] ?? template.text)).join("\n")
 }
 
+const LANGUAGE_NAMES: Record<SafetyLanguage, string> = { en: "English", fi: "Finnish", sv: "Swedish", de: "German", da: "Danish", fr: "French" }
+
+/**
+ * What the agent reads for a safety line the server sent in another language: the English text and which languages
+ * went out. Shown the Finnish line itself, the model took it as the conversation's language and answered a driver who
+ * writes English in Finnish.
+ */
+export function safetyLineForModel(body: string, data: Record<string, unknown>): string {
+  const languages = (Array.isArray(data.languages) ? data.languages : []).filter((language): language is SafetyLanguage => language in LANGUAGE_NAMES)
+  if (typeof data.template_id !== "string" || !languages.some((language) => language !== "en")) return body
+  const english = renderSafetyTemplate(data.template_id, null) ?? body
+  return `${english} (sent in ${languages.map((language) => LANGUAGE_NAMES[language]).join(" and ")}, their home country's language; it does not set the language you write in)`
+}
+
 /**
  * The instructions a reported fault calls for, from the code guide and the light alone: what the rulebook says to
  * give for the severity (warning-light.md). Codes the guide does not know, and monitor-level ones, call for none.
