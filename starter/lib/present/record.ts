@@ -13,7 +13,7 @@ import { humanize, label, labelIn, laneLabel } from "./labels"
 import { dayKey, fmtDateTime, fmtDay, fmtDayHeading, fmtMoney, fmtRange, fmtWeekday, isBefore, relativeTo } from "./time"
 import type {
   AccessView, Actor, AlertView, AssignmentView, AttentionItem, ClaimView, StoryFact, ContactView, CustodyView, DocumentView, ExpenseView, Fact,
-  HistoryDay, IncidentView, JourneyGroup, JourneyLeg, JourneyStep, JourneyView, MessageView, NotificationView, OfferView,
+  HistoryDay, HistoryEvent, IncidentView, JourneyGroup, JourneyLeg, JourneyStep, JourneyView, MessageView, NotificationView, OfferView,
   KeyDate, OptionView, Place, ProofView, ProposalView, RecordHeader, RecordView, ReservationView, SiteView, Story, ThreadView, Tile, Tone,
   TrackingView, WorkItemView,
 } from "./types"
@@ -558,17 +558,23 @@ function custodyView(bundle: Bundle): CustodyView {
   }
 }
 
+/** The record's event log, with what the app recorded live on top: the agent's calls and messages, decisions, steps. Not its lookups. */
 function historyDays(bundle: Bundle): HistoryDay[] {
-  const events = [...bundle.events].sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))
+  const events: { at: string; event: HistoryEvent }[] = bundle.events.map((event) => ({ at: event.recordedAt, event: describeEvent(event, bundle) }))
+  for (const entry of mergedTimeline(bundle)) {
+    if (entry.origin !== "live" || entry.kind === "lookup") continue
+    events.push({ at: entry.at, event: { id: entry.id, at: entry.at, text: entry.text, actor: entry.actorName, detail: entry.channelLabel, shared: false } })
+  }
+  events.sort((a, b) => b.at.localeCompare(a.at))
   const days = new Map<string, HistoryDay>()
-  for (const event of events) {
-    const key = dayKey(event.recordedAt)
+  for (const { at, event } of events) {
+    const key = dayKey(at)
     let day = days.get(key)
     if (!day) {
-      day = { key, label: fmtDayHeading(event.recordedAt), events: [] }
+      day = { key, label: fmtDayHeading(at), events: [] }
       days.set(key, day)
     }
-    day.events.push(describeEvent(event, bundle))
+    day.events.push(event)
   }
   return [...days.values()]
 }
@@ -722,7 +728,7 @@ export function buildRecordView(bundle: Bundle): RecordView {
   return {
     snapshotAt, story, tiles, header, attention, journey, alerts, workItems, incidents, threads, proofs, documents, custody, siteVisits, notes,
     proposals, notifications, offers, assignments, reservations, options, confirmations, terminalEvents, expenses,
-    history, historyTotal: bundle.events.length, inboxHints, otherRecords, sections,
+    history, historyTotal: history.reduce((count, day) => count + day.events.length, 0), inboxHints, otherRecords, sections,
     cases, timeline, calls: callTranscriptViews(bundle), simNow: bundle.cr.now, telemetry: telemetryStrip(bundle), promise,
   }
 }

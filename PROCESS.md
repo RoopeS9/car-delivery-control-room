@@ -1586,3 +1586,38 @@ harness on the final build before the merge to `main`.
   runs). The gate now refuses a customer message carrying a window other than the promise while no date waits for an
   answer, and says to propose `CHANGE_PROMISE`. B then passed 9/9 twice; the refusal fired and the agent re-proposed.
   `main` was fast-forwarded to `roope` (`594703a`). Spend on Roope's key: $1.29.
+
+## 2026-10-25 ~09:00–10:00 UTC · RoopeS + Claude Code (cloud) · the agent's calls on the record, and a simulation that runs itself
+
+Asked: the agent's calls must show on the order (that it called the driver to check their location, and what came of
+it); the agent should make such calls on its own when a situation is urgent or when it has time, as checks on a
+schedule, with the demo screen's manual triggers taking precedence; and CD-420806's customer asked about "another time
+zone" on a Turku to Oulu delivery.
+
+Got:
+- Calls were stored only in the call service and shown in its own section; the order's "Activity" showed the packet's
+  event log alone, so nothing the app recorded live (a call, a note) ever appeared there on an order without a case.
+  Every call the agent places now leaves two lines on the order and its open case ("Calling Rafael Rillavik (position
+  check): no position from the driver's phone since 02:12 UTC", then "Called Rafael Rillavik to check where the car is:
+  on the road, near the last position I sent, ETA 14:40 UTC, the driver is fine"), and Activity merges what the app
+  recorded live with the record.
+- The autopilot (`lib/sim/autopilot.ts`) and a heartbeat in the server (review R2: timers with no tab open). Every 20 s
+  the server writes due telemetry, runs the case timers and places at most one call for the most pressing check: a
+  quiet phone on a moving car, a ferry check-in closing within 90 min, a pickup slot within 3 h with unverified access,
+  an assigned driver who has not started. What a call finds that may need a decision goes to the agent as a follow-up
+  turn. Manual wins: the scenario orders are the presenter's; a scenario started on an order stands the non-location
+  checks down there; an order someone is working on is left alone; a driver a person is playing is not phoned. The
+  demo screen has the switch and the list of what is due. The silent-driver escalation now phones the driver before
+  the card: in F the record reads stop lines, a question, one reminder, "Called William to check where the car is: no
+  answer", then "Call William on his phone now?".
+- Two things only a real run showed. The call service's extractor took "Are you safely off the road?" "No, I'm on the
+  road, but everything's fine" for DRIVER_SAFE=false, and the agent sent a stop instruction to a driver who was fine;
+  the extractor now reads "safe" as danger, not as being parked, the summary carries the person's own words on
+  anything flagged, and the agent is told to judge by those words. And my first "quiet phone" rule read the packet's
+  last tracking fix instead of the simulated samples, so every car was due at once; it now reads the simulated fixes.
+- CD-420806: the two messages now ask and answer the delivery range in Oulu (same zone as Turku), in the dataset and
+  the live database. It was the only such message.
+
+Checked: 137 unit tests (a new one for the call summary), both typechecks, the build; against the running app on
+Roope's key: the autopilot's call to Rafael on CD-420806 end to end (the lines on the order, no case opened since
+nothing was flagged), scenario F through its clock jumps, and the demo screen. Not run: the full role harness.

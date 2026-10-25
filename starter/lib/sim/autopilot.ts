@@ -23,7 +23,7 @@ import { simNow } from "@/lib/cr/clock"
 import { crDb } from "@/lib/cr/db"
 import { crTelemetry } from "@/lib/cr/schema"
 import { lifecycleOf } from "@/lib/cr/lifecycle"
-import { appendEvent, listCases, listEvents } from "@/lib/cr/queries"
+import { appendEvent, getEvent, listCases, listEvents } from "@/lib/cr/queries"
 import { OPEN_CASE_STATUSES, type SourceRef } from "@/lib/cr/types"
 import { db } from "@/lib/db"
 import { callJob, orderActions } from "@/lib/present/call-service"
@@ -72,6 +72,12 @@ function state(): State {
 }
 
 export function setAutopilot(enabled: boolean): void { state().enabled = enabled }
+
+/** A demo reset: counters back to zero; a call still on the line is forgotten (its outcome is dropped, see finishCall). */
+export function resetAutopilot(): void {
+  const current = state()
+  current.inFlight = null; current.calls = 0; current.lastCallAt = null; current.placed = []
+}
 
 export const PURPOSE_WORDS: Record<CheckPurpose | string, string> = {
   POSITION_CHECK: "position check", FERRY_CHECKIN: "ferry check-in", PICKUP_READINESS: "pickup readiness", DRIVER_START_CHECK: "start check",
@@ -210,7 +216,7 @@ export function summarizeCall(record: CallRecord): { summary: string; urgent: st
   const text = (name: string) => { const value = slot(name); return typeof value === "string" && value.trim() && !NOTHING.test(value.trim()) ? value.trim() : null }
   const bool = (name: string) => { const value = slot(name); return typeof value === "boolean" ? value : null }
   const started = Date.parse(record.startedAt)
-  if (text("CURRENT_LOCATION")) parts.push(`near ${text("CURRENT_LOCATION")!.replace(/^near\s+/i, "")}`)
+  if (text("CURRENT_LOCATION")) { const where = text("CURRENT_LOCATION")!; parts.push(/^(on|at|in|near|just|by|about|between|still)\b/i.test(where) ? where : `near ${where}`) }
   if (text("ETA")) {
     const eta = new Date(text("ETA")!)
     // An ETA before the call is the extractor's mistake, not the driver's.
@@ -282,12 +288,12 @@ export async function placeAgentCall(check: Pick<DueCheck, "orderId" | "referenc
   current.calls += 1
   current.lastCallAt = Date.now()
   current.placed.push(Date.now())
-  void finishCall(jobId, check, who, caseId, options.origin).catch((error) => console.error("[autopilot] call outcome not recorded", error)).finally(() => { if (state().inFlight?.startedAt === current.inFlight?.startedAt) state().inFlight = null })
+  void finishCall(jobId, check, who, caseId, start.id, options.origin).catch((error) => console.error("[autopilot] call outcome not recorded", error)).finally(() => { if (state().inFlight?.startedAt === current.inFlight?.startedAt) state().inFlight = null })
   return { jobId, startEventId: start.id }
 }
 
 /** Poll the service until the call is done, then write what it found on the order, and hand anything urgent to the agent. */
-async function finishCall(jobId: string, check: Pick<DueCheck, "orderId" | "reference" | "purpose">, who: string, caseId: string | null, origin?: string): Promise<void> {
+async function finishCall(jobId: string, check: Pick<DueCheck, "orderId" | "reference" | "purpose">, who: string, caseId: string | null, startEventId: string, origin?: string): Promise<void> {
   const deadline = Date.now() + 4 * MINUTE
   let job = await callJob(jobId)
   while (job && job.status === "running" && Date.now() < deadline) {
@@ -295,6 +301,8 @@ async function finishCall(jobId: string, check: Pick<DueCheck, "orderId" | "refe
     job = await callJob(jobId)
   }
   const aim = PURPOSE_AIM[check.purpose] ?? PURPOSE_WORDS[check.purpose]
+  // A demo reset meanwhile wiped the "Calling…" line: the outcome has no story to join and is dropped.
+  if (!(await getEvent(startEventId))) return
   if (!job || job.status !== "done" || !job.call) {
     await appendEvent({
       caseId, orderId: check.orderId, actorType: "agent", actorId: AGENT_ID, kind: "note", channel: "internal",

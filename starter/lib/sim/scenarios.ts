@@ -19,6 +19,7 @@ import { roughWhere } from "./places"
 import { clearDemoData } from "./routine"
 import { resetSimDriver } from "./sim-driver"
 import { activeFaults, markClockCaughtUp, syncTelemetry } from "./sync"
+import { resetAutopilot } from "./autopilot"
 
 export type ScenarioName = "warning-light-584" | "catch-up-322" | "driver-keys-145" | "site-eta-442" | "driver-silent-537" | "sensor-light-439" | "pickup-to-handover-442" | "reset"
 
@@ -147,6 +148,7 @@ async function reset(keepRoutine: boolean): Promise<ScenarioResult> {
   try {
     await clearDemoData({ keepRoutine })
     resetSimDriver()
+    resetAutopilot()
     resetSimClock()
     markClockCaughtUp()
   } finally { finishReset() }
