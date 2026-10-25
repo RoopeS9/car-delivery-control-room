@@ -1481,3 +1481,32 @@ harness on DeepSeek. The first full run passed 47/51. All four misses were in B:
 date as the wrong kind of card (it raised the right kind in the next two runs), and once the reply was refused as
 described above. After the fix B passed 9/9. Spend so far: about $7.2 of the $10 (OpenRouter key at $10.08, $2.88
 before the night).
+
+## 2026-10-25 ~06:40–07:05 UTC · RoopeS + Claude Code (cloud) · overview and refactor
+
+Asked: a two-page `OVERVIEW.md` for a reader who is not a programmer (the parts, the workflows between them, the
+safety rules), and while reading, refactor only what is clearly tangled, without changing behaviour or the tests.
+
+Got:
+- `OVERVIEW.md`, about 1,100 words with one diagram, checked against the code rather than the docs. Two findings
+  went in as written: a live call on the Road Desk line is recorded on the order (claims, review) but does not start
+  an agent turn, which the README's "urgent and ended calls feed the road agent" no longer matches; and nothing in
+  the app raises an action above "ask first" (only the tests call `setAutonomy`).
+- Eight small refactors, one commit each. `toolsFor` built its own copy of who may use which tool; it now reads the
+  gate's `TOOL_AUDIENCES` and `READ_TOOLS`, so the offered tools and the allowed ones cannot drift (the offered
+  lists compared byte for byte, before and after). In the gate, seven hand-written "back to the agent" case patches
+  became `backToAgent()`, the booking test `isBookingAction()`. The gate's own timeline lines (seven copies in three
+  files) are written by `gateNote()`. The agent loop's reply gate was set up twice with the same four lines, and the
+  site's end chosen four times; the site and customer handlers shared a two-line nest for "which cases wrote to
+  them". The call service stored a call three ways and built job ids twice. Deleted: the old Leaflet map screen,
+  unused since the chart became home, with its styles, and three helpers nothing called. Two doc comments sat on the
+  wrong function.
+- Left alone as too risky for a refactor without the role harness: `runTurn` (`loop.ts`, 145 lines, the retry and
+  held-reply paths share mutable state), `submitProposal` and `performEffects` (`gate.ts`, the one-card rule and the
+  execution core), the `wait_for` time correction (`tools.ts`), and the call service's single request handler, where
+  `/context` and `/card` cache briefs slightly differently.
+
+Checked: after every step, both typechecks, `npm test` 128/128 on the test database, and the production build (in
+a copy of `starter/`, so the running server's `.next` was not replaced; the same four filesystem warnings). The call
+service's GET routes answered the same from the old and the new code (a brief's own timestamp aside). No model was
+called.
