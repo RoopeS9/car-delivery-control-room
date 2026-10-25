@@ -1417,7 +1417,7 @@ Checked / rejected:
   harness waited (a DeepSeek turn took up to two minutes at that hour), so the harness was changed, not the agent.
 - Spend: about $6 of the $10 for the whole night by this point (OpenRouter key: $8.94, $2.88 before the night).
 
-## 2026-10-25 ~03:00–04:00 UTC · RoopeS + Claude Code (cloud) · night run, the delivery's own time
+## 2026-10-25 ~01:50–02:40 UTC · RoopeS + Claude Code (cloud) · night run, the delivery's own time
 
 Asked: keep going along the plan; the pickup-to-delivery path is the one the night started with.
 
@@ -1442,3 +1442,6 @@ Got:
   "BOOKED". Operator text now drops record ids and the table they came from (keeping the label) and reads record
   states as words; the Ask mode is told to name sources by what they are. A scan of three order views found no
   other id in displayed text.
+- Regression on the build with all of the above: the full role harness passed 51/52; D's one miss was the harness
+  reading the desk's reply five seconds after the case closed, before the reply landed (a rerun showed it). D now
+  waits for the reply itself. Spend for the night: about $6.8 of the $10 (OpenRouter key at $9.65, $2.88 before).
