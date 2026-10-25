@@ -33,11 +33,6 @@ export function relative(iso: string | Date | null | undefined, now: Date = simN
   return minutes < 0 ? `${span} ago` : `in ${span}`
 }
 
-export function minutesSince(iso: string | Date, now: Date = simNow()): number {
-  const date = iso instanceof Date ? iso : new Date(iso)
-  return Math.round((now.getTime() - date.getTime()) / 60000)
-}
-
 export function money(cents: unknown, currency: unknown): string | null {
   if (typeof cents !== "number") return null
   const code = typeof currency === "string" ? currency : "EUR"

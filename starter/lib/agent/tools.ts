@@ -11,7 +11,7 @@ import { sql } from "drizzle-orm"
 import { simNow } from "@/lib/cr/clock"
 import {
   CASE_KINDS, URGENCIES, ACTION_TYPES,
-  type ActorType, type CaseKind, type EventKind, type WaitingFor, type GpsData, type ObdData, type PhotoData, type SourceRef, type ToolCallTrace, type Urgency,
+  type CaseKind, type EventKind, type WaitingFor, type GpsData, type ObdData, type PhotoData, type SourceRef, type ToolCallTrace, type Urgency,
 } from "@/lib/cr/types"
 import { AGENT_ID } from "./config"
 import { contextFor, loadOrderFacts, type End } from "./context"
@@ -782,5 +782,3 @@ export async function runTool(state: TurnState, name: string, rawInput: unknown)
   state.traces.push(trace)
   return { content: outcome.content, isError: Boolean(outcome.isError) }
 }
-
-export type { ActorType }

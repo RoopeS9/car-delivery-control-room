@@ -94,24 +94,6 @@ export async function openCaseForOrder(orderId: string): Promise<CaseRow | null>
   return row ?? null
 }
 
-export type CaseWithProposals = CaseRow & { pendingProposals: ProposalRow[] }
-
-/**
- * Every case still in front of a person, newest first, each with its PENDING
- * proposals. One round trip each, for the queue and the board's attention.
- * Pass `orderId` for a single order.
- */
-export async function openCasesWithProposals(orderId?: string): Promise<CaseWithProposals[]> {
-  const cases = await crDb().select().from(crCases)
-    .where(and(inArray(crCases.status, [...OPEN_CASE_STATUSES]), orderId ? eq(crCases.orderId, orderId) : undefined))
-    .orderBy(desc(crCases.updatedAt))
-  if (cases.length === 0) return []
-  const pending = await crDb().select().from(crProposals)
-    .where(and(eq(crProposals.status, "PENDING"), inArray(crProposals.caseId, cases.map((row) => row.id))))
-    .orderBy(asc(crProposals.createdAt))
-  return cases.map((row) => ({ ...row, pendingProposals: pending.filter((proposal) => proposal.caseId === row.id) }))
-}
-
 /** All cases on one order (any status), newest first, each with all of its proposals. */
 export async function casesForOrder(orderId: string): Promise<(CaseRow & { proposals: ProposalRow[] })[]> {
   const cases = await crDb().select().from(crCases).where(eq(crCases.orderId, orderId)).orderBy(desc(crCases.updatedAt))
