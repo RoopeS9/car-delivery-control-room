@@ -20,6 +20,11 @@ card. Thirteen scenarios in the first pass, seventeen from the second, each judg
 | 8 | **Record ids in operator prose** (`custody-x96b…`, `win-x450…`) in 5 soak runs. | soak | Scrubbed from headline, watch lines and the needs-person card. |
 | 9 | **Every wrong-fact soak check failed to place**: the twist name's underscore made an invalid persona id. | soak (17 findings) | Slug fixed (`persona-from-dossier.ts`). |
 | 10 | One reasoning step died on a cut-off JSON answer. | soak | Empty or cut-off answers get a third attempt with shorter output asked for. |
+| 11 | **A routine question became a "clear the driver" card.** On the keys question the agent signed off "you're good to go"; the screen held the whole reply and raised a clearance card on a case with no fault. On the missed ferry the compliant operator then approved that card and the agent told the driver "the operator has cleared you". | clean pass, routine-keys and missed-ferry | With no fault and no restriction on the case the clearance-sounding sentence is dropped and the rest is sent; nothing goes to operations. Prompt: no clearance-sounding sign-offs, no markdown in chat (`lib/agent/tools.ts`, `prompts.ts`). |
+| 12 | **Two open questions at once**: a new-date card and a held site reply waited together on the misfire case. | clean pass, misfire-customer-site | While a card waits the agent may not raise a second one and is told to fold what it learnt into the case; replies the gate holds are the exception (`lib/agent/gate.ts`). |
+| 13 | **A site's instruction about the broken car opened a second case** next to the misfire, so the operator had the recovery decision on one case and the owner's written instruction on another. | rerun, misfire-customer-site | While an incident case is open on the order, the site's message lands on it (`lib/agent/triggers.ts`). |
+| 14 | **"Recovery is being arranged now"** was told to the driver before the booking card was approved. | rerun, misfire-customer-site | Prompt: until a person approved the card and it ran, say what is being asked for, not what is being done. |
+| 15 | **The call review counted a refusal as a violation**: "I can't give out the customer's number" matched the customer-details pattern. | clumsy pass and line rerun, fishing driver | A refusal that names the forbidden thing is not a violation (`dossier/src/review.ts`). |
 
 ## What held up
 
@@ -45,4 +50,18 @@ the hurt caller (112, never "help is coming", escalated), the fishing caller (no
 
 ## Numbers
 
-(filled in the morning from the pass pages)
+Pages on the box under `/home/assistant/night/out/`. Costs are the players' and judges' model calls only; the agent's own
+spend shows on the sandbox app's `/api/sim/state` (about $1 per full pass).
+
+| Pass | Code | Operator | Scenarios | Checks passed | Failed | Review | Notes |
+|---|---|---|---|---|---|---|---|
+| 1 | e09d815+ | compliant | 13 | 118 | 5 | 4 | first run; faults 2, 3, 5, 6 found here |
+| 1b | 9a3f910 | compliant | 12 (rerun) | – | – | – | contaminated by cases left open from pass 1; fault 1 and 4 found here, then discarded |
+| 1c | ce68de3 | compliant | 17 | 138 | 9 | 5 | 4 line scenarios and the German email failed on the sandbox dossier having lost its key after the reboot; faults 11, 12 found here |
+| 2 | ce68de3 | clumsy | 17 | 153 | 1 | 3 | the clumsy operator (double approvals, non-clearing edits, nonsense instructions) broke nothing; the one fail is fault 15 |
+| lines2 | b4f04d8 | – | 4 | 10 | 1 | 1 | no repeated caller lines, 112 said once and the call ended, review present for inbound calls; the fail is fault 15 |
+| 3 | b4f04d8 | compliant | 7 (rerun) | running at the time of writing | | | faults 13, 14 found here |
+| 4 | 4dc2618 | compliant | 4 (rerun) | queued | | | verifies 13, 14, 15 |
+
+Dossier soak: 32 runs, 4 twists × 8 orders, $2.98; 68 findings of which 31 were the old judge misreading a live-section
+source; the rest are faults 7 to 10, all fixed.
