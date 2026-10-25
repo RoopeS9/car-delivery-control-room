@@ -1393,5 +1393,21 @@ Found and fixed (each from a run or a screenshot, not from reading the code):
   delivery runs use; the service never read its own `.env` and pointed at the app on 8797 while the README runs it
   on 3000. All three fixed.
 
+- The traced full run then caught two more. The agent's own note reached Leo: "Now let me contact Leo — he hasn't
+  written yet … Leo, the car has reported …"; a reply that opens with a planning note, or speaks of the person in
+  the third person before addressing them, is now sent from their name on (an ordinary "Thanks, I'll pass it on."
+  stays). And B again: blocked from a second date card, the agent asked operations to "record the customer's
+  agreement?" with a decision card of its own; while that answer is unrecorded, such a card is refused before
+  validation, and the reply is the one card. Rerun: B 9/9.
+- "Need a person" read 44 on All orders, 17 on the map and 20 in Needs you. The board counted any open signal; it
+  now uses the map's rule (a decision due now): both read 16. Needs you still lists three alert-only rows among
+  its decisions (a team choice in the queue; noted, not changed tonight).
+
 Added for the deliverables: `RUN-SHEET.md` (roles, clicks, expected screens, timings and fallbacks for the live
-demo), and agent traces for every scenario from a full role-harness run under `starter/traces/e2e-roles-*/`.
+demo), and agent traces for every scenario from the role harness under `starter/traces/e2e-roles-2026-10-25T01-24/`
+(52/52 checks; B, C and F from a rerun, see its README).
+
+Checked / rejected:
+- C and F failed once in the traced run. Their traces showed the agent doing the right thing more slowly than the
+  harness waited (a DeepSeek turn took up to two minutes at that hour), so the harness was changed, not the agent.
+- Spend: about $6 of the $10 for the whole night by this point (OpenRouter key: $8.94, $2.88 before the night).
