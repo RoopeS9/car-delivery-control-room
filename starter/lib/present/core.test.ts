@@ -32,15 +32,23 @@ function waitingCase(linkedRecords: CaseRow["linkedRecords"] = []): CaseRow {
   } as CaseRow
 }
 
-test("an unrelated urgent record remains in Needs your decision beside a waiting agent case", () => {
+test("an unrelated urgent record stays visible beside a waiting agent case: a signal as worth a look, a person's item as a decision", () => {
   const data = bundle()
   data.cr.cases.push(waitingCase())
   data.alerts.push({ id: "alert-1", status: "OPEN", severity: "critical", signal: "DOCUMENTS_MISSING", summary: "Release papers are missing", triggeredAt: NOW, details: {} })
-  const queue = buildQueue([data], NOW, NOW)
-  assert.equal(queue.decide.length, 1)
+  let queue = buildQueue([data], NOW, NOW)
+  // An open alert alone is a signal (tone-rule.ts): amber, and not counted as a decision, so the map and the queue agree.
+  assert.equal(queue.decide.length, 0)
   assert.equal(queue.waiting.length, 0)
-  assert.equal(queue.decide[0].origin, "records")
-  assert.equal(queue.decide[0].ask, "Release papers are missing")
+  assert.equal(queue.watch.length, 1)
+  assert.equal(queue.watch[0].origin, "records")
+  assert.equal(queue.watch[0].ask, "Release papers are missing")
+  assert.equal(queue.watch[0].tone, "warn")
+
+  data.related.incidents = [{ id: "inc-1", details: { kind: "missing_documents", status: "INVESTIGATING", opened_at: NOW } }]
+  queue = buildQueue([data], NOW, NOW)
+  assert.equal(queue.decide.length, 1, "an open incident waits on a person")
+  assert.equal(queue.decide[0].headline, "Incident: Missing documents", "the person's item leads the row, not the alert")
 })
 
 test("a record already taken over by the waiting case does not create another decision", () => {

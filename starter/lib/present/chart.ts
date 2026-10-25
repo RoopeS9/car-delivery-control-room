@@ -153,6 +153,7 @@ export function buildChart(input: { bundles: Bundle[]; fleet: FleetCar[]; sample
   // in the records (a work item, an incident, a support thread). An open alert or a conversation is a signal: amber.
   for (const row of queue.decide) attentionOf.set(row.orderId, { attention: needsPerson(row) ? "decide" : "watch", row })
   for (const row of queue.agentWorking) if (!attentionOf.has(row.orderId)) attentionOf.set(row.orderId, { attention: "agent", row })
+  for (const row of queue.watch) if (!attentionOf.has(row.orderId)) attentionOf.set(row.orderId, { attention: "watch", row })
   for (const row of queue.waiting) if (!attentionOf.has(row.orderId)) attentionOf.set(row.orderId, { attention: "watch", row })
 
   const samplesByOrder = new Map<string, GpsSample[]>()
@@ -193,7 +194,7 @@ export function buildChart(input: { bundles: Bundle[]; fleet: FleetCar[]; sample
     })
     const conflict = rows(bundle, "endpoint_claims").some((row) => !str(row.details.resolved_at) && str(row.details.status) !== "RESOLVED")
     const signalRow = found && !needsPerson(found.row) && found.attention === "watch" ? found.row : null
-    const watchReason = signalRow && found?.row.origin === "records" && queue.decide.includes(found.row) ? found.row.headline.replace(/^Open alert: /, "") : riskyDate ? `${riskyDate.label}: ${riskyDate.note ?? "at risk"}` : cutoffNear ? "Ferry check-in closes soon, no gate scan yet" : phoneQuiet ? "Phone quiet" : conflict ? "Two records disagree" : found?.attention === "watch" ? found.row.statusLabel : null
+    const watchReason = signalRow && found?.row.origin === "records" && (queue.decide.includes(found.row) || queue.watch.includes(found.row)) ? found.row.headline.replace(/^Open alert: /, "") : riskyDate ? `${riskyDate.label}: ${riskyDate.note ?? "at risk"}` : cutoffNear ? "Ferry check-in closes soon, no gate scan yet" : phoneQuiet ? "Phone quiet" : conflict ? "Two records disagree" : found?.attention === "watch" ? found.row.statusLabel : null
     const attention: ChartAttention = found && found.attention !== "watch" ? found.attention : watchReason ? "watch" : "fine"
     const tone: Tone = attention === "decide" ? (found?.row.tone ?? "danger") : attention === "watch" ? "warn" : attention === "agent" ? "accent" : "neutral"
     const promise = keyDates.find((date) => date.key === "promise")

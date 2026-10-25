@@ -35,12 +35,16 @@ npm run serve
 ```
 
 Open http://localhost:3000. Add `OPENROUTER_API_KEY` to `starter/.env` to use the
-real agent and voice interviewer. For cheap runs the agent also works on DeepSeek
-through OpenRouter (`AGENT_MODEL=deepseek/deepseek-v4-pro`,
-`DRIVABILITY_MODEL=deepseek/deepseek-v4-flash`, `SIM_DRIVER_MODEL=deepseek/deepseek-v4-flash`);
-the night's end-to-end runs used those. The model names and effort settings are in
-`.env.example`. Without a key, the app remains usable and agent cases hand over
-to a person with an explanation; that fallback is not a real-model demonstration.
+real agent. The models, all through OpenRouter, are set in `starter/.env.example`:
+
+| Job | Default | Why |
+|---|---|---|
+| The agent (`AGENT_MODEL`) | `deepseek/deepseek-v4-pro` | Every traced run and the business case use it; `anthropic/claude-sonnet-5.5` is stronger at about ten times the cost |
+| Safety screen (`DRIVABILITY_MODEL`) | `deepseek/deepseek-v4-flash` | One word per message, reasoning off, fast |
+| Photo reader (`VISION_MODEL`), simulated driver (`SIM_DRIVER_MODEL`) | `anthropic/claude-haiku-5.5` | Reads images; plays the driver in simulations |
+
+Without a key, the app remains usable and agent cases hand over to a person with
+an explanation; that fallback is not a real-model demonstration.
 
 `db:push` includes the original, road-support and voice tables. `db:seed`
 replaces only the challenge snapshot. Use the demo reset to clear added cases,
@@ -110,16 +114,17 @@ poll telemetry and case timers, so the world keeps moving without the driver
 window or demo panel. Reset refuses active calls or in-flight work before
 clearing anything.
 
-Voice uses Chrome's speech recognition by default. `VOICE_PROVIDER=browser`
-uses browser speech synthesis instead of hosted speech. Hosted voice requires
-the configured OpenRouter speech models. Chat remains available independently.
+Live phone calls are not in this repository. The Road Desk line runs on a separate
+phone-line server (speech to text, the call service's dossier as the model's context,
+ElevenLabs for the voice; see `BAHN-CONCEPT.md`), reached through a proxy at `/line/*`.
+Without it the call screens say the line is unavailable, and the driver uses chat.
 
 ## What is real and what is simulated
 
-The configured language models run real tool-use loops. Driver voice has a
-separate interviewer and transcript of record; urgent and ended calls feed the
-road agent, which cites individual turns. The operator can approve, reject,
-instruct, handle a task externally and log its outcome.
+The configured language models run real tool-use loops. A live call on the Road
+Desk line is stored on the order with its transcript, claims that cite individual
+turns, and a review; it does not start an agent turn. The operator can approve,
+reject, instruct, handle a task externally and log its outcome.
 
 All orders, people, documents, messages, GPS/OBD samples, recovery providers,
 travel quotes, bookings and action effects are fictional. No real customer
@@ -161,7 +166,6 @@ DATABASE_URL=postgres://controlroom:controlroom@localhost:5438/controlroom_test 
 `npm run agent:scenario-a` and `npm run sim:seed-routine` use a real model and
 consume API credit. Run them against disposable demo data; scenario A clears
 the added road-support records. Agent traces are under `starter/traces/`.
-`npm run voice:test` is a separate real-model interview harness.
 
 `APP_URL=http://localhost:3000 npm run e2e:roles` plays the driver, the pickup
 desk, the customer and the operator through scenarios A, B, C, D, F, G, H and a

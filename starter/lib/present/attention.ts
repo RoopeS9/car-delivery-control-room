@@ -237,19 +237,25 @@ export function deriveAttention(bundle: Bundle): AttentionItem[] {
   // reason for a person to open the order.
   const items: AttentionItem[] = caseAttention(bundle)
 
+  // The packet's alert summaries are written for its own tooling ("Review delivery access for CD-420437; source is a
+  // conversation, not a verified outcome."). Shown to an operator they read as words: the order's own reference goes,
+  // since the row shows it, and the source note says what it means.
+  const summaryOf = (summary: string) => summary
+    .replace(/^Review (.+?) for CD-\d+; source is a conversation, not a verified outcome\.$/, (_, what: string) => `Check the ${what}: it came up in a conversation and is not confirmed yet.`)
+    .replace(new RegExp(` for ${bundle.order.reference}(?=[;.,])`), "")
   for (const alert of bundle.alerts) {
     const severe = alert.severity === "critical" || alert.severity === "high"
     const owner = dir.title(alert.details.owner)
     if (alert.status === "OPEN") {
       items.push({
-        kind: "alert", tone: severe ? "danger" : "warn", title: `Open alert: ${label(alert.signal)}`, short: owner ? `${label(alert.signal)} · ${owner}` : label(alert.signal), detail: alert.summary,
+        kind: "alert", tone: severe ? "danger" : "warn", title: `Open alert: ${label(alert.signal)}`, short: owner ? `${label(alert.signal)} · ${owner}` : label(alert.signal), detail: summaryOf(alert.summary),
         owner, at: alert.triggeredAt, atLabel: "raised", section: "alerts", recordId: alert.id,
       })
     } else if (alert.status === "ACKNOWLEDGED") {
       const at = str(alert.details.acknowledged_at) ?? alert.triggeredAt
       items.push({
         kind: "owned_alert", tone: "neutral", title: `Owned alert: ${label(alert.signal)}`, short: `${label(alert.signal)} · owned by ${owner ?? "no one recorded"}`,
-        detail: `${alert.summary} Acknowledged is not resolved.`, owner: owner ?? "owner not recorded",
+        detail: `${summaryOf(alert.summary)} Acknowledged is not resolved.`, owner: owner ?? "owner not recorded",
         at, atLabel: "acknowledged", section: "alerts", recordId: alert.id,
       })
     }

@@ -64,19 +64,20 @@ export function QueuePage({ queue }: { queue: QueueView }) {
   const query = search.trim().toLowerCase()
   const filter = useMemo(() => (rows: QueueRow[]) => query ? rows.filter((row) => matches(row, query)) : rows, [query])
   const decide = filter(queue.decide)
+  const watch = filter(queue.watch)
   const routine = filter(queue.routine)
   const working = filter(queue.agentWorking)
   const waiting = filter(queue.waiting)
   const handled = filter(queue.handled)
   const fromAgent = queue.decide.filter((row) => row.origin === "agent").length
-  const noMatches = !!query && decide.length + routine.length + working.length + waiting.length + handled.length === 0
+  const noMatches = !!query && decide.length + watch.length + routine.length + working.length + waiting.length + handled.length === 0
 
   return <main className="page queue-page">
     <header className="q-head">
       <div>
         <h1>Needs you</h1>
         <p className="q-sub">
-          <b>{queue.decide.length}</b> need{queue.decide.length === 1 ? "s" : ""} your decision{fromAgent ? <> ({fromAgent} with the agent&apos;s card ready)</> : null} · <b>{queue.agentWorking.length}</b> with the agent · <b>{queue.waiting.length}</b> waiting
+          <b>{queue.decide.length}</b> need{queue.decide.length === 1 ? "s" : ""} your decision{fromAgent ? <> ({fromAgent} with the agent&apos;s card ready)</> : null} · <b>{queue.agentWorking.length}</b> with the agent · <b>{queue.watch.length}</b> worth a look · <b>{queue.waiting.length}</b> waiting
         </p>
       </div>
       <label className="search">
@@ -96,6 +97,7 @@ export function QueuePage({ queue }: { queue: QueueView }) {
       </details>}
     </Group>
     <Group title="Agent working" note="No action needed yet" rows={working} />
+    <Group title="Worth a look" note="Signals in the records; nothing waits on a person yet" rows={watch} />
     <Group title="Waiting" note="Soonest check first" rows={waiting} />
 
     {handled.length > 0 && <details className="q-handled">

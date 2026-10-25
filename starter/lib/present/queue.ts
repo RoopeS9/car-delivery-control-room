@@ -9,6 +9,7 @@ import { changedTiming, deriveAttention } from "./attention"
 import type { Bundle } from "./bundle"
 import { CASE_KIND_LABELS, caseStatusLabel, ownerName, plainText, statusIs, urgencyLabel, urgencyRank, urgencyTone } from "./cases"
 import { label } from "./labels"
+import { needsPersonNow } from "./tone-rule"
 import { fmtClock, isBefore, relativeTo } from "./time"
 import type { AttentionItem, AttentionKind, QueueRow, QueueView, Tone } from "./types"
 
@@ -48,7 +49,7 @@ function base(bundle: Bundle) {
   }
 }
 
-type Placed = { section: "decide" | "routine" | "agentWorking" | "waiting" | "handled"; row: QueueRow }
+type Placed = { section: "decide" | "watch" | "routine" | "agentWorking" | "waiting" | "handled"; row: QueueRow }
 
 function caseRow(bundle: Bundle, kase: CaseRow, pending: ProposalRow | null, records: AttentionItem[], others: number, now: string): Placed {
   const closed = kase.status === "HANDLED_BY_AGENT" || kase.status === "RESOLVED"
@@ -89,7 +90,14 @@ function caseRow(bundle: Bundle, kase: CaseRow, pending: ProposalRow | null, rec
   return { section: closed ? "handled" : decide ? "decide" : kase.status === "AGENT_WORKING" ? "agentWorking" : "waiting", row }
 }
 
-function recordsRow(bundle: Bundle, items: AttentionItem[], now: string): Placed {
+/**
+ * A records row needs a decision only when an item in it waits on a person (the tone rule: a work item that is due, an
+ * incident, a support thread, an earlier agent proposal). That item leads the row, so it does not read "Open alert"
+ * when the alert is only the context. A row with signals alone is worth a look, in amber.
+ */
+function recordsRow(bundle: Bundle, all: AttentionItem[], now: string): Placed {
+  const person = all.filter((item) => needsPersonNow(item, now))
+  const items = [...person, ...all.filter((item) => !person.includes(item))]
   const top = items[0]
   const waitingOnly = items.every((item) => item.kind === "waiting")
   const check = waitingOnly ? nextCheck(top.at, now) : { label: null, overdue: false }
@@ -108,12 +116,14 @@ function recordsRow(bundle: Bundle, items: AttentionItem[], now: string): Placed
     waitingOn, nextCheckAt: waitingOnly ? top.at : null, nextCheckLabel: check.label, overdue: check.overdue,
     more: items.length > 3 ? `${items.length - 3} more in the records` : null,
   }
-  const section = check.overdue ? "decide" : waitingOnly ? "waiting" : TONE_RANK[tone] <= TONE_RANK.accent ? "decide" : "routine"
+  const section = person.length ? "decide" : check.overdue ? "watch" : waitingOnly ? "waiting" : TONE_RANK[tone] <= TONE_RANK.accent ? "watch" : "routine"
+  // Amber is the rule for a signal (tone-rule.ts), whatever the alert's own severity.
+  if (section === "watch" && row.tone === "danger") row.tone = "warn"
   return { section, row }
 }
 
 export function buildQueue(bundles: Bundle[], snapshotAt: string | null, now: string): QueueView {
-  const view: QueueView = { snapshotAt, simNow: now, decide: [], routine: [], agentWorking: [], waiting: [], handled: [], quietCount: 0, total: bundles.length }
+  const view: QueueView = { snapshotAt, simNow: now, decide: [], watch: [], routine: [], agentWorking: [], waiting: [], handled: [], quietCount: 0, total: bundles.length }
   for (const bundle of bundles) {
     const attention = deriveAttention(bundle)
     const records = attention.filter((item) => item.kind !== "decision" && item.kind !== "case")
@@ -122,7 +132,7 @@ export function buildQueue(bundles: Bundle[], snapshotAt: string | null, now: st
     if (open.length) {
       // One row per order: the most pressing open case speaks for it.
       const placed = open.map((kase) => caseRow(bundle, kase, pendingFor(kase), records, open.length - 1, now))
-      const order = { decide: 0, agentWorking: 1, waiting: 2, routine: 3, handled: 4 }
+      const order = { decide: 0, agentWorking: 1, watch: 2, waiting: 3, routine: 4, handled: 5 }
       placed.sort((a, b) => order[a.section] - order[b.section] || a.row.rank - b.row.rank)
       let primary = placed[0]
       // A road case does not take over unrelated dispatch, document or support
@@ -130,7 +140,10 @@ export function buildQueue(bundles: Bundle[], snapshotAt: string | null, now: st
       const linked = new Set(open.flatMap((kase) => kase.linkedRecords.map((ref) => ref.id)))
       const unlinked = records.filter((item) => !linked.has(item.recordId))
       const recorded = unlinked.length ? recordsRow(bundle, unlinked, now) : null
-      if (recorded?.section === "decide" && (primary.section !== "decide" || recorded.row.rank < primary.row.rank)) {
+      // A signal worth a look stays visible too, rather than hiding behind a case that only waits.
+      const louder = recorded?.section === "decide" ? primary.section !== "decide" || recorded.row.rank < primary.row.rank
+        : recorded?.section === "watch" && ["waiting", "routine", "handled"].includes(primary.section)
+      if (recorded && louder) {
         recorded.row.more = `${primary.row.statusLabel}: ${primary.row.headline}${recorded.row.more ? ` · ${recorded.row.more}` : ""}`
         primary = recorded
       }
@@ -150,7 +163,7 @@ export function buildQueue(bundles: Bundle[], snapshotAt: string | null, now: st
   const newestFirst = (a: QueueRow, b: QueueRow) => String(b.since).localeCompare(String(a.since))
   const soonestCheck = (a: QueueRow, b: QueueRow) => String(a.nextCheckAt ?? "~").localeCompare(String(b.nextCheckAt ?? "~"))
   const byId = new Map(bundles.map((bundle) => [bundle.order.id, bundle]))
-  for (const row of [...view.decide, ...view.routine, ...view.agentWorking, ...view.waiting, ...view.handled]) {
+  for (const row of [...view.decide, ...view.watch, ...view.routine, ...view.agentWorking, ...view.waiting, ...view.handled]) {
     const bundle = byId.get(row.orderId)
     const timing = bundle ? changedTiming(bundle) : null
     if (timing) row.more = [row.more, timing].filter(Boolean).join(" · ")
@@ -162,6 +175,7 @@ export function buildQueue(bundles: Bundle[], snapshotAt: string | null, now: st
   const earliestFirst = (a: QueueRow, b: QueueRow) => String(a.since ?? "~").localeCompare(String(b.since ?? "~")) || a.rank - b.rank
   const band = (row: QueueRow) => (row.origin === "agent" ? 0 : 2) + (row.tone === "danger" ? 0 : 1)
   view.decide.sort((a, b) => band(a) - band(b) || earliestFirst(a, b))
+  view.watch.sort(urgentFirst)
   view.routine.sort(urgentFirst)
   view.agentWorking.sort(newestFirst)
   view.waiting.sort(soonestCheck)

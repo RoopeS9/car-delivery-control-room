@@ -874,6 +874,11 @@ export type QueueView = {
   simNow: string
   /** Needs your decision: cards, escalations, overdue follow-ups and urgent records, most urgent first. */
   decide: QueueRow[]
+  /**
+   * Worth a look: signals in the records (an open alert, a phone gone quiet, a reply from outside that is late) with
+   * nothing waiting on a person yet. Amber, below the decisions, so "need your decision" is the map's count.
+   */
+  watch: QueueRow[]
   /** Records rows with only routine open items (open threads, unverified pickup details). Folded under the decide section. */
   routine: QueueRow[]
   agentWorking: QueueRow[]
