@@ -25,15 +25,15 @@ function laneSort(lane: string) {
 
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("q")?.trim().toLowerCase() ?? ""
-  const { snapshotAt, bundles } = await loadBoardBundles()
+  const { snapshotAt, simNow, bundles } = await loadBoardBundles()
   const all = bundles.map(buildBoardCard)
   const counts = Object.fromEntries(LANE_ORDER.map((lane) => [lane, all.filter((card) => card.displayLane === lane).length]))
   // "Need a person" is the map's rule (lib/present/tone-rule.ts): a decision waiting, not any open signal.
-  const attentionCounts = Object.fromEntries(LANE_ORDER.map((lane) => [lane, all.filter((card) => card.displayLane === lane && card.attention.some((item) => needsPersonNow(item, snapshotAt))).length]))
+  const attentionCounts = Object.fromEntries(LANE_ORDER.map((lane) => [lane, all.filter((card) => card.displayLane === lane && card.attention.some((item) => needsPersonNow(item, simNow))).length]))
   const matches = query ? all.filter((card) => [
     card.reference, card.customer, card.vehicle, card.origin, card.destination, card.plate ?? "",
   ].some((field) => field.toLowerCase().includes(query))) : all
   const visible = LANE_ORDER.flatMap((lane) => matches.filter((card) => card.displayLane === lane).sort(laneSort(lane)))
-  const body: Overview = { snapshotAt, total: all.length, counts, attentionCounts, visible, query }
+  const body: Overview = { snapshotAt, simNow, total: all.length, counts, attentionCounts, visible, query }
   return NextResponse.json(body)
 }

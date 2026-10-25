@@ -27,7 +27,7 @@ export default function Board() {
 
   const visible = useMemo(() => {
     const cards = overview?.visible ?? []
-    return onlyAttention ? cards.filter((card) => card.attention.some((item) => needsPersonNow(item, overview?.snapshotAt ?? null))) : cards
+    return onlyAttention ? cards.filter((card) => card.attention.some((item) => needsPersonNow(item, overview?.simNow ?? overview?.snapshotAt ?? null))) : cards
   }, [overview, onlyAttention])
   const attentionTotal = overview ? Object.values(overview.attentionCounts).reduce((sum, count) => sum + count, 0) : 0
   const filtering = !!search || onlyAttention

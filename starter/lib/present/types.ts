@@ -97,6 +97,8 @@ export type BoardCard = {
 
 export type Overview = {
   snapshotAt: string | null
+  /** The simulated clock: what counts as due now. */
+  simNow?: string
   total: number
   counts: Record<string, number>
   attentionCounts: Record<string, number>
