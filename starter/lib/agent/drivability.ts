@@ -41,14 +41,14 @@ const CLEARANCE = /\b(you can|you may|you could|you(?:'re| are) (?:fine|ok|okay|
 const NEGATED = /\b(not|n't|never|no one|nobody|cannot|can't)\s+(?:\w+\s+){0,2}$/i
 const CONDITIONAL = /\b(?:until|unless|before|once|after|when)\b[^.!?\n]{0,25}\b(?:operator|operations)\b[^.!?\n]{0,30}(?:confirms?|approves?|decides?|clears?)[^.!?\n]{0,15}$|\b(?:operator|operations)\b[^.!?\n]{0,20}(?:will decide|must confirm|has to confirm)[^.!?\n]{0,20}$/i
 
+/** The car as the subject: "the car can keep going", "it is still drivable", "the car is fine to drive". */
+const CAR_CLEARANCE = /\b(?:the car|your car|the vehicle|it)\s+(?:can|may|could|should be able to|is (?:fine|ok|okay|safe|good|able) to)\s+(?:keep going|continue|carry on|be driven|drive on|keep driving|go on|make it)\b|\b(?:the car|your car|the vehicle|it)\s+is\s+(?:still\s+|normally\s+|perfectly\s+)?(?:drivable|driveable|roadworthy|fine to drive|safe to drive)\b/gi
+
 /**
  * Finds text that tells a driver they may drive on. Negations ("it is not
  * safe to drive") and conditions ("until an operator confirms you can
  * drive") do not count. Returns the offending phrase, or null.
  */
-/** The car as the subject: "the car can keep going", "it is still drivable", "the car is fine to drive". */
-const CAR_CLEARANCE = /\b(?:the car|your car|the vehicle|it)\s+(?:can|may|could|should be able to|is (?:fine|ok|okay|safe|good|able) to)\s+(?:keep going|continue|carry on|be driven|drive on|keep driving|go on|make it)\b|\b(?:the car|your car|the vehicle|it)\s+is\s+(?:still\s+|normally\s+|perfectly\s+)?(?:drivable|driveable|roadworthy|fine to drive|safe to drive)\b/gi
-
 export function findClearance(text: string): string | null {
   for (const match of text.matchAll(CLEARANCE)) {
     const before = text.slice(Math.max(0, (match.index ?? 0) - 50), match.index)

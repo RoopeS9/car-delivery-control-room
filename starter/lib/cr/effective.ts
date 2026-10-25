@@ -160,7 +160,6 @@ async function recordField(table: string, id: string, field: string): Promise<un
   return row ? row.details[field] : undefined
 }
 
-/** Check each assumption against the current effective state. */
 /** A record value as the card shows it: "MISSED_CHECK_IN" reads "missed check in". */
 function inWords(value: unknown): string {
   if (value === null || value === "") return "empty"
@@ -168,6 +167,7 @@ function inWords(value: unknown): string {
   return /^[A-Z][A-Z0-9_]*$/.test(text) ? text.toLowerCase().replace(/_/g, " ") : text
 }
 
+/** Check each assumption against the current effective state. */
 export async function checkAssumptions(caseId: string, orderId: string, assumptions: Assumption[]): Promise<AssumptionCheck[]> {
   const checks: AssumptionCheck[] = []
   for (const assumption of assumptions) {
