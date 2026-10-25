@@ -1,9 +1,11 @@
 # Completion plan: Road Desk
 
-Written Sun 25 Oct 2026, about 07:30 UTC. Checked against `Bahn-hackathon-brief.pdf` and `PARTICIPANT-BRIEF.md`.
+Written Sun 25 Oct 2026, about 09:30 Finnish time. Checked against `Bahn-hackathon-brief.pdf` and
+`PARTICIPANT-BRIEF.md`. All times below are Finnish time (winter time, UTC+2).
 
-**Submission: 13:00 UTC (15:00 Finnish time). Feature freeze: 09:00 UTC.** That leaves about 1½ hours of building and
-5½ hours in total. Live judging follows (13:10–15:15 UTC, per `PLAN.md`).
+**Deadline: 15:00 (from the brief). Our own freeze: 13:00 (the team's choice, not the organizers').** That leaves
+about 3½ hours of building and 5½ hours in total. `PLAN.md` also mentions live judging from 15:10 (13:10 UTC); the brief
+does not, so treat that as unconfirmed until someone asks at the booth.
 
 ## The short version
 
@@ -47,11 +49,11 @@ Not checked here: `docker compose` (no Docker daemon in this sandbox, I used a l
 | 3 | **Find out how to hand in.** The brief says "hand in two things" by Sunday 15:00 but not where. `PLAN.md` mentions a Prompthack page. Ask on Discord or at the booth now. | 5 min | Everything else waits on this answer. |
 | 4 | **Run the README steps on a Docker machine, verbatim**, including `attachments:seed` and the call service. | 20 min | Fresh clone, not your working copy. |
 | 5 | **One real-model dry run of scenario A** (and check the OpenRouter balance first). Last night's spend was about $10.6. | 10 min | Before recording, not during. |
-| 6 | **Record the video** (2–3 min). | 09:30–11:00 | Script: `SUBMISSION-DRAFTS.md`. |
-| 7 | **Write-up and links**, then submit. | 11:00–12:00 | Draft: `SUBMISSION-DRAFTS.md`. |
-| 8 | **Two rehearsals of the live demo** with `RUN-SHEET.md`. | before 12:30 | One of them with the microphone off, to test the chat fallback. |
+| 6 | **Record the video** (2–3 min). | 13:00–14:00 | Script: `SUBMISSION-DRAFTS.md`. Also record one rough take around 12:00 as a fallback. |
+| 7 | **Write-up and links**, then submit. | 14:00–14:30 | Draft: `SUBMISSION-DRAFTS.md`. |
+| 8 | **Two rehearsals of the live demo** with `RUN-SHEET.md`. | before 13:00 | One of them with the microphone off, to test the chat fallback. |
 
-### P1: judges will notice these (fix before the 09:00 freeze if small)
+### P1: judges will notice these (fix before the freeze if small)
 
 | # | Task | Why | Size |
 |---|---|---|---|
@@ -69,18 +71,21 @@ Not checked here: `docker compose` (no Docker daemon in this sandbox, I used a l
 - The risky refactors the last log entry left alone (`runTurn`, `submitProposal`): leave them. Not worth it today.
 - A second language demo (a German driver message). Already supported; just a nice extra.
 
-## Timeline (UTC)
+## Timeline (Finnish time)
 
 | Time | What |
 |---|---|
-| 07:30–08:15 | P0 3 (ask how to hand in), P0 2 (public), P1 1 and 2 (counts, queue wording) |
-| 08:15–09:00 | P1 3–7; README screenshots |
-| **09:00** | **Freeze.** P0 1 (merge to `main`), tag it, no more feature work |
-| 09:00–09:30 | P0 4 and 5: fresh-clone run on Docker, one real scenario A |
-| 09:30–11:00 | P0 6: record the video (rehearse once, record 2–3 takes) |
-| 11:00–12:00 | Edit, upload, write-up, cover image, all links |
-| 12:00–12:30 | P0 8: two rehearsals |
-| 12:30–13:00 | Submit, confirm the repo link works signed out. **13:00 is the deadline; aim for 12:45.** |
+| 09:30–10:30 | P0 3 (ask how to hand in), P0 2 (public), P1 1 and 2 (counts, queue wording) |
+| 10:30–11:30 | P1 3–7; README screenshots |
+| 11:30–12:15 | P0 4 and 5 on the near-final build: fresh-clone run on Docker, one real scenario A |
+| 12:00–13:00 | One rehearsal of the script and one of the live demo; a rough fallback video take; only fixes found by these |
+| **13:00** | **Freeze.** P0 1 (merge to `main`), tag it, no more feature work |
+| 13:00–14:00 | P0 6: record the video (2–3 takes) |
+| 14:00–14:30 | Edit, upload, write-up, cover image, all links |
+| 14:30–15:00 | Submit, confirm the repo link works signed out. **15:00 is the deadline; aim for 14:45.** |
+
+With a 13:00 freeze only two hours remain for the video, write-up and submission, and nothing in them can slip. If
+12:00 arrives and the app is not near-final, move the freeze earlier rather than shortening the video.
 
 ## Decisions for you
 

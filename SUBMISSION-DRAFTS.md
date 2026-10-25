@@ -74,7 +74,7 @@ running scenario A]
 
 ---
 
-## 3. Final submission checklist (tick at 12:30)
+## 3. Final submission checklist (tick at 14:30 Finnish time)
 
 - [ ] `main` holds the final code (or the default branch is `roope`); last commit is the one you tested
 - [ ] Repo opens **signed out**, in a private window
@@ -82,5 +82,5 @@ running scenario A]
 - [ ] No keys committed (`.env` ignored; only `.env.example` files are tracked, which I checked this morning)
 - [ ] Video is 2:00–3:00, plays signed out, shows the process, and the voice is audible
 - [ ] Write-up has the repo link, the video link and a cover image
-- [ ] Submitted by 12:45 UTC (deadline 13:00 UTC = 15:00 Finnish time); confirmation seen or screenshotted
+- [ ] Submitted by 14:45 Finnish time (deadline 15:00); confirmation seen or screenshotted
 - [ ] Demo laptop: both services up, **Reset demo** pressed, simulated driver **off** for the live demo, chat fallback ready
