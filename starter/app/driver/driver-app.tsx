@@ -77,7 +77,6 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow, onJob }
   const clockOffset = useRef(Date.parse(serverNow) - Date.now())
   const simIso = () => new Date(Date.now() + clockOffset.current).toISOString()
   const fileInput = useRef<HTMLInputElement>(null)
-  const bottom = useRef<HTMLDivElement>(null)
   const pendingPhotoSubject = useRef<string | null>(null)
 
   const add = useCallback((messages: ThreadMessage[]) => {
@@ -120,7 +119,24 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow, onJob }
     return () => { stopped = true; clearInterval(timer) }
   }, [job])
 
-  useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }) }, [thread, streaming])
+  // Keep the newest message in view: on new messages, and when the panels around the thread grow (a photo request,
+  // the car's readings) while the driver is reading the latest lines. Scrolls the thread only, never the page.
+  const threadBox = useRef<HTMLElement>(null)
+  const pinned = useRef(true)
+  useEffect(() => { const box = threadBox.current; if (box) { box.scrollTop = box.scrollHeight; pinned.current = true } }, [thread, streaming])
+  useEffect(() => {
+    const box = threadBox.current
+    if (!box || typeof ResizeObserver === "undefined") return
+    const onScroll = () => { pinned.current = box.scrollHeight - box.scrollTop - box.clientHeight < 40 }
+    // The box shrinks when a panel appears; a message grows when fonts or a photo load. Either way, stay at the end.
+    const observer = new ResizeObserver(() => { if (pinned.current) box.scrollTop = box.scrollHeight })
+    const watch = () => { observer.observe(box); for (const child of Array.from(box.children)) observer.observe(child) }
+    const added = new MutationObserver(watch)
+    watch()
+    added.observe(box, { childList: true })
+    box.addEventListener("scroll", onScroll)
+    return () => { observer.disconnect(); added.disconnect(); box.removeEventListener("scroll", onScroll) }
+  }, [job])
 
   async function send(text: string, photoIds: string[] = [], photo?: { url: string; subject: string | null }) {
     if (!job || sending) return
@@ -215,7 +231,7 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow, onJob }
       <JobCard job={job} />
       <StepCard job={job} driverId={driver.id} onDone={(line) => add([line])} />
 
-      <section className={styles.thread} aria-label="Messages with Bahn" aria-live="polite">
+      <section ref={threadBox} className={styles.thread} aria-label="Messages with Bahn" aria-live="polite">
         {thread.length === 0 && streaming === null && <p className={styles.threadEmpty}>
           Write to Bahn here, or send a photo. You get an answer straight away; a person joins when a decision is needed.
         </p>}
@@ -231,7 +247,6 @@ export function DriverApp({ driver, jobs, job, initialThread, serverNow, onJob }
           <span className={styles.who}>Bahn assistant</span>
           {streaming ? <p>{streaming}</p> : <p className={styles.typing} aria-label="Writing"><i /><i /><i /></p>}
         </div>}
-        <div ref={bottom} />
       </section>
 
       {photoAsk && <div className={styles.photoAsk}>
@@ -455,7 +470,7 @@ function JobCard({ job }: { job: DriverJob }) {
   const [open, setOpen] = useState(false)
   return <section className={styles.job} aria-label="Your job">
     <button type="button" className={styles.jobHead} onClick={() => setOpen((value) => !value)} aria-expanded={open}>
-      <span className={styles.jobKicker}>{job.status === "IN_PROGRESS" ? "Driving now" : job.status === "DELIVERED" ? "Delivered" : "Next job"} · <span className="mono">{job.reference}</span></span>
+      <span className={styles.jobKicker}>{job.status === "IN_PROGRESS" ? "On the job" : job.status === "DELIVERED" ? "Delivered" : "Next job"} · <span className="mono">{job.reference}</span></span>
       <b>{job.vehicle.title}{job.vehicle.plate ? <span className="mono"> · {job.vehicle.plate}</span> : null}</b>
       <span className={styles.jobRoute}>{job.pickup.city} <Icon name="arrow" size={13} /> {job.delivery.city}</span>
       <Icon name="chevron" size={16} className={`${styles.chevron}${open ? ` ${styles.chevronOpen}` : ""}`} />
