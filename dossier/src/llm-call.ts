@@ -9,7 +9,7 @@ import { CHECKLISTS, CallRecord, MAX_QUESTIONS, SlotName, SlotValue, Situation, 
 import type { Persona } from "./sim/personas"
 import { composeBrief, renderDossier } from "./reason"
 import { items } from "./brief"
-import { contextPrompt, isClosing } from "./context"
+import { EMERGENCY_CLOSING, contextPrompt, isClosing } from "./context"
 
 type Usage = { prompt_tokens: number; completion_tokens: number; cost?: number }
 async function complete(apiKey: string, model: string, messages: { role: "system" | "user" | "assistant"; content: string }[], json = false, temperature = 0.6): Promise<{ text: string; cost: number }> {
@@ -65,10 +65,19 @@ export async function runLlmCall(d: Dossier, persona: Persona, purpose: CallBrie
   say("CALLER", brief.opening); history.push({ role: "assistant", content: brief.opening })
   const calleeModel = process.env.CALLEE_MODEL ?? "deepseek/deepseek-v4.1-flash"     // the persona needs no depth; the fast model halves the wall time
   { const r0 = await complete(apiKey, calleeModel, [{ role: "system", content: calleeSys }, ...asCallee()], false, 0.7); cost += r0.cost; const reply0 = r0.text.split("\n")[0]!.trim(); if (reply0) { say("CALLEE", reply0); history.push({ role: "user", content: reply0 }) } }
+  // The same sentence twice, or the emergency instruction twice, ends the call: a person would stop talking and let them act.
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim()
+  const saidBefore = new Set<string>()
+  let saidEmergency = 0
   for (let i = 0; i < maxTurns && !done; i++) {
     const guard = i < minTurnsBeforeClose ? "\n(You have not asked everything yet: do not close the call on this turn; ask your next question.)" : ""
     const c = await complete(apiKey, model, [{ role: "system", content: callerSys + guard }, ...history], false, 0.5); cost += c.cost
-    const line = c.text.replace(/^Mira:\s*/i, "").split("\n")[0]!.trim(); if (!line) break
+    let line = c.text.replace(/^Mira:\s*/i, "").split("\n")[0]!.trim(); if (!line) break
+    const key = norm(line)
+    if (/\b112\b/.test(line)) saidEmergency += 1
+    if (saidEmergency >= 2 && !isClosing(line, brief)) { line = EMERGENCY_CLOSING }
+    else if (saidBefore.has(key) && i >= 1 && !isClosing(line, brief)) { line = /\b112\b/.test(line) ? EMERGENCY_CLOSING : brief.closing }
+    saidBefore.add(key)
     say("CALLER", line); history.push({ role: "assistant", content: line })
     // The closing line ends the call: no further callee turn, never a second closing.
     if (isClosing(line, brief)) { done = true; break }
@@ -99,7 +108,7 @@ async function extractTurns(apiKey: string, model: string, brief: CallBrief, tur
     : startedAt.slice(0, 10)
   const transcript = turns.map((t) => `${t.seq} ${t.speaker === "CALLER" ? "Mira" : calleeLabel}: ${t.text}`).join("\n")
   const want = inbound ? Array.from(new Set([...Object.values(CHECKLISTS).flat()])) : brief.ask
-  const exSys = `You extract facts from a phone transcript into JSON. Extract a slot when the callee (${calleeLabel}) states it directly, including clear negatives and plain paraphrases: "reception doesn't have the keys" is KEYS_AT_SITE=false; "stock control will hand it over" is RELEASE_CONTACT_NAME="stock control"; "we open at eight thirty" with a slot at nine is OPEN_DURING_SLOT=true. Uncertainty is not a value: "I can't see it from here" is NOT VEHICLE_PRESENT=false. Never fill a slot the callee did not address. Each slot cites the turn number and quotes the exact words. Boolean slots are true/false; ETA is an ISO 8601 UTC instant: a time said without a date is on the day the call is about (${aboutDate} when the brief is about a collection or arrival on that day, "tomorrow" means the day after the call date ${startedAt.slice(0, 10)}), and a local time is converted from the callee's zone; "nothing else", "all good", "no" to the anything-else question is ISSUE_REPORTED="none"; WARNING_LIGHT is one of NONE, AMBER_STEADY, AMBER_FLASHING, RED; text slots are short. Slots allowed: ${want.join(", ")}. ${inbound ? "This is an inbound driver call: also classify triage {urgency: EMERGENCY|URGENT|ROUTINE, situation: WARNING_LIGHT|BREAKDOWN|ACCIDENT|DELAY|KEYS_ACCESS|EXPENSE|OTHER_QUESTION, turnSeq, quote} from the driver's first substantive turn, and set escalate true if a person must act." : "triage is null; escalate true only if the callee reported something that blocks the collection."} Answer JSON: {"triage": ..., "slots": [{"slot","value","turnSeq","quote"}], "escalate": boolean}`
+  const exSys = `You extract facts from a phone transcript into JSON. Extract a slot when the callee (${calleeLabel}) states it directly, including clear negatives and plain paraphrases: "reception doesn't have the keys" is KEYS_AT_SITE=false; "stock control will hand it over" is RELEASE_CONTACT_NAME="stock control"; "we open at eight thirty" with a slot at nine is OPEN_DURING_SLOT=true. Uncertainty is not a value: "I can't see it from here" is NOT VEHICLE_PRESENT=false. When the callee corrects themselves ("the car is here... actually it went out, so no") the corrected, later statement is the value: record it once, citing that turn. Never fill a slot the callee did not address. Each slot cites the turn number and quotes the exact words. Boolean slots are true/false; ETA is an ISO 8601 UTC instant: a time said without a date is on the day the call is about (${aboutDate} when the brief is about a collection or arrival on that day, "tomorrow" means the day after the call date ${startedAt.slice(0, 10)}), and a local time is converted from the callee's zone; "nothing else", "all good", "no" to the anything-else question is ISSUE_REPORTED="none"; WARNING_LIGHT is one of NONE, AMBER_STEADY, AMBER_FLASHING, RED; text slots are short. Slots allowed: ${want.join(", ")}. ${inbound ? "This is an inbound driver call: also classify triage {urgency: EMERGENCY|URGENT|ROUTINE, situation: WARNING_LIGHT|BREAKDOWN|ACCIDENT|DELAY|KEYS_ACCESS|EXPENSE|OTHER_QUESTION, turnSeq, quote} from the driver's first substantive turn, and set escalate true if a person must act." : "triage is null; escalate true only if the callee reported something that blocks the collection."} Answer JSON: {"triage": ..., "slots": [{"slot","value","turnSeq","quote"}], "escalate": boolean}`
   let extracted: z.infer<typeof Extraction> | null = null, feedback = ""
   for (let attempt = 0; attempt < 2 && !extracted; attempt++) {
     const e = await complete(apiKey, model, [{ role: "system", content: exSys }, { role: "user", content: transcript + (feedback ? `\n\nPrevious answer rejected: ${feedback}` : "") }], true, 0); cost += e.cost

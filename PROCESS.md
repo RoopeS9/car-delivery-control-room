@@ -1445,3 +1445,39 @@ Got:
 - Regression on the build with all of the above: the full role harness passed 51/52; D's one miss was the harness
   reading the desk's reply five seconds after the case closed, before the reply landed (a rerun showed it). D now
   waits for the reply itself. Spend for the night: about $6.8 of the $10 (OpenRouter key at $9.65, $2.88 before).
+
+## 2026-10-25 morning UTC · RoopeS + Claude Code (cloud) · merging the second night (aloimusa/main)
+
+Asked: compare the friend's night of work (github.com/aloimusa/car-delivery-control-room, 14 commits: a night
+harness that plays every party against a sandbox stack, and fixes for the 16 faults it ranked in
+`starter/scripts/night/MORNING.md`) with `roope` and merge it; conflicts in function or UI go to Roope.
+
+Got:
+- Six files conflicted: `instrumentation.ts`, `lib/sim/sync.ts`, `lib/agent/tools.ts`, `lib/agent/drivability.ts`,
+  `dossier/src/reason.ts`, `package.json`. Everything else merged as written.
+- Both nights had fixed the simulated clock falling behind its own records after a restart: theirs at server start,
+  retrying until the database answers; mine on the first sync. Both now call their one catch-up function, so the
+  sync covers a process that skipped the start-up step.
+- Both had changed what happens when a driver reply sounds like clearance. Theirs: on a job with no recorded fault or
+  restriction the sentence is dropped and the rest is sent. Mine: on a restricted job the reply is held as a card and
+  the driver is told an operator has it. These cover different cases, so both are kept.
+- Roope decided two: (1) their "one card at a time per case" rule stays, but cards the gate raises itself (a held
+  clearance, a held reply) are marked as the gate's and do not block the agent's own card; on screen they still
+  read as the Road agent. (2) The wait-near-the-car line is mine: "Please stay in a safe place near the car. An
+  operator is working out what happens next, and we will message you soon." Their drive-on fallback wording is kept.
+- Their unit tests had not been running: on their branch the runner crashed at start-up (the voice loader's
+  `data:` URL), which `roope` had already fixed. With that fix their one-card rule failed nine tests. The gate's
+  exemption fixed the held-card cases. Three older tests put two waiting cards on one case; they now put the second
+  card on another case of the same order, which still checks the same rule. 127/127.
+
+- The role harness then found a third effect of the one-card rule. In B the customer agreed to the new date by email
+  while the agent's card for the driver's train home waited, and the reply to the customer was refused until someone
+  decided the train. Roope decided (3): the answer to someone who wrote (a message card to a customer or site
+  that wrote on the case and has had nothing back since) neither waits behind another card nor holds one back.
+  Outreach nobody asked for still waits its turn. Test added; 128/128.
+
+Checked: typecheck of both packages, production build, smoke (board and record agree for 100 orders), and the role
+harness on DeepSeek. The first full run passed 47/51. All four misses were in B: once the agent raised the new
+date as the wrong kind of card (it raised the right kind in the next two runs), and once the reply was refused as
+described above. After the fix B passed 9/9. Spend so far: about $7.2 of the $10 (OpenRouter key at $10.08, $2.88
+before the night).

@@ -240,7 +240,7 @@ export function plainText(bundle: Bundle, text: string | null): string | null {
 
 export function ownerName(bundle: Bundle, owner: string | null | undefined): string | null {
   if (!owner) return null
-  if (owner === "agent" || owner === "road-agent") return AGENT_NAME
+  if (owner === "agent" || owner.startsWith("road-agent")) return AGENT_NAME
   return bundle.dir.title(owner)
 }
 

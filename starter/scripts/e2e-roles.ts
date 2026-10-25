@@ -82,7 +82,7 @@ const stories: Record<string, () => Promise<void>> = {
     const first = await settled("CD-420584")
     check("the agent reaches the driver first", Boolean(first && first.status === "WAITING_EXTERNAL"), first?.status ?? "no case")
     const reply = await driverSays("CD-420584", "drv-042", "I'm safe, parked at the service area by the fuel station, engine off. The orange light was blinking and the car shook.")
-    check("the driver gets an answer, not the fixed fallback", !/has to confirm before you drive on/.test(reply.reply), reply.reply.slice(0, 80))
+    check("the driver gets an answer, not the fixed fallback", !/has to confirm before you drive on|can't clear you to drive on myself/.test(reply.reply), reply.reply.slice(0, 80))
     const card = await pending("CD-420584")
     check("operations gets a card to ask the owner about recovery", card?.actionType === "CONTACT_CUSTOMER", card?.title ?? "no card")
     if (!card) return

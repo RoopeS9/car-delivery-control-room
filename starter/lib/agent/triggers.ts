@@ -7,11 +7,11 @@
 import { simNow } from "@/lib/cr/clock"
 import { withRuntimeWork } from "@/lib/cr/activity"
 import {
-  appendEvent, attachEvents, createCase, getCase, getProposal, listCases, listProposals, resolveOrder, updateCase, type CaseRow,
+  appendEvent, attachEvents, createCase, getCase, getProposal, insertTelemetry, latestTelemetry, listCases, listProposals, resolveOrder, updateCase, type CaseRow,
 } from "@/lib/cr/queries"
 import {
   OPEN_CASE_STATUSES, type AskAgentRequest, type AssumptionCheck, type CustomerAnswerRequest, type DecisionRequest,
-  type DriverMessageRequest, type LogOutcomeRequest, type PhotoData, type SiteMessageRequest, type TelemetryTriggerRequest,
+  type DriverMessageRequest, type LogOutcomeRequest, type PhotoData, type SiteMessageRequest, type ObdData, type TelemetryTriggerRequest,
 } from "@/lib/cr/types"
 import { AGENT_ID } from "./config"
 import { activeDriverId, activeOrderForDriver, driverName, linkedRecordsOf, loadOrderFacts, type End, type OrderFacts } from "./context"
@@ -134,7 +134,9 @@ export async function handleSiteMessage(prepared: PreparedSiteMessage, onText?: 
     // card, whatever its state), else on the running site question; only then is it a new question.
     const contacted = new Set((await Promise.all((await listCases({ orderId: facts.id, statuses: [...OPEN_CASE_STATUSES] })).map(async (row) =>
       (await listProposals({ caseId: row.id })).some((p) => p.actionType === "CONTACT_CUSTOMER" || p.actionType === "CONTACT_SITE_AS_CUSTOMER") ? row.id : null))).filter((id): id is string => Boolean(id)))
-    const caseRow = await openCase(facts.id, (row) => (row.status === "WAITING_EXTERNAL" && (row.waitingFor === "site" || row.waitingFor === "customer")) || contacted.has(row.id) || row.kind === "SITE_QUESTION" || row.channelOpened === "site_chat", () => createCase({
+    // While the car is in trouble on this order, what the site writes is about that trouble: it lands on the incident case.
+    const incidentKinds = ["VEHICLE_WARNING", "BREAKDOWN", "ACCIDENT"]
+    const caseRow = await openCase(facts.id, (row) => (row.status === "WAITING_EXTERNAL" && (row.waitingFor === "site" || row.waitingFor === "customer")) || contacted.has(row.id) || incidentKinds.includes(row.kind) || row.kind === "SITE_QUESTION" || row.channelOpened === "site_chat", () => createCase({
       orderId: facts.id, kind: "SITE_QUESTION", status: "AGENT_WORKING", urgency: "NORMAL", title: `Question from ${name}`,
       summary: request.text.slice(0, 200), channelOpened: "site_chat", owner: "agent", driverId: activeDriverId(facts),
     }))
@@ -231,9 +233,18 @@ export async function handleTelemetryFault(request: TelemetryTriggerRequest): Pr
     }))
     if (request.eventId) await attachEvents([request.eventId], caseRow.id)
     else {
+      // The report is also a dongle reading, stamped after the newest one, so `get_active_codes` and the drivability
+      // evidence read the same codes the event names instead of an older clean frame from the stream.
+      const previous = await latestTelemetry(facts.id, "OBD")
+      const at = new Date(Math.max(simNow().getTime(), (previous?.at.getTime() ?? 0) + 1000))
+      const previousData = (previous?.data ?? {}) as Partial<ObdData>
+      const [reading] = await insertTelemetry([{
+        orderId: facts.id, vehicleId: previous?.vehicleId ?? facts.vehicle?.id ?? null, source: "OBD", at, simulated: true,
+        data: { ...previousData, engine_on: true, mil: request.mil, dtcs: codes, freeze_frame: codes.length ? { code: codes[0]!, at: at.toISOString(), values: {} } : null },
+      }])
       await appendEvent({
         caseId: caseRow.id, orderId: facts.id, actorType: "obd", actorId: "obd", kind: "dtc", channel: "telemetry", body: summary,
-        data: { codes, mil: request.mil, note: request.note ?? null },
+        data: { codes, mil: request.mil, note: request.note ?? null, sources: reading ? [{ kind: "cr_telemetry", id: reading.id, label: "OBD dongle", at: at.toISOString() }] : [] },
       })
     }
     const name = facts.driverNames.get(driverId) ?? null

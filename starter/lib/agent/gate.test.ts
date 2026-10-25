@@ -111,10 +111,32 @@ describe("M1: a CONTACT_CUSTOMER action cannot execute without approval", () => 
       draft_message: customerDraft, changes: [{ label: "Delivery promise", before: "Wed 21 Oct", after: "Fri 23 Oct (agreed by customer)" }],
     }))
     assert.deepEqual(row.changes, [])
-    const { proposal: promise } = await submitProposal({ audience: "operator", caseRow, facts }, proposal("UPDATE_ETA", {
+    // One card waits per case at a time, so the date card goes on a case of its own.
+    const { proposal: promise } = await submitProposal({ audience: "operator", caseRow: await newCase(), facts }, proposal("UPDATE_ETA", {
       changes: [{ label: "ETA", before: null, after: "Fri 23 Oct 12:00 CEST (2026-10-23T10:00:00Z)" }],
     }))
     assert.equal(promise.changes[0].after, "Fri 23 Oct 12:00 CEST", "the UTC instant stays in the value, not the words")
+  })
+
+  test("one card waits per case at a time; the answer to a customer's email neither waits nor blocks", async () => {
+    const customerWrote = (caseRow: CaseRow) => appendEvent({
+      caseId: caseRow.id, orderId: facts.id, actorType: "customer", actorId: facts.customer.id, kind: "message", channel: "customer_email",
+      recipientType: "agent", recipientId: AGENT_ID, body: "Is the new date confirmed?",
+    })
+    const caseRow = await newCase()
+    await submitProposal({ audience: "operator", caseRow, facts }, proposal("BOOK_RECOVERY"))
+    await assert.rejects(submitProposal({ audience: "operator", caseRow, facts }, proposal("UPDATE_ETA")), /already waiting/)
+    await assert.rejects(submitProposal({ audience: "operator", caseRow, facts }, proposal("CONTACT_CUSTOMER", { draft_message: customerDraft })), /already waiting/, "outreach nobody asked for waits its turn")
+    await customerWrote(caseRow)
+    const reply = (await submitProposal({ audience: "operator", caseRow, facts }, proposal("CONTACT_CUSTOMER", { draft_message: customerDraft }))).proposal
+    assert.equal(reply.status, "PENDING")
+
+    const quiet = await newCase()
+    await customerWrote(quiet)
+    await submitProposal({ audience: "operator", caseRow: quiet, facts }, proposal("CONTACT_CUSTOMER", { draft_message: customerDraft }))
+    const recovery = (await submitProposal({ audience: "operator", caseRow: quiet, facts }, proposal("BOOK_RECOVERY"))).proposal
+    assert.equal(recovery.status, "PENDING", "a waiting reply does not hold back the next decision")
+    await assert.rejects(submitProposal({ audience: "operator", caseRow: quiet, facts }, proposal("UPDATE_ETA")), /already waiting/)
   })
 
   test("a fact the model gave without sources is stored with none, so the card can say so", async () => {
@@ -382,9 +404,11 @@ describe("unknown outcomes are reconciled, never retried blindly", () => {
   test("an unresolved booking blocks new cards and old approvals across cases on the same order", async () => {
     const firstCase = await newCase("MISSED_CONNECTION")
     const otherCase = await newCase("MISSED_CONNECTION")
+    // One card waits per case at a time, so each waiting card below has a case of its own.
+    const recoveryCase = await newCase("MISSED_CONNECTION")
     const travelInput = await travelProposal(otherCase)
     const travel = (await submitProposal({ audience: "operator", caseRow: otherCase, facts }, travelInput)).proposal
-    const recovery = (await submitProposal({ audience: "operator", caseRow: otherCase, facts }, proposal("BOOK_RECOVERY"))).proposal
+    const recovery = (await submitProposal({ audience: "operator", caseRow: recoveryCase, facts }, proposal("BOOK_RECOVERY"))).proposal
     const first = (await submitProposal({ audience: "operator", caseRow: firstCase, facts }, proposal("BOOK_RECOVERY"))).proposal
     const previousTimeout = process.env.MOCK_PROVIDER_TIMEOUT
     process.env.MOCK_PROVIDER_TIMEOUT = "1"
@@ -395,7 +419,7 @@ describe("unknown outcomes are reconciled, never retried blindly", () => {
         await assert.rejects(submitProposal({ audience: "operator", caseRow: otherCase, facts }, input), /unknown outcome/)
       }
       for (const row of [travel, recovery]) {
-        await assert.rejects(decideProposal(otherCase.id, row.id, { decision: "approve", decided_by: "ops-travel" }), /unknown outcome/)
+        await assert.rejects(decideProposal(row.caseId, row.id, { decision: "approve", decided_by: "ops-travel" }), /unknown outcome/)
         assert.equal((await getProposal(row.id))?.status, "PENDING")
         assert.equal((await getProposal(row.id))?.executionKey, null)
       }
@@ -404,12 +428,12 @@ describe("unknown outcomes are reconciled, never retried blindly", () => {
       await crDb().update(crProposals).set({ status: "APPROVED", decidedBy: "ops-travel", decidedRevision: recovery.revision }).where(eq(crProposals.id, recovery.id))
       await assert.rejects(executeProposal(recovery.id, { by: "ops-travel" }), /unknown outcome/)
       assert.equal((await getProposal(recovery.id))?.executionKey, null)
-      assert.equal((await listEffects({ caseId: otherCase.id, kinds: ["BOOKING"] })).length, 0)
+      assert.equal((await listEffects({ caseId: recoveryCase.id, kinds: ["BOOKING"] })).length, 0)
 
-      const customer = await submitProposal({ audience: "operator", caseRow: otherCase, facts }, proposal("CONTACT_CUSTOMER", { draft_message: customerDraft }))
+      const customer = await submitProposal({ audience: "operator", caseRow: await newCase("MISSED_CONNECTION"), facts }, proposal("CONTACT_CUSTOMER", { draft_message: customerDraft }))
       assert.equal(customer.proposal.status, "PENDING", "unrelated customer drafts remain available")
       await logOutcome(firstCase.id, { proposal_id: first.id, text: "Provider confirms no booking was created", logged_by: "ops-travel", confirmed: false })
-      const next = await submitProposal({ audience: "operator", caseRow: otherCase, facts }, proposal("BOOK_RECOVERY"))
+      const next = await submitProposal({ audience: "operator", caseRow: recoveryCase, facts }, proposal("BOOK_RECOVERY"))
       assert.equal(next.proposal.status, "PENDING", "reconciliation permits a fresh booking proposal")
     } finally {
       if (previousTimeout === undefined) delete process.env.MOCK_PROVIDER_TIMEOUT
@@ -501,15 +525,19 @@ describe("structured travel booking selection", () => {
     const input = await travelProposal(caseRow)
     input.booking_selection!.replaces_reservation_id = String(facts.reservations[0].id)
     const first = (await submitProposal({ audience: "operator", caseRow, facts }, input)).proposal
-    // A differently worded card: the same card twice is reused, not stored again.
-    const second = (await submitProposal({ audience: "operator", caseRow, facts }, { ...input, title: "Test BOOK_TRAVEL, another sailing" })).proposal
+    // One card waits per case at a time, so the competing card comes from another case on the same order.
+    const otherCase = await newCase("MISSED_CONNECTION")
+    const otherInput = await travelProposal(otherCase)
+    otherInput.booking_selection!.replaces_reservation_id = String(facts.reservations[0].id)
+    const second = (await submitProposal({ audience: "operator", caseRow: otherCase, facts }, otherInput)).proposal
     assert.notEqual(second.id, first.id)
     await decideProposal(caseRow.id, first.id, { decision: "approve", decided_by: "ops-travel" })
-    await assert.rejects(decideProposal(caseRow.id, second.id, { decision: "approve", decided_by: "ops-travel" }), /not a current confirmed booking/)
+    await assert.rejects(decideProposal(otherCase.id, second.id, { decision: "approve", decided_by: "ops-travel" }), /not a current confirmed booking/)
     const unchanged = await getProposal(second.id)
     assert.equal(unchanged?.status, "PENDING", "the operator can reject or redraft this card")
     assert.equal(unchanged?.executionKey, null, "validation does not consume the execution claim")
     assert.equal((await listEffects({ caseId: caseRow.id, kinds: ["BOOKING"] })).length, 1)
+    assert.equal((await listEffects({ caseId: otherCase.id, kinds: ["BOOKING"] })).length, 0)
     await crDb().delete(crEffects).where(eq(crEffects.caseId, caseRow.id))
   })
 

@@ -114,6 +114,23 @@ export function callableParties(d: Dossier): string[] {
 
 const FORBIDDEN_OPTION = /\b(keep driving|continue driving|drive on|attempt to continue|carry on driving|cleared? to drive)\b/i
 
+/** The names the agent may call on this order, as the model might write them: the booked driver and a non-customer pickup desk. */
+export function callableNames(d: Dossier): string[] {
+  const order = items(d, "orders")[0]?.record
+  const a = items(d, "work_assignments").map((i) => i.record).find((x) => x.status === "IN_PROGRESS" || x.status === "ASSIGNED")
+  const drv = a ? items(d, "drivers").map((i) => i.record).find((x) => x.id === a.driver_id) : undefined
+  const site = order ? items(d, "sites").map((i) => i.record).find((x) => x.id === order.pickup_site_id) : undefined
+  const out: string[] = ["driver", "the driver"]
+  if (drv) out.push(drv.display_name, drv.display_name.split(" ")[0]!)
+  if (site && order && site.customer_id !== order.customer_id) out.push(site.name, "pickup desk", "pickup site")
+  return out
+}
+const isCallable = (d: Dossier, who: string) => callableNames(d).some((name) => who.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(who.toLowerCase()))
+
+/** Record ids never belong in text an operator reads: the dossier shows them as labels. "(expense-x3f...)" and bare ids go. */
+const ID_IN_TEXT = /\s*\((?:[a-z]{2,10}-x[0-9a-f]{6,}|(?:drv|cus|site|asg|msg|conv|alert|doc|inc|res|tw|addr|veh|ord|ep|tel|evt|win|track|step|custody|expense)-[0-9a-z]{2,})\)|\b(?:[a-z]{2,10}-x[0-9a-f]{6,}|(?:drv|cus|site|asg|msg|conv|alert|doc|inc|res|tw|addr|veh|ord|ep|tel|evt|win|track|step|custody|expense)-\d{2,})\b/gi
+const scrub = (text: string) => text.replace(ID_IN_TEXT, "").replace(/\s{2,}/g, " ").replace(/\s+([,.;:])/g, "$1").trim()
+
 export async function chat(apiKey: string, model: string, system: string, user: string, feedback?: string, extra: Record<string, unknown> = {}): Promise<{ raw: string; usage: { prompt_tokens: number; completion_tokens: number; cost?: number } | undefined }> {
   const messages: { role: string; content: string }[] = [{ role: "system", content: system }, { role: "user", content: user }]
   if (feedback) messages.push({ role: "user", content: `Your previous answer was rejected: ${feedback}\nAnswer again with JSON only, matching the schema exactly.` })
@@ -136,11 +153,13 @@ export async function reason(d: Dossier, opts: { model?: string; apiKey?: string
   const system = RULES + "\n\nOutput schema:\n" + OUTPUT_SCHEMA_TEXT
   let feedback: string | undefined, raw = "", usage: { prompt_tokens: number; completion_tokens: number; cost?: number } | undefined, parsedOut: ReasonOutput | undefined
   let cost = 0, inTok = 0, outTok = 0
-  for (let attempt = 0; attempt < 2 && !parsedOut; attempt++) {
+  for (let attempt = 0; attempt < 3 && !parsedOut; attempt++) {
     const r = await chat(apiKey, model, system, rendered, feedback); raw = r.raw; usage = r.usage
     cost += usage?.cost ?? 0; inTok += usage?.prompt_tokens ?? 0; outTok += usage?.completion_tokens ?? 0
+    // An empty or cut-off answer (the provider ended the stream) is asked again, not parsed.
+    if (!stripFence(raw)) { feedback = "the answer was empty; write the whole JSON object"; continue }
     let json: unknown
-    try { json = JSON.parse(stripFence(raw)) } catch (e) { feedback = `not valid JSON (${(e as Error).message})`; continue }
+    try { json = JSON.parse(stripFence(raw)) } catch (e) { feedback = `not valid JSON (${(e as Error).message}); the answer may have been cut off, keep it shorter`; continue }
     const parsed = ReasonOutput.safeParse(json)
     if (!parsed.success) { feedback = parsed.error.issues.slice(0, 4).map((i) => `${i.path.join(".")}: ${i.message}`).join("; "); continue }
     const bad = parsed.data.needsPerson?.options.find((o) => FORBIDDEN_OPTION.test(o))
@@ -148,6 +167,21 @@ export async function reason(d: Dossier, opts: { model?: string; apiKey?: string
     parsedOut = parsed.data
   }
   if (!parsedOut) throw new Error(`model output failed after retry: ${feedback}\n${raw.slice(0, 500)}`)
+  // The rules hold where the model slipped: a call to someone the agent may not call becomes a line for a person to act
+  // on, and record ids leave the prose. Both are recorded as facts of the output, not as failures of the run.
+  const out: ReasonOutput = parsedOut
+  const kept = out.calls.filter((c) => isCallable(d, c.who))
+  const dropped = out.calls.filter((c) => !isCallable(d, c.who))
+  const extra: ReasonOutput["watching"] = dropped.map((c) => ({ kind: "GAP" as const, severity: "WATCH" as const, line: scrub(`${c.who} would have to be reached by a person, not by the agent: ${c.reason}`).slice(0, 260), basis: [] }))
+  const cleaned: ReasonOutput = {
+    ...out,
+    calls: kept,
+    headline: scrub(out.headline),
+    watching: [...out.watching.map((w) => ({ ...w, line: scrub(w.line) })), ...extra].slice(0, 3),
+    needsPerson: out.needsPerson ? { ...out.needsPerson, what: scrub(out.needsPerson.what), why: scrub(out.needsPerson.why), options: out.needsPerson.options.map(scrub) } : out.needsPerson,
+    note: dropped.length ? `${out.note ? out.note + " " : ""}${dropped.length} proposed call(s) to parties the agent may not call were turned into watch lines.`.slice(0, 400) : out.note,
+  }
+  parsedOut = cleaned
   const body = { usage: { prompt_tokens: inTok, completion_tokens: outTok, cost } }
   const parsed = { data: parsedOut }
   return ReasonRun.parse({ orderRef: d.order.reference, model, at: new Date().toISOString(), asOf: d.asOf, inputTokens: body.usage.prompt_tokens, outputTokens: body.usage.completion_tokens, costUsd: body.usage.cost, output: parsed.data, raw })

@@ -14,7 +14,7 @@ import { closeCrDb, crDb } from "@/lib/cr/db"
 import { appendEvent, createProposal, getCase, insertEffect, listEffects, listEvents, listProposals, resolveOrder, updateCase } from "@/lib/cr/queries"
 import { crAgentRuns, crCases, crEffects, crEvents, crProposals } from "@/lib/cr/schema"
 import { useTestLlm } from "./client"
-import { withoutLeadingNote } from "./loop"
+import { DRIVE_ON_FALLBACK, withoutLeadingNote } from "./loop"
 import { decide, handleDriverMessage, handleTelemetryFault, outcome, prepareDriverMessage, runFollowUps } from "./triggers"
 
 type Block = { type: "text"; text: string } | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
@@ -163,7 +163,7 @@ describe("scenario A wiring", () => {
     const { result } = await handleDriverMessage(prepared, (piece) => streamed.push(piece))
     const all = streamed.join("")
     assert.ok(!/can continue|amber/i.test(all), "nothing of the held reply reached the driver")
-    assert.match(all, /^An operator has to confirm/)
+    assert.ok(all.startsWith(DRIVE_ON_FALLBACK), all)
     assert.equal(result.reply, all)
     const [card] = await listProposals({ caseId, statuses: ["PENDING"] })
     assert.equal(card.actionType, "CLEAR_TO_CONTINUE")
@@ -182,7 +182,7 @@ describe("scenario A wiring", () => {
     const { result } = await handleDriverMessage(await prepareDriverMessage({ orderRef: ORDER, driverId: DRIVER, text: "What does the engine light mean?", mode: "chat" }))
     assert.match(result.reply, /oxygen sensor heater/)
     assert.ok(!/keep driving/.test(result.reply))
-    assert.ok(!/An operator has to confirm before you drive on/.test(result.reply))
+    assert.ok(!result.reply.includes(DRIVE_ON_FALLBACK))
     assert.match(JSON.stringify(model.requests[1]), /was held and not sent/)
     assert.equal((await listProposals({ caseId, statuses: ["PENDING"] })).length, before, "no clearance card")
   })
@@ -195,7 +195,7 @@ describe("scenario A wiring", () => {
     const prepared = await prepareDriverMessage({ orderRef: ORDER, driverId: DRIVER, text: "It's amber now.", mode: "chat" })
     const { result } = await handleDriverMessage(prepared)
     assert.ok(!/ferry/.test(result.reply))
-    assert.match(result.reply, /An operator has to confirm/)
+    assert.ok(result.reply.includes(DRIVE_ON_FALLBACK), result.reply)
     // The operator rejected clearing this driver in the previous test, but the driver has written since: a new fact,
     // so the held message becomes a new card rather than a silent note.
     const cards = await listProposals({ caseId, statuses: ["PENDING"] })

@@ -70,7 +70,7 @@ function offlineReply(request: TurnRequest): string {
   return request.trigger === "telemetry" ? OFFLINE_REPLY.telemetry : OFFLINE_REPLY[request.audience as "driver" | "site"]
 }
 
-const DRIVE_ON_FALLBACK = "An operator has to confirm before you drive on. Please stay where you are for now."
+export const DRIVE_ON_FALLBACK = "I can't clear you to drive on myself; an operator has to confirm that. I'll come back to you as soon as they have."
 
 // ---------------------------------------------------------------- per-case lock
 
@@ -353,7 +353,7 @@ async function deliver(request: TurnRequest, caseRow: CaseRow, facts: OrderFacts
       // operator ("here is the draft…", then a rule) is not part of the message.
       const name = String(endpoint.site?.name ?? endpoint.address.name ?? "the site")
       const body = text.replace(/^[^\n]*(?:draft|held for|approval)[^\n]*:?\s*\n+(?:-{3,}\s*\n+)?/i, "").replace(/\n+-{3,}[\s\S]*$/, "").trim() || text
-      await submitProposal({ audience: "operator", caseRow, facts }, {
+      await submitProposal({ audience: "operator", caseRow, facts, systemHeld: true }, {
         action_type: "CONTACT_SITE_AS_CUSTOMER",
         title: `Reply to ${name}`,
         rationale: `${name} belongs to the customer, so the agent drafted the reply and a person approves it before it is sent.`,

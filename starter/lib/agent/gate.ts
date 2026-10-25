@@ -76,6 +76,8 @@ export type GateContext = {
   readOnly?: boolean
   /** When this turn read the case. Messages up to then were in front of the agent. */
   turnStartedAt?: Date
+  /** The gate itself made this card (a held reply, a held clearance): it is not the agent asking a second question. */
+  systemHeld?: boolean
 }
 
 const READ_TOOLS: readonly ToolName[] = [
@@ -329,6 +331,23 @@ export async function newFactsSince(caseId: string, at: Date): Promise<boolean> 
     && (((event.actorType === "driver" || event.actorType === "site") && event.kind === "message") || (event.actorType === "operator" && event.kind === "effect")))
 }
 
+/** Who made a card the gate raised itself rather than the agent proposing it; it reads as the Road agent to people. */
+export const GATE_ID = `${AGENT_ID}-gate`
+
+/**
+ * A message card to a customer or site who wrote on this case and had nothing back from us since, as of `at`: the
+ * answer to their email or chat. It waits for a sign-off, not a decision, so it neither waits behind another card
+ * nor holds one back.
+ */
+async function answersSomeone(caseId: string, toType: DraftMessage["to_type"] | undefined, at: Date): Promise<boolean> {
+  if (toType !== "customer" && toType !== "site") return false
+  const events = (await listEvents({ caseId })).filter((event) => event.at.getTime() <= at.getTime())
+  const lastIn = events.filter((event) => event.actorType === toType && event.kind === "message").at(-1)
+  return Boolean(lastIn) && !events.some((event) => event.at.getTime() > lastIn!.at.getTime() && event.actorType !== toType && event.recipientType === toType)
+}
+
+const isMessageCard = (actionType: ActionType) => actionType === "CONTACT_CUSTOMER" || actionType === "CONTACT_SITE_AS_CUSTOMER"
+
 export async function submitProposal(ctx: GateContext, input: ProposalInput): Promise<{ proposal: ProposalRow; level: AutonomyLevel; executed: boolean }> {
   // A booking with an unknown outcome blocks every new booking card first, even one that repeats a pending card.
   await requireReconciledBookings(ctx.facts.id, input.action_type)
@@ -340,11 +359,25 @@ export async function submitProposal(ctx: GateContext, input: ProposalInput): Pr
   }
   // One question once. A card an operator is already looking at is not duplicated; a card they rejected on this case
   // is not asked again in other words: the agent works out a different step from the reason, or waits.
+  // Two open "what do we do" questions on one case are one question asked twice, whatever their wording.
   const twinOf = (row: ProposalRow) => row.actionType === input.action_type && (row.title.trim().toLowerCase() === input.title.trim().toLowerCase()
+    || row.actionType === "OPERATOR_DECISION"
     || (row.draftMessage && input.draft_message && row.draftMessage.to_type === resolveDraft(input.draft_message, ctx.facts)?.to_type && ["CONTACT_CUSTOMER", "CONTACT_SITE_AS_CUSTOMER", "CLEAR_TO_CONTINUE"].includes(row.actionType)))
   const existing = await listProposals({ caseId: ctx.caseRow.id })
   const pendingTwin = existing.find((row) => row.status === "PENDING" && twinOf(row))
   if (pendingTwin) return { proposal: pendingTwin, level: "ASK_FIRST", executed: false }
+  // One question at a time (principles 5): while a card waits, the agent does not raise a second one; it notes what it
+  // learnt and proposes the next step after the decision. A reply the gate holds for approval is not a second question,
+  // and a card the gate made itself (a held clearance, a held reply) does not block the agent's own decision card.
+  // The answer to someone who wrote is not a second question either (Roope, 25 Oct): it neither waits nor blocks.
+  const isReply = async (actionType: ActionType, draft: DraftMessage | null | undefined, at: Date) => isMessageCard(actionType) && await answersSomeone(ctx.caseRow.id, draft?.to_type, at)
+  let waiting: ProposalRow | undefined
+  for (const row of existing) {
+    if (row.status === "PENDING" && row.createdBy !== GATE_ID && !(await isReply(row.actionType, row.draftMessage, row.createdAt))) { waiting = row; break }
+  }
+  if (waiting && !ctx.systemHeld && !(await isReply(input.action_type, resolveDraft(input.draft_message, ctx.facts), simNow()))) {
+    throw new DecisionError(409, `A card is already waiting for operations on this case: "${waiting.title}". One question at a time: do not propose another card now. Put what you have learnt into the case summary and your handover note; propose the next step after they decide. If this new card replaces the waiting one, say so in a note to operations instead.`)
+  }
   const rejectedTwin = existing.filter((row) => row.status === "REJECTED" && twinOf(row)).at(-1)
   if (rejectedTwin && rejectedTwin.decidedAt && simNow().getTime() - rejectedTwin.decidedAt.getTime() < 4 * 3600_000 && !(await newFactsSince(ctx.caseRow.id, rejectedTwin.decidedAt))) {
     throw new DecisionError(409, `An operator rejected "${rejectedTwin.title}" on this case${rejectedTwin.decisionNote ? ` (${rejectedTwin.decisionNote})` : ""}. Do not propose it again: work out a different next step from their reason, or put the case into a wait with wait_for.`)
@@ -385,7 +418,7 @@ export async function submitProposal(ctx: GateContext, input: ProposalInput): Pr
     options: input.options,
     nextStepIfApproved: input.next_step_if_approved,
     nextStepIfRejected: input.next_step_if_rejected,
-    createdBy: AGENT_ID,
+    createdBy: ctx.systemHeld ? GATE_ID : AGENT_ID,
   })
   await appendEvent({
     caseId: ctx.caseRow.id, orderId: ctx.facts.id, actorType: "agent", actorId: AGENT_ID, kind: "proposal", channel: "internal",
