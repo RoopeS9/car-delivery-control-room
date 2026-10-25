@@ -15,7 +15,7 @@ import {
 } from "@/lib/cr/types"
 import { AGENT_ID } from "./config"
 import { activeDriverId, activeOrderForDriver, driverName, linkedRecordsOf, loadOrderFacts, type End, type OrderFacts } from "./context"
-import { decideProposal, logOutcome, recordCustomerAnswer, refreshProposal, type DecisionOutcome } from "./gate"
+import { decideProposal, logOutcome, openPromiseProposal, recordCustomerAnswer, refreshProposal, type DecisionOutcome } from "./gate"
 import { operatorPhrase } from "./timeline"
 import { runTurn, withCaseLock, type TurnResult } from "./loop"
 import type { FollowUp } from "./tools"
@@ -185,7 +185,9 @@ export async function handleCustomerMessage(request: { orderRef: string; text: s
       await recordInboundCustomer({ orderId: facts.id, caseKind: caseRow.kind, customerId: facts.customer.id, customerName: name, at: event.at.toISOString(), body: text })
     } catch (error) { console.error("Road Desk: the customer's message could not be filed in the conversations", error) }
     await pingOnAwaitedReply(caseRow, name, text, ["customer"])
-    return { caseId: caseRow.id, followUps: [{ kind: "analysis", caseId: caseRow.id, reason: `${name} (the customer) wrote by email: "${text.slice(0, 600)}". Read it against the case and the records. Do first what needs no approval (tell the driver if it changes what they do). Then draft the reply to the customer as a CONTACT_CUSTOMER card for an operator to approve: answer what they asked from the records, say what is not known, and promise no updates nobody is set to send. If what they need (a time, a buyer waiting, a document) does not fit the records, say so plainly in the rationale and the reply. If they agreed to or declined a proposed new date, the reply is still the only card: say in its rationale that they answered, and propose no card to record the answer (an operator records it in the case's delivery promise block, which changes the promise).` }] }
+    const proposed = await openPromiseProposal(caseRow.id)
+    const waitingDate = proposed ? ` A new date (${String(proposed.value.text ?? "")}) was proposed to them and waits for their answer: if this email answers it, an operator records the answer on the case (never a new CHANGE_PROMISE card), and your only card is the reply.` : ""
+    return { caseId: caseRow.id, followUps: [{ kind: "analysis", caseId: caseRow.id, reason: `${name} (the customer) wrote by email: "${text.slice(0, 600)}".${waitingDate} Read it against the case and the records. Do first what needs no approval (tell the driver if it changes what they do). Then draft the reply to the customer as a CONTACT_CUSTOMER card for an operator to approve: answer what they asked from the records, say what is not known, and promise no updates nobody is set to send. If what they need (a time, a buyer waiting, a document) does not fit the records, say so plainly in the rationale and the reply. If they agreed to or declined a proposed new date, the reply is still the only card: say in its rationale that they answered, and propose no card to record the answer (an operator records it in the case's delivery promise block, which changes the promise).` }] }
   })
 }
 

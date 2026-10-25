@@ -332,6 +332,12 @@ export async function newFactsSince(caseId: string, at: Date): Promise<boolean> 
 export async function submitProposal(ctx: GateContext, input: ProposalInput): Promise<{ proposal: ProposalRow; level: AutonomyLevel; executed: boolean }> {
   // A booking with an unknown outcome blocks every new booking card first, even one that repeats a pending card.
   await requireReconciledBookings(ctx.facts.id, input.action_type)
+  // One open date at a time: a second CHANGE_PROMISE while one waits for the customer's answer would send another
+  // proposal and leave two dates pending. Their answer is recorded on the case by a person, never by a new card.
+  if (input.action_type === "CHANGE_PROMISE") {
+    const open = await openPromiseProposal(ctx.caseRow.id)
+    if (open) throw new DecisionError(409, `A new date (${String(open.value.text ?? "proposed earlier")}) already waits for the customer's answer. If they answered, an operator records it on the case; propose only the reply to them (CONTACT_CUSTOMER). If they asked for another date, say so in that reply's rationale: the operator records their decline first.`)
+  }
   // One question once. A card an operator is already looking at is not duplicated; a card they rejected on this case
   // is not asked again in other words: the agent works out a different step from the reason, or waits.
   const twinOf = (row: ProposalRow) => row.actionType === input.action_type && (row.title.trim().toLowerCase() === input.title.trim().toLowerCase()
@@ -847,14 +853,19 @@ export async function logOutcome(caseId: string, input: LogOutcomeRequest): Prom
   return response(updated!, "The agent continues from the logged outcome.", { kind: "outcome", proposal: updated!, caseRow: (await getCase(caseId))!, text })
 }
 
+/** A new date proposed to the customer that nobody has recorded their answer to yet. */
+export async function openPromiseProposal(caseId: string): Promise<EffectRow | null> {
+  const effects = await listEffects({ caseId, kinds: ["PROMISE_CHANGE"] })
+  const answered = new Set(effects.map((row) => row.supersedesId).filter(Boolean))
+  return effects.filter((row) => row.state === "PROPOSED_TO_CUSTOMER" && !answered.has(row.id)).at(-1) ?? null
+}
+
 /**
  * The customer wrote after a new date was proposed to them, and nobody has recorded their answer yet: their email
  * is not the record, so the case stays with operations until a person records it (agreed or declined).
  */
 export async function unrecordedCustomerAnswer(caseId: string): Promise<boolean> {
-  const effects = await listEffects({ caseId, kinds: ["PROMISE_CHANGE"] })
-  const answered = new Set(effects.map((row) => row.supersedesId).filter(Boolean))
-  const open = effects.filter((row) => row.state === "PROPOSED_TO_CUSTOMER" && !answered.has(row.id)).at(-1)
+  const open = await openPromiseProposal(caseId)
   if (!open) return false
   return (await listEvents({ caseId })).some((event) => event.actorType === "customer" && event.kind === "message" && event.at > open.at)
 }

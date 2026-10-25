@@ -13,7 +13,7 @@ import { simNow } from "@/lib/cr/clock"
 import { closeCrDb, crDb } from "@/lib/cr/db"
 import { effectiveOrder } from "@/lib/cr/effective"
 import {
-  appendEvent, createCase, createProposal, getCase, getProposal, listEffects, listEvents, listProposals, proposalsWithChangedFacts, resolveOrder, setAutonomy,
+  appendEvent, createCase, createProposal, getCase, getProposal, insertEffect, listEffects, listEvents, listProposals, proposalsWithChangedFacts, resolveOrder, setAutonomy,
   updateCase, type CaseRow,
 } from "@/lib/cr/queries"
 import { crAgentRuns, crAutonomy, crCases, crEffects, crEvents, crProposals, crTelemetry } from "@/lib/cr/schema"
@@ -115,6 +115,21 @@ describe("M1: a CONTACT_CUSTOMER action cannot execute without approval", () => 
       changes: [{ label: "ETA", before: null, after: "Fri 23 Oct 12:00 CEST (2026-10-23T10:00:00Z)" }],
     }))
     assert.equal(promise.changes[0].after, "Fri 23 Oct 12:00 CEST", "the UTC instant stays in the value, not the words")
+  })
+
+  test("while a new date waits for the customer's answer, a second date card is refused", async () => {
+    const caseRow = await newCase()
+    const open = await insertEffect({
+      orderId: facts.id, caseId: caseRow.id, kind: "PROMISE_CHANGE", state: "PROPOSED_TO_CUSTOMER", value: { text: "Fri 23 Oct" },
+      authority: { by: "ops-shift", by_type: "operator", at: simNow().toISOString(), proposal_id: null, basis: "Test." },
+    })
+    try {
+      await assert.rejects(submitProposal({ audience: "operator", caseRow, facts }, proposal("CHANGE_PROMISE", {
+        draft_message: customerDraft, proposed_window: { start_utc: "2026-10-23T10:00:00Z", end_utc: "2026-10-23T14:00:00Z" },
+      })), /already waits for the customer's answer/)
+    } finally {
+      await crDb().delete(crEffects).where(eq(crEffects.id, open.id))
+    }
   })
 
   test("a pending card cannot be carried out by the agent or by anyone else", async () => {

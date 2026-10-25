@@ -3,6 +3,7 @@
 // use, and checks what each of them should see. Resets the demo first and between stories: run it on demo data.
 //
 //   APP_URL=http://127.0.0.1:3000 npx tsx scripts/e2e-roles.ts [A B C D F G H customer]
+//   KEEP=1 … keeps the last story's records instead of resetting after it.
 //
 // Prints one line per check and exits non-zero when one fails. Model wording varies; the checks look at what the
 // records must show (a case, a card of the right kind, nothing sent to a customer without a person), not at words.
@@ -50,11 +51,11 @@ async function until<T>(what: () => Promise<T | null | undefined | false>, secon
   }
   return null
 }
-const pending = async (ref: string) => until(async () => {
+const pending = async (ref: string, seconds = 180) => until(async () => {
   const row = await caseOf(ref)
   if (!row || row.pending_proposals === 0) return null
   return (await detail(row.id)).proposals.find((proposal) => proposal.status === "PENDING") ?? null
-})
+}, seconds)
 const settled = async (ref: string) => until(async () => {
   const row = await caseOf(ref)
   return row && row.status !== "AGENT_WORKING" ? row : null
@@ -104,7 +105,8 @@ const stories: Record<string, () => Promise<void>> = {
     const proposed = await call<{ view: { promise: { text: string; pending: { reply: unknown }[] } } }>("/api/orders/ord-00322")
     check("an approved proposal is not yet the promise", /21 Oct/.test(proposed.view.promise.text) && proposed.view.promise.pending.length === 1, proposed.view.promise.text)
     await call("/api/channels/customer/messages", { orderRef: "CD-420322", text: "Friday 23 October 12:00-16:00 works for us, we agree to the new delivery date." })
-    const reply = await pending("CD-420322")
+    // The approval's follow-up turn runs first, then the one for the email: allow both.
+    const reply = await pending("CD-420322", 360)
     check("the customer's agreement gets a drafted reply", reply?.actionType === "CONTACT_CUSTOMER", reply?.title ?? "no card")
     const shown = await call<{ view: { promise: { pending: { reply: unknown }[] } } }>("/api/orders/ord-00322")
     check("the promise block shows the customer's email", Boolean(shown.view.promise.pending[0]?.reply))
@@ -197,7 +199,8 @@ async function main() {
     await reset()
     try { await stories[name]() } catch (error) { check("ran without an error", false, error instanceof Error ? error.message : String(error)) }
   }
-  await reset()
+  // KEEP=1 leaves the last story's records in place to read after a failure.
+  if (!process.env.KEEP) await reset()
   const failed = results.filter((result) => !result.ok)
   console.log(`\n${results.length - failed.length}/${results.length} checks passed`)
   process.exit(failed.length ? 1 : 0)
