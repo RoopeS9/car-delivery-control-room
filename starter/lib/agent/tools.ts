@@ -649,7 +649,7 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
       body: `Handing over to operations: ${reason}`,
     })
     return { content: state.audience === "driver"
-      ? "Operations will get a decision card right after this turn. Now write your reply to the driver: one or two short, plain sentences on what happens next and what they should do meanwhile. Nothing about prices, quotes, cards or internal steps, and no lists or bold."
+      ? "Operations will get a decision card right after this turn. Now write your reply to the driver. It is the only text they receive: anything you wrote before this call is not sent, so if it held their answer (an instruction, a place, a time box), write it again in full, never \"as above\". Then what happens next and what they should do meanwhile, in short plain sentences. Nothing about prices, quotes, cards or internal steps, and no lists or bold."
       : "Operations will get a decision card right after this turn. Tell the person you are talking to, in a sentence or two, that a colleague will come back to them.", log: null }
   },
 
