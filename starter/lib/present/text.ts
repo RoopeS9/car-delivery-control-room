@@ -12,8 +12,18 @@ const TOKEN_WORDS: Record<string, string> = {
   STOP_NOW: "stop now", DRIVE_TO_SAFE_STOP: "drive to a safe stop", CONTINUE_AND_MONITOR: "continue and monitor",
 }
 
+/** Record states an agent copies in capitals ("BOOKED", "UNCONFIRMED"); they read as words. */
+const STATE_WORDS = new Set(["BOOKED", "UNCONFIRMED", "CONFIRMED", "PENDING", "CANCELLED", "ASSIGNED", "COMPLETED", "DELIVERED",
+  "RESOLVED", "REQUIRED", "SUBMITTED", "APPROVED", "REJECTED", "EXECUTED", "PROPOSED", "VERIFIED", "UNVERIFIED", "PLANNED"])
+
 export function plainTokens(text: string): string {
-  return text.replace(/\b[A-Z]{2,}(?:_[A-Z0-9]+)+\b/g, (token) => TOKEN_WORDS[token] ?? token.toLowerCase().replace(/_/g, " "))
+  return text
+    // A record cited by table and id ("travel_reservations res-x6196641f25ccf47f, ferry booking …"): keep the label.
+    .replace(/\b[a-z]+(?:_[a-z]+)+\s+[a-z]{2,6}-x?[0-9a-f]{8,}\b,?\s*/g, "")
+    // A bare record id ("res-x6196641f25ccf47f", "evt-be7ecfccabd3") means nothing to a person.
+    .replace(/\s*\(?\b[a-z]{2,6}-x?[0-9a-f]{10,}\b\)?/g, "")
+    .replace(/\b[A-Z]{2,}(?:_[A-Z0-9]+)+\b/g, (token) => TOKEN_WORDS[token] ?? token.toLowerCase().replace(/_/g, " "))
+    .replace(/\b[A-Z]{6,}\b/g, (word) => (STATE_WORDS.has(word) ? word.toLowerCase() : word))
 }
 
 export type Run = { text: string; bold?: boolean }

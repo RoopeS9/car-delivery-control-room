@@ -14,6 +14,11 @@ describe("code names never reach an operator raw (PLAN rule 5)", () => {
     assert.equal(plainTokens("P0217 (coolant over-temperature, STOP_NOW)"), "P0217 (coolant over-temperature, stop now)")
   })
 
+  test("record ids, table names and capitalised states never reach an operator", () => {
+    assert.equal(plainTokens("BOOKED (source: travel_reservations res-x6196641f25ccf47f, ferry booking WBV-FERRY-00584)."), "booked (source: ferry booking WBV-FERRY-00584).")
+    assert.equal(plainTokens("Check-in UNCONFIRMED per evt-be7ecfccabd3."), "Check-in unconfirmed per.")
+  })
+
   test("a name the agent invents falls back to lower-case words", () => {
     assert.equal(plainTokens("Escalated as SOME_NEW_THING."), "Escalated as some new thing.")
   })
