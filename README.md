@@ -52,14 +52,22 @@ For a production build, run `npm run build`, then `npm start` from `starter/`.
 
 ## Try the functional core
 
-- `/`: one attention queue, split into decisions, agent work and waiting.
-- `/orders/ord-00584`: scenario A's Bentley, with sourced decisions, merged
-  timeline, telemetry, photos and driver-call transcripts.
-- `/driver?driver=drv-042`: the matching driver window, with chat, photos and
-  Call/Answer controls. Use the same laptop for the microphone on localhost.
-- `/demo`: presenter controls, scenario starts, simulated clock jumps and reset.
-- `/site`: scoped site chat; `/board`: every order; `/map`: simulated positions;
-  `/agent`: rulebook, autonomy and activity.
+- `/`: the map with simulated positions and the orders that need a person.
+- `/queue` (Needs you): one attention queue, split into decisions, agent work
+  and waiting.
+- `/orders/ord-00584` (or `/orders/CD-420584`): scenario A's Bentley, with
+  sourced decisions, merged timeline, telemetry, photos and driver-call
+  transcripts.
+- `/driver?driver=drv-042`: the matching driver window, with chat, photos,
+  the delivery steps and Call/Answer controls. Use the same laptop for the
+  microphone on localhost.
+- `/demo`: presenter controls, scenario starts, simulated clock jumps, the
+  customer's emails and reset.
+- `/dealer`: the pickup desk (booked collections, readiness calls); `/site`:
+  scoped site chat; `/inbox`: every conversation, with suggested replies;
+  `/board`: every order; `/agent`: rulebook, autonomy and activity.
+
+`RUN-SHEET.md` is the live demo, click by click.
 
 For the headline scenario, open `/demo` and the driver window. Leave the
 simulated driver off when a person plays the driver. Run **A. Fresh warning
