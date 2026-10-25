@@ -1435,3 +1435,10 @@ Got:
 - A review of my own changes narrowed one rule: the "record the customer's answer" refusal matched any decision
   titled "confirm…", so "Confirm the tow booking?" would have been refused while an answer waited. It now needs the
   customer, the date or the agreement in the title.
+- The inbox's **Suggested reply** took 2 min 18 s (the app gives it 150 s, so it often failed): the flash model
+  reasoned by default over OpenRouter's chat API. Drafting now turns that off: 4 s, drafts of the same shape. The
+  team's simulated calls already did the same for spoken turns.
+- **Ask the agent** answered correctly in 7 s but cited "travel_reservations res-x6196641f25ccf47f" and wrote
+  "BOOKED". Operator text now drops record ids and the table they came from (keeping the label) and reads record
+  states as words; the Ask mode is told to name sources by what they are. A scan of three order views found no
+  other id in displayed text.
