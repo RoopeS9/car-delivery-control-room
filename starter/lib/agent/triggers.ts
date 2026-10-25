@@ -10,7 +10,7 @@ import {
   appendEvent, attachEvents, createCase, getCase, getProposal, insertTelemetry, latestTelemetry, listCases, listProposals, resolveOrder, updateCase, type CaseRow,
 } from "@/lib/cr/queries"
 import {
-  OPEN_CASE_STATUSES, type AskAgentRequest, type AssumptionCheck, type CustomerAnswerRequest, type DecisionRequest,
+  OPEN_CASE_STATUSES, type ActionType, type AskAgentRequest, type AssumptionCheck, type CustomerAnswerRequest, type DecisionRequest,
   type DriverMessageRequest, type LogOutcomeRequest, type PhotoData, type SiteMessageRequest, type ObdData, type TelemetryTriggerRequest,
 } from "@/lib/cr/types"
 import { AGENT_ID } from "./config"
@@ -40,6 +40,13 @@ async function openCase(orderId: string, match: (row: CaseRow) => boolean, creat
     return { ...existing, resumedFrom: null }
   }
   return { ...(await create()), resumedFrom: null }
+}
+
+/** The open cases on an order that have a card of one of these kinds, in any state: the cases that wrote to someone. */
+async function casesWithCard(orderId: string, actionTypes: readonly ActionType[]): Promise<Set<string>> {
+  const open = await listCases({ orderId, statuses: [...OPEN_CASE_STATUSES] })
+  const ids = await Promise.all(open.map(async (row) => (await listProposals({ caseId: row.id })).some((proposal) => actionTypes.includes(proposal.actionType)) ? row.id : null))
+  return new Set(ids.filter((id): id is string => Boolean(id)))
 }
 
 /**
@@ -132,8 +139,7 @@ export async function handleSiteMessage(prepared: PreparedSiteMessage, onText?: 
     const { facts, end, contactId, name, request } = prepared
     // The site's message belongs on the case that waits for them, else on the open case that wrote to them (a contact
     // card, whatever its state), else on the running site question; only then is it a new question.
-    const contacted = new Set((await Promise.all((await listCases({ orderId: facts.id, statuses: [...OPEN_CASE_STATUSES] })).map(async (row) =>
-      (await listProposals({ caseId: row.id })).some((p) => p.actionType === "CONTACT_CUSTOMER" || p.actionType === "CONTACT_SITE_AS_CUSTOMER") ? row.id : null))).filter((id): id is string => Boolean(id)))
+    const contacted = await casesWithCard(facts.id, ["CONTACT_CUSTOMER", "CONTACT_SITE_AS_CUSTOMER"])
     // While the car is in trouble on this order, what the site writes is about that trouble: it lands on the incident case.
     const incidentKinds = ["VEHICLE_WARNING", "BREAKDOWN", "ACCIDENT"]
     const caseRow = await openCase(facts.id, (row) => (row.status === "WAITING_EXTERNAL" && (row.waitingFor === "site" || row.waitingFor === "customer")) || contacted.has(row.id) || incidentKinds.includes(row.kind) || row.kind === "SITE_QUESTION" || row.channelOpened === "site_chat", () => createCase({
@@ -171,8 +177,7 @@ export async function handleCustomerMessage(request: { orderRef: string; text: s
     if (!text) throw new ChannelError(400, "Write the customer's message.")
     const facts = await loadOrderFacts(order.id)
     if (!facts) throw new ChannelError(404, "Order not found.")
-    const contacted = new Set((await Promise.all((await listCases({ orderId: facts.id, statuses: [...OPEN_CASE_STATUSES] })).map(async (row) =>
-      (await listProposals({ caseId: row.id })).some((p) => p.actionType === "CONTACT_CUSTOMER" || p.actionType === "CHANGE_PROMISE") ? row.id : null))).filter((id): id is string => Boolean(id)))
+    const contacted = await casesWithCard(facts.id, ["CONTACT_CUSTOMER", "CHANGE_PROMISE"])
     const name = facts.customer.name
     const caseRow = await openCase(facts.id, (row) => (row.status === "WAITING_EXTERNAL" && row.waitingFor === "customer") || contacted.has(row.id) || row.kind === "CUSTOMER_MESSAGE", () => createCase({
       orderId: facts.id, kind: "CUSTOMER_MESSAGE", status: "AGENT_WORKING", urgency: "NORMAL", title: `Message from ${name}`,
