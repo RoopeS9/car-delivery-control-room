@@ -2,7 +2,7 @@
 // Claude). Plays the driver, the pickup desk, the customer and the operator through the same routes the screens
 // use, and checks what each of them should see. Resets the demo first and between stories: run it on demo data.
 //
-//   APP_URL=http://127.0.0.1:3000 npx tsx scripts/e2e-roles.ts [A C D F G H customer]
+//   APP_URL=http://127.0.0.1:3000 npx tsx scripts/e2e-roles.ts [A B C D F G H customer]
 //
 // Prints one line per check and exits non-zero when one fails. Model wording varies; the checks look at what the
 // records must show (a case, a card of the right kind, nothing sent to a customer without a person), not at words.
@@ -88,6 +88,29 @@ const stories: Record<string, () => Promise<void>> = {
     const events = (await detail(row.id)).events
     check("after the logged outcome the agent tells the driver", events.some((event) => event.recipientType === "driver" && /roadside|11:00|13:00/i.test(event.body)), after?.status ?? "")
     check("nothing reached the customer without a person", noCustomerMessageSent(events))
+  },
+  async B() {
+    // The owner's recovery costs today's delivery: a new date goes to the customer, who agrees by email.
+    await call("/api/sim/scenarios/catch-up-322", {})
+    const first = await settled("CD-420322")
+    if (!first) { check("the driver's question settles", false); return }
+    await call(`/api/cases/${first.id}/instruct`, { text: "The owner says their roadside partner collects the car from the service area at 12:00 today and takes it to their Hamburg workshop. Today's delivery is lost. Propose to the customer a new delivery window Friday 23 Oct 10:00-14:00 UTC.", by: OPS })
+    const card = await pending("CD-420322")
+    check("the new date comes as a promise-change card", card?.actionType === "CHANGE_PROMISE", card?.title ?? "no card")
+    if (!card) return
+    await call(`/api/cases/${first.id}/proposals/${card.id}/decide`, { decision: "approve", decided_by: OPS })
+    const proposed = await call<{ view: { promise: { text: string; pending: { reply: unknown }[] } } }>("/api/orders/ord-00322")
+    check("an approved proposal is not yet the promise", /21 Oct/.test(proposed.view.promise.text) && proposed.view.promise.pending.length === 1, proposed.view.promise.text)
+    await call("/api/channels/customer/messages", { orderRef: "CD-420322", text: "Friday 23 October 12:00-16:00 works for us, we agree to the new delivery date." })
+    const reply = await pending("CD-420322")
+    check("the customer's agreement gets a drafted reply", reply?.actionType === "CONTACT_CUSTOMER", reply?.title ?? "no card")
+    const shown = await call<{ view: { promise: { pending: { reply: unknown }[] } } }>("/api/orders/ord-00322")
+    check("the promise block shows the customer's email", Boolean(shown.view.promise.pending[0]?.reply))
+    await call(`/api/cases/${first.id}/customer-answer`, { answer: "agreed", note: "Customer agreed by email.", logged_by: OPS })
+    const agreed = await call<{ view: { promise: { text: string } } }>("/api/orders/ord-00322")
+    check("the recorded agreement moves the promise", /23 Oct/.test(agreed.view.promise.text), agreed.view.promise.text)
+    const after = await settled("CD-420322")
+    check("an open reply card keeps the case with operations", after?.status === "NEEDS_DECISION" && after.pending_proposals === 1, `${after?.status} pending=${after?.pending_proposals}`)
   },
   async C() {
     await call("/api/sim/scenarios/driver-keys-145", {})

@@ -577,9 +577,10 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
       const statedMinutes = Math.round((at.getTime() - now.getTime()) / 60000)
       if (statedMinutes >= 1 && statedMinutes <= 24 * 60 && Math.abs(statedMinutes - minutes) > 15) { minutes = statedMinutes; corrected = true }
     }
+    // A card still waiting for a person keeps the case in "Needs you"; the wait only sets when the agent looks again.
     const pending = await listProposals({ caseId: state.caseRow.id, statuses: ["PENDING"] })
     const updated = await updateCase(state.caseRow.id, {
-      ...(pending.length ? {} : { status: "WAITING_EXTERNAL" as const }),
+      status: pending.length ? "NEEDS_DECISION" as const : "WAITING_EXTERNAL" as const,
       owner: "agent", waitingFor: str(input.waiting_for) as WaitingFor, waitingOn: str(input.waiting_on) || "an answer",
       nextAction: str(input.next_action) || null, nextCheckAt: new Date(simNow().getTime() + minutes * 60000),
     })

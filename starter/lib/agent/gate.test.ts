@@ -105,6 +105,18 @@ describe("M1: a CONTACT_CUSTOMER action cannot execute without approval", () => 
     await crDb().delete(crAutonomy).where(eq(crAutonomy.actionType, "CONTACT_CUSTOMER"))
   })
 
+  test("a message card lists no record changes: approving it changes nothing but the message", async () => {
+    const caseRow = await newCase()
+    const { proposal: row } = await submitProposal({ audience: "operator", caseRow, facts }, proposal("CONTACT_CUSTOMER", {
+      draft_message: customerDraft, changes: [{ label: "Delivery promise", before: "Wed 21 Oct", after: "Fri 23 Oct (agreed by customer)" }],
+    }))
+    assert.deepEqual(row.changes, [])
+    const { proposal: promise } = await submitProposal({ audience: "operator", caseRow, facts }, proposal("UPDATE_ETA", {
+      changes: [{ label: "ETA", before: null, after: "Fri 23 Oct 12:00 CEST (2026-10-23T10:00:00Z)" }],
+    }))
+    assert.equal(promise.changes[0].after, "Fri 23 Oct 12:00 CEST", "the UTC instant stays in the value, not the words")
+  })
+
   test("a pending card cannot be carried out by the agent or by anyone else", async () => {
     const caseRow = await newCase()
     const { proposal: row } = await submitProposal({ audience: "operator", caseRow, facts }, proposal("CONTACT_CUSTOMER", { draft_message: customerDraft }))

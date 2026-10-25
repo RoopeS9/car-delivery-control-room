@@ -608,7 +608,8 @@ export type PromiseView = {
   source: SourceChip
   /** The customer agreed to a change, so this is no longer the dataset's window. */
   changed: boolean
-  pending: { effectId: string; text: string; proposedAt: string; basis: string }[]
+  /** `reply`: the customer's first message after the proposal, if they wrote (an operator still records the answer). */
+  pending: { effectId: string; text: string; proposedAt: string; basis: string; reply: { at: string; text: string } | null }[]
   history: { at: string; text: string; state: string; basis: string }[]
   caseId: string | null
 }

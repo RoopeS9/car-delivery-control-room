@@ -52,13 +52,15 @@ function PromiseBlock({ promise, onChange }: { promise: PromiseView; onChange: (
   const [note, setNote] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
-  async function answer(effectId: string, value: CustomerAnswerRequest["answer"]) {
+  async function answer(item: PromiseView["pending"][number], value: CustomerAnswerRequest["answer"]) {
     if (!promise.caseId) return
-    if (!note.trim()) { setError("Say how the customer answered, in one line. It is kept as the evidence."); return }
+    // The customer's own email is the evidence unless the operator writes how else they answered.
+    const evidence = note.trim() || (item.reply ? `Customer's email at ${item.reply.at.slice(11, 16)} UTC: "${item.reply.text.slice(0, 300)}"` : "")
+    if (!evidence) { setError("Say how the customer answered, in one line. It is kept as the evidence."); return }
     setBusy(true)
     setError("")
     try {
-      const body: CustomerAnswerRequest = { answer: value, note: note.trim(), logged_by: OPERATOR.id, effect_id: effectId }
+      const body: CustomerAnswerRequest = { answer: value, note: evidence, logged_by: OPERATOR.id, effect_id: item.effectId }
       const response = await fetch(customerAnswerPath(promise.caseId), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
       const data = await response.json().catch(() => null) as CaseActionResponse | null
       if (!response.ok) throw new Error(data?.error ?? "Could not reach the agent service. Nothing was saved.")
@@ -75,10 +77,11 @@ function PromiseBlock({ promise, onChange }: { promise: PromiseView; onChange: (
     <p className="promise-now"><b>{promise.text}</b> · {promise.basis} <Sources sources={[promise.source]} /></p>
     {promise.pending.map((item) => <div className="promise-pending" key={item.effectId}>
       <p><Icon name="waiting" size={14} /> <b>Proposed to the customer:</b> {item.text}. Not agreed yet, so the promise above still stands. <span className="muted">{item.basis}, <When at={item.proposedAt} withZone={false} />.</span></p>
+      {item.reply && <p className="promise-reply"><Icon name="message" size={14} /> <b>The customer wrote</b> <When at={item.reply.at} withZone={false} />: “{item.reply.text}” <span className="muted">Read it, then record their answer: their email is kept as the evidence.</span></p>}
       <div className="reconcile">
-        <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Dealer agreed on the phone with the sales desk" aria-label="How the customer answered" />
-        <button type="button" className="btn" disabled={busy} onClick={() => answer(item.effectId, "agreed")}>Customer agreed</button>
-        <button type="button" className="btn" disabled={busy} onClick={() => answer(item.effectId, "declined")}>Customer declined</button>
+        <input value={note} onChange={(event) => setNote(event.target.value)} placeholder={item.reply ? "Or say how else they answered" : "Dealer agreed on the phone with the sales desk"} aria-label="How the customer answered" />
+        <button type="button" className="btn" disabled={busy} onClick={() => answer(item, "agreed")}>Customer agreed</button>
+        <button type="button" className="btn" disabled={busy} onClick={() => answer(item, "declined")}>Customer declined</button>
       </div>
     </div>)}
     {error && <p className="dcard-error" role="alert">{error}</p>}

@@ -587,7 +587,10 @@ export function promiseView(bundle: Bundle): PromiseView | null {
   const openCase = bundle.cr.cases.find((row) => OPEN_CASE_STATUSES.includes(row.status))
   return {
     text, basis: plainText(bundle, promise.basis), source: sourceChip(promise.source), changed: promise.source.kind === "cr_effects",
-    pending: promise.pending.map((item) => ({ effectId: item.effect_id, text: item.text, proposedAt: item.proposed_at, basis: plainText(bundle, item.basis) })),
+    pending: promise.pending.map((item) => {
+      const reply = bundle.cr.events.find((row) => row.actorType === "customer" && row.kind === "message" && row.at.toISOString() > item.proposed_at)
+      return { effectId: item.effect_id, text: item.text, proposedAt: item.proposed_at, basis: plainText(bundle, item.basis), reply: reply ? { at: reply.at.toISOString(), text: reply.body } : null }
+    }),
     history: promise.history.map((item) => ({ ...item, basis: plainText(bundle, item.basis) })),
     caseId: openCase?.id ?? bundle.cr.cases[0]?.id ?? null,
   }

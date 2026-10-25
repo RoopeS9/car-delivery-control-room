@@ -398,6 +398,8 @@ async function settleCase(request: TurnRequest, state: TurnState, spokeToDriver:
       status: "WAITING_EXTERNAL", owner: "agent", waitingFor: "site", waitingOn: "the site's reply",
       nextAction: "If the site does not answer, the case goes to a person.", nextCheckAt: new Date(simNow().getTime() + 30 * 60000),
     })
+  } else if ((await listProposals({ caseId: row.id, statuses: ["PENDING"] })).length) {
+    await updateCase(row.id, { status: "NEEDS_DECISION", owner: null, waitingFor: "operator", waitingOn: "an operator's decision", nextAction: "An operator decides on the card waiting on this case." })
   } else {
     await updateCase(row.id, {
       status: "NEEDS_DECISION", owner: null, waitingFor: "operator", waitingOn: "an operator",

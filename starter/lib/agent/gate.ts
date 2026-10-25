@@ -351,9 +351,15 @@ export async function submitProposal(ctx: GateContext, input: ProposalInput): Pr
   const outdated = (await listProposals({ caseId: ctx.caseRow.id, statuses: ["OUTDATED"] })).filter((row) => row.actionType === input.action_type)
   const redrafted = new Set((await listProposals({ caseId: ctx.caseRow.id })).map((row) => row.revisesProposalId).filter(Boolean))
   const previous = outdated.filter((row) => !redrafted.has(row.id)).at(-1)
-  const changes = input.proposed_window
-    ? input.changes.map((change, index) => (index === 0 ? { ...change, value: input.proposed_window } : change))
-    : input.changes
+  // A message card changes no record: a "Delivery promise: agreed" line on a reply would read as if approving it
+  // recorded the customer's answer, which only the promise block does.
+  const messageOnly = input.action_type === "CONTACT_CUSTOMER" || input.action_type === "CONTACT_SITE_AS_CUSTOMER"
+  // People read the before and after; the exact UTC instants live in the change's value, not in brackets after the words.
+  const readable = (words: string | null) => words?.replace(/\s*\(\d{4}-\d\d-\d\dT[^()]*\)/g, "").trim() || words
+  const changes = (messageOnly ? []
+    : input.proposed_window
+      ? input.changes.map((change, index) => (index === 0 ? { ...change, value: input.proposed_window } : change))
+      : input.changes).map((change) => ({ ...change, before: readable(change.before), after: readable(change.after) ?? change.after }))
   const proposal = await createProposal({
     caseId: ctx.caseRow.id,
     orderId: ctx.facts.id,
@@ -363,7 +369,7 @@ export async function submitProposal(ctx: GateContext, input: ProposalInput): Pr
     title: input.title.trim(),
     rationale: input.rationale.trim(),
     handover: input.handover,
-    changes: changes.length ? changes : input.proposed_window ? [{ label: input.action_type === "UPDATE_ETA" ? "ETA" : "Delivery promise", before: null, after: `${input.proposed_window.start_utc} – ${input.proposed_window.end_utc} UTC`, value: input.proposed_window }] : [],
+    changes: changes.length || messageOnly ? changes : input.proposed_window ? [{ label: input.action_type === "UPDATE_ETA" ? "ETA" : "Delivery promise", before: null, after: `${input.proposed_window.start_utc} – ${input.proposed_window.end_utc} UTC`, value: input.proposed_window }] : [],
     draftMessage: draft,
     bookingSelection: input.booking_selection ?? null,
     evidenceRefs: input.booking_selection && !input.evidence_refs.some((ref) => ref.kind === input.booking_selection!.quote_source.kind && ref.id === input.booking_selection!.quote_source.id)

@@ -11,7 +11,7 @@ import assert from "node:assert/strict"
 import { after, before, describe, test } from "node:test"
 import { inArray } from "drizzle-orm"
 import { closeCrDb, crDb } from "@/lib/cr/db"
-import { getCase, listEffects, listEvents, listProposals, resolveOrder } from "@/lib/cr/queries"
+import { createProposal, getCase, listEffects, listEvents, listProposals, resolveOrder, updateCase } from "@/lib/cr/queries"
 import { crAgentRuns, crCases, crEffects, crEvents, crProposals } from "@/lib/cr/schema"
 import { useTestLlm } from "./client"
 import { decide, handleDriverMessage, handleTelemetryFault, outcome, prepareDriverMessage, runFollowUps } from "./triggers"
@@ -249,6 +249,20 @@ describe("scenario A wiring", () => {
     await handleDriverMessage(await prepareDriverMessage({ orderRef: ORDER, driverId: DRIVER, text: "OK, waiting.", mode: "chat" }))
     const row = await getCase(caseId)
     assert.equal(row?.nextCheckAt?.toISOString().slice(11, 16), hhmm)
+  })
+
+  test("a wait set while a card is open keeps the case with operations", async () => {
+    // A customer's recorded answer hands the case back to the agent with the reply card still open.
+    const row = (await getCase(caseId))!
+    const card = await createProposal({ caseId, orderId: row.orderId, actionType: "CONTACT_CUSTOMER", title: "Reply to the customer", rationale: "Test.", nextStepIfApproved: "Sent.", nextStepIfRejected: "Not sent.", createdBy: "road-desk" })
+    await updateCase(caseId, { status: "AGENT_WORKING" })
+    useTestLlm(scriptedModel([
+      { stop_reason: "tool_use", content: [tool("w2", "wait_for", { waiting_for: "provider", waiting_on: "the roadside partner", next_action: "Check the collection happened.", check_in_minutes: 60 })] },
+      { stop_reason: "end_turn", content: [text("The reply card waits for an operator; the case waits on the collection.")] },
+    ]))
+    await runFollowUps([{ kind: "analysis", caseId, reason: "The customer's answer was recorded." }])
+    assert.equal((await getCase(caseId))?.status, "NEEDS_DECISION", "the open card stays in Needs you")
+    await crDb().delete(crProposals).where(inArray(crProposals.id, [card.id]))
   })
 
   test("notes before a separator line never reach the driver", async () => {

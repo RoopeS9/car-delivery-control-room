@@ -185,7 +185,7 @@ export async function handleCustomerMessage(request: { orderRef: string; text: s
       await recordInboundCustomer({ orderId: facts.id, caseKind: caseRow.kind, customerId: facts.customer.id, customerName: name, at: event.at.toISOString(), body: text })
     } catch (error) { console.error("Road Desk: the customer's message could not be filed in the conversations", error) }
     await pingOnAwaitedReply(caseRow, name, text, ["customer"])
-    return { caseId: caseRow.id, followUps: [{ kind: "analysis", caseId: caseRow.id, reason: `${name} (the customer) wrote by email: "${text.slice(0, 600)}". Read it against the case and the records. Do first what needs no approval (tell the driver if it changes what they do). Then draft the reply to the customer as a CONTACT_CUSTOMER card for an operator to approve: answer what they asked from the records, say what is not known, and promise no updates nobody is set to send. If what they need (a time, a buyer waiting, a document) does not fit the records, say so plainly in the rationale and the reply. If they agreed to or declined a proposed new date, say so in the card: an operator records their answer.` }] }
+    return { caseId: caseRow.id, followUps: [{ kind: "analysis", caseId: caseRow.id, reason: `${name} (the customer) wrote by email: "${text.slice(0, 600)}". Read it against the case and the records. Do first what needs no approval (tell the driver if it changes what they do). Then draft the reply to the customer as a CONTACT_CUSTOMER card for an operator to approve: answer what they asked from the records, say what is not known, and promise no updates nobody is set to send. If what they need (a time, a buyer waiting, a document) does not fit the records, say so plainly in the rationale and the reply. If they agreed to or declined a proposed new date, the reply is still the only card: say in its rationale that they answered, and propose no card to record the answer (an operator records it in the case's delivery promise block, which changes the promise).` }] }
   })
 }
 
@@ -366,7 +366,7 @@ async function decisionInput(caseRow: CaseRow, proposalId: string, note: string 
   const outcomeText = typeof proposal.executionResult?.outcome === "string" ? proposal.executionResult.outcome : null
   const what = `"${proposal.title}" (${proposal.actionType})`
   if (note && proposal.actionType === "CHANGE_PROMISE") {
-    return { trigger: "decision", input: `The customer's answer to the proposed date change was recorded: ${note}. Only an agreement changes the promise. ${CONTINUE}` }
+    return { trigger: "decision", input: `The customer's answer to the proposed date change was recorded: ${note}. Only an agreement changes the promise. A reply to the customer already waiting on this case stays the card for it: do not draft a second one. ${CONTINUE}` }
   }
   if (proposal.status === "UNKNOWN_OUTCOME") {
     return { trigger: "decision", input: `The booking requested by ${what} has an unknown outcome. It has NOT been confirmed. Stop dependent actions and reconcile with the provider before any new booking or success update. The operator's next step is: ${proposal.nextStep ?? "Check whether the booking exists."}` }
