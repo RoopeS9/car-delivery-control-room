@@ -216,8 +216,10 @@ export async function loadDriver(driverId: string): Promise<{ id: string; name: 
       historicalFerries: historicalFerrySchedules(effective, orderReservations),
       ...stepsOf(live.lifecycles.get(order.id) ?? {}, segment.transport_mode === "DRIVE_WITH_FERRY" && orderReservations.some((row) => row.kind === "FERRY" && row.status === "BOOKED"), {
         // What the records already say happened before this app was in the driver's hand.
-        COLLECTED: assignment.status === "IN_PROGRESS" || assignment.status === "COMPLETED"
-          ? pickedUp.find((row) => row.orderId === order.id)?.at.toISOString() ?? str(assignment.started_at) ?? simNow().toISOString() : null,
+        // The record's pickup event; without one, a started assignment is a collection only if the order is on the road.
+        COLLECTED: pickedUp.find((row) => row.orderId === order.id)?.at.toISOString()
+          ?? ((assignment.status === "IN_PROGRESS" || assignment.status === "COMPLETED") && (order.status === "IN_TRANSIT" || order.status === "DELIVERED")
+            ? str(assignment.started_at) ?? simNow().toISOString() : null),
         CHECKED_IN: str(orderReservations.find((row) => row.kind === "FERRY" && row.status === "BOOKED" && row.check_in_confirmation === "CONFIRMED_BY_GATE_SCAN")?.check_in_confirmed_at),
       }),
     })
