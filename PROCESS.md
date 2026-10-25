@@ -1416,3 +1416,22 @@ Checked / rejected:
 - C and F failed once in the traced run. Their traces showed the agent doing the right thing more slowly than the
   harness waited (a DeepSeek turn took up to two minutes at that hour), so the harness was changed, not the agent.
 - Spend: about $6 of the $10 for the whole night by this point (OpenRouter key: $8.94, $2.88 before the night).
+
+## 2026-10-25 ~03:00–04:00 UTC · RoopeS + Claude Code (cloud) · night run, the delivery's own time
+
+Asked: keep going along the plan; the pickup-to-delivery path is the one the night started with.
+
+Got:
+- Scenario H told an impossible story: tapping the five steps in a minute put the car in Tampere an hour after the
+  pickup in Stockholm, across a ferry, and the confirmation card said so. Running H again after a step now moves
+  the clock to that step's time in the records (the slot, an hour before the ferry check-in closes, just before the
+  26 Oct delivery window, then inside it); the demo panel's button reads "Next step's time". A jump of days is
+  refused while other cases are open, since their timers would fire on the way (checked with a test case row).
+- Walking it found three small wording defects: every step carried "(to <receiver>)" when one was sent,
+  "Arrived at the delivery address at the delivery address in Tampere", and a handover five minutes before the
+  window was called early. Fixed; harness H 8/8.
+- The order story said "no position from the driver app in this packet" for a car collected in this app, while the
+  simulated phone GPS had it at the ferry terminal; it now shows that position, labelled simulated.
+- A review of my own changes narrowed one rule: the "record the customer's answer" refusal matched any decision
+  titled "confirm…", so "Confirm the tow booking?" would have been refused while an answer waited. It now needs the
+  customer, the date or the agreement in the title.
