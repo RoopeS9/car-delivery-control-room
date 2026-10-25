@@ -1,25 +1,24 @@
 1
 00:00:00,200 --> 00:00:03,400
-We built Road Desk: a control room
-where AI agents do the legwork,
+We built Road Desk: AI agents
+do the legwork,
 
 2
 00:00:03,400 --> 00:00:06,000
-and people make the calls.
+people make the calls.
 
 3
-00:00:06,200 --> 00:00:09,900
-On our estimates, a car issue drops
-from half an hour of an operator's time
+00:00:06,200 --> 00:00:09,600
+On our estimates, a car issue takes
+under ten minutes of an operator's time,
 
 4
-00:00:09,900 --> 00:00:11,300
-to under ten minutes.
+00:00:09,600 --> 00:00:11,200
+not half an hour.
 
 5
 00:00:11,400 --> 00:00:14,000
-The AI behind it costs
-about twelve cents.
+The AI costs about twelve cents.
 
 6
 00:00:17,500 --> 00:00:19,500

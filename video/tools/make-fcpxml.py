@@ -17,21 +17,21 @@ FPS = 30
 
 # scene, beat id, title, seconds, note
 BEATS = [
-    ("1 Opener", "1a", "Opener", 6, "Film: team on camera, daylight. Words: We built Road Desk, a control room where AI agents do the legwork and people make the calls. Sound: cue 1."),
-    ("1 Opener", "1b", "The numbers", 8, "Use: business slide still plus cards/footnote-estimates.png. Words: voice-over on our estimates, half an hour to under ten minutes, twelve cents of AI. Sound: cue 1 peaks."),
-    ("2 A quiet shift", "2a", "A calm shift", 8, "Film: operator slumped, feet up, mug. Use: cards/calm-shift.png. Words: Quiet morning. Sound: cue 2."),
-    ("2 A quiet shift", "2b", "Simulator, keys", 7, "Screen R1: run C. Use: cards/sim-keys.png, sfx/click.wav, sfx/pop.wav. Words: Keys. Agent's got it."),
-    ("2 A quiet shift", "2c", "Panic", 8, "Screen R2: run A. Film: driver on the makeshift car set. Use: cards/sim-warning.png, sfx/alarm-sting.wav, sfx/panic-pulse.wav. Words: No no no no, what is that light, it's shaking."),
+    ("1 Opener", "1a", "Opener", 6, "Film L1: all three in the lobby, thumbs up, phone propped, hold 4 s. Words: voice-over, we built Road Desk, AI agents do the legwork, people make the calls. Sound: cue 1."),
+    ("1 Opener", "1b", "The numbers", 8, "Use: business slide still plus cards/footnote-estimates.png. Words: voice-over, on our estimates under ten minutes not half an hour, twelve cents of AI. Sound: cue 1 peaks."),
+    ("2 A quiet shift", "2a", "A calm shift", 8, "Film L3: operator slumped at the desk, feet up, mug. Use: cards/calm-shift.png. Words: Quiet morning. Sound: cue 2."),
+    ("2 A quiet shift", "2b", "Simulator, keys", 7, "Screen R1: run C. Film L4: the simulator hand in the dark room. Use: cards/sim-keys.png, sfx/click.wav, sfx/pop.wav. Words: Keys. Agent's got it."),
+    ("2 A quiet shift", "2c", "Panic", 8, "Screen R2: run A. Film L4 (the hand) and L2 (the driver in the pod, dash-cam angle). Use: cards/sim-warning.png, sfx/alarm-sting.wav, sfx/panic-pulse.wav. Words: No no no no, what is that light, it's shaking."),
     ("2 A quiet shift", "2d", "The stop line", 9, "Screen R2 and R3: Leo's phone, Finnish and English. Film: driver pulls over. Use: cards/hazard-triangle.png flashing, sfx/hazard-tick.wav, sfx/engine-off.wav. Words: Okay, okay."),
     ("2 A quiet shift", "2e", "Relief", 7, "Screen R3: the agent's real reply. Film: shoulders drop. Use: sfx/relief-chord.wav. Words: Okay. Somebody's got this."),
     ("2 A quiet shift", "2f", "One card", 10, "Screen R4: queue ping, card with sources, I'll handle it. Use: cards/needs-you.png, sfx/mug-down.wav. Words: Right. That one's mine."),
     ("2 A quiet shift", "2g", "The chaos montage", 11, "Screen R5: demo panel chaos. Use: cards/sim-no-shame.png, sfx/snare-riser.wav, sfx/click.wav. Film: driver calm, operator pushes the mouse away. Words: Not now."),
-    ("3 The control room", "3a", "The shift lead", 6, "Film: same actor upright, dark room, lit by the map. Words: Hamburg. Sound: cue 3."),
+    ("3 The control room", "3a", "The shift lead", 6, "Film L3: same actor upright, dim desk, lit by the map. Words: Hamburg. Sound: cue 3."),
     ("3 The control room", "3b", "The real map", 7, "Screen R6: the map, dark theme, slow pan. Words: voice-over, the map shows every car and only the ones that need a person glow red."),
     ("4 Timelapse", "4", "Timelapse", 15, "Screen R7: the timelapse page. Use: cards/tag-simulated.png, sfx/timelapse-build.wav. No voice. Sound: cue 4."),
-    ("5 On camera", "5a", "Process", 28, "Film: team on camera. B-roll R8: PROCESS.md, session list. Words: see SCRIPT.md scene 5a. Sound: cue 5."),
-    ("5 On camera", "5b", "Limits and next steps", 26, "Film: team on camera. Cut to the limits and next-steps slides, 2 s each. Words: see SCRIPT.md scene 5b."),
-    ("5 On camera", "5c", "The invitation", 8, "Film: wide shot of the team. Words: We would love to show you Road Desk running. Find us at the booth, or watch the repo."),
+    ("5 On camera", "5a", "Process", 28, "Voice-over over B-roll R8: PROCESS.md, session list, night harness; one 2 s hand-held shot of the team. Words: see SCRIPT.md scene 5a. Sound: cue 5."),
+    ("5 On camera", "5b", "Limits and next steps", 26, "Voice-over over the limits and next-steps slides (6-8 s each) with the live map between. Words: see SCRIPT.md scene 5b."),
+    ("5 On camera", "5c", "The invitation", 8, "Film L1 again: all three, thumbs up, mirroring the opener. Words: We would love to show you Road Desk running. Find us at the booth, or watch the repo (voice-over if the lobby is noisy)."),
     ("End card", "E", "End card", 6, "Use: the last slide of the Road Desk presentation with the real links. Total must stay under 3:00."),
 ]
 

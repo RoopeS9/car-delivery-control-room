@@ -1,6 +1,9 @@
 # Set B: the car, with no car
 
-The driver scene (beats 2c, 2d and 2e) is built from chairs and kitchen things. This works because the film is already a
+The driver scene (beats 2c, 2d and 2e) is filmed in the **Framery pod**, with a paper plate for the wheel and a cardboard box
+for the dashboard. A pod is quiet, so the dialogue records cleanly, and small, so there is no room to step back: use the
+dash-cam angle and close-ups below. Pod notes and the no-tripod techniques are in `video/SHOOT-PLAN.md`. It is built from
+chairs and kitchen things. This works because the film is already a
 comedy, with a simulator gremlin and an operator with their feet up: a plate for a steering wheel is on tone. Do not hide
 the low budget; frame it tight and play it straight. Panic reads the same in a cardboard car as in a real one.
 
@@ -20,8 +23,10 @@ the low budget; frame it tight and play it straight. Panic reads the same in a c
 
 ## The angles (shoot all of these, they are quick)
 
-1. **Over the wheel, from the passenger side, a little low.** The driver’s face, the plate and the lit dashboard in one frame.
-   This is the money shot for 2c. A teammate can hold the phone in their lap.
+1. **The dash-cam angle: the phone leaning against the cardboard dashboard, looking at the driver through the plate wheel.**
+   The driver’s face, the plate and the glow of the tablet in one frame, with no tripod and no one holding the phone. This
+   is the money shot for 2c, 2d and 2e. Set it up first, then act.
+1b. **Over the wheel, from the passenger side, a little low,** held by the third person from the doorway (3–8 seconds, braced).
 2. **Close on the driver’s face** for the panic, then again for the relief. Fill the frame so the room disappears.
 3. **Close on the dashboard glow**: the tablet showing the warning light, with the plate in front.
 4. **Close on the driver’s hands** gripping the plate, then lifting off.
