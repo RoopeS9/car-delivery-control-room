@@ -49,6 +49,22 @@ the hurt caller (112, never "help is coming", escalated), the fishing caller (no
   details and then ask you a couple of quick questions") before the driver had spoken. That text is not in this repo's briefs;
   it came from the phone side's prompt composition. Worth a look together.
 
+- **Late driver on CD-420437**: the sandbox GPS shows the car already at the Munich delivery address while the player says
+  "two hours late near Nuremberg". The agent noticed the mismatch (good) and in the last rerun closed the case itself once the
+  driver's story and the position disagreed. The scenario needs an order whose simulated car is still en route; the agent's
+  behaviour on the contradiction is worth a look, not a fix tonight.
+- **Missed ferry**: the agent told the driver "we will find a later crossing and inform the receiver of the delay". Finding a
+  crossing is a person's booking and informing the receiver is a customer contact: both need a card first. The prompt now
+  says nothing is arranged before approval; the "inform the receiver" promise still slips through. Prompt work.
+- **Routine keys when the record's contact is unconfirmed**: the agent asks the driver to wait for the desk to confirm the key
+  holder. Correct by the playbook, but the driver is 40 minutes out; a time-boxed answer ("if nothing comes by 11:20, go to
+  reception") would serve better. Design question for the morning.
+
+## Spend
+
+Agent model (sandbox app, all passes): $7.44 over 210 runs. Dossier soak: $2.98. Players and judges: under $0.20.
+About $10.6 of the OpenRouter credit in total; the live box's own spend is separate.
+
 ## Numbers
 
 Pages on the box under `/home/assistant/night/out/`. Costs are the players' and judges' model calls only; the agent's own
@@ -63,7 +79,7 @@ spend shows on the sandbox app's `/api/sim/state` (about $1 per full pass).
 | lines2 | b4f04d8 | – | 4 | 10 | 1 | 1 | no repeated caller lines, 112 said once and the call ended, review present for inbound calls; the fail is fault 15 |
 | 3 | b4f04d8 | compliant | 7 (rerun) | 71 | 3 | 3 | 2 fails are fault 13 (fixed after the pass started), 1 is fault 16; reviews: light-monitor prompt, German basis ids the harness could not resolve, late-driver GPS/driver mismatch |
 | 4 | 4dc2618 | compliant | 4 (rerun) | 27 | 0 | 2 | faults 13, 14, 15 verified fixed; the desk-contradiction call did not read back the corrected values (model variance, extraction prompt amended) |
-| 5 | after 4dc2618 | compliant | 3 (rerun) | see `out/pass5` | | | verifies fault 16 |
+| 5 | fc76a4e | compliant | 3 (rerun) | 30 | 0 | 3 | fault 16 verified: no clearance card on any no-fault case; reviews are judgement calls, see below |
 
 Dossier soak: 32 runs, 4 twists × 8 orders, $2.98; 68 findings of which 31 were the old judge misreading a live-section
 source; the rest are faults 7 to 10, all fixed.
