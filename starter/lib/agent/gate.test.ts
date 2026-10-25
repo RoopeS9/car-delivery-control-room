@@ -139,6 +139,17 @@ describe("M1: a CONTACT_CUSTOMER action cannot execute without approval", () => 
     await assert.rejects(submitProposal({ audience: "operator", caseRow: quiet, facts }, proposal("UPDATE_ETA")), /already waiting/)
   })
 
+  test("a customer message that proposes a new window is refused as a date proposal; the same window as the promise is not", async () => {
+    const caseRow = await newCase()
+    const window = { start_utc: "2026-10-30T10:00:00Z", end_utc: "2026-10-30T14:00:00Z" }
+    await assert.rejects(submitProposal({ audience: "operator", caseRow, facts }, proposal("CONTACT_CUSTOMER", { draft_message: customerDraft, proposed_window: window })), /CHANGE_PROMISE/)
+    const date = (await submitProposal({ audience: "operator", caseRow, facts }, proposal("CHANGE_PROMISE", { draft_message: customerDraft, proposed_window: window }))).proposal
+    assert.equal(date.actionType, "CHANGE_PROMISE")
+    const promise = (await effectiveOrder(facts.id)).promise!
+    const reply = (await submitProposal({ audience: "operator", caseRow: await newCase(), facts }, proposal("CONTACT_CUSTOMER", { draft_message: customerDraft, proposed_window: { start_utc: promise.start_utc, end_utc: promise.end_utc } }))).proposal
+    assert.equal(reply.actionType, "CONTACT_CUSTOMER", "a message about the current promise stays a message")
+  })
+
   test("a fact the model gave without sources is stored with none, so the card can say so", async () => {
     const caseRow = await newCase()
     const { proposal: row } = await submitProposal({ audience: "operator", caseRow, facts }, proposal("CONTACT_CUSTOMER", {

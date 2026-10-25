@@ -370,6 +370,15 @@ export async function submitProposal(ctx: GateContext, input: ProposalInput): Pr
     const open = await openPromiseProposal(ctx.caseRow.id)
     if (open) throw new DecisionError(409, `A new date (${String(open.value.text ?? "proposed earlier")}) already waits for the customer's answer. If they answered, an operator records it on the case; propose only the reply to them (CONTACT_CUSTOMER). If they asked for another date, say so in that reply's rationale: the operator records their decline first.`)
   }
+  // A message that puts a new delivery window to the customer is a date proposal. Sent as CONTACT_CUSTOMER the date
+  // would go out, and their yes could never move the promise: real runs drafted it that way in two of four tries.
+  if (input.action_type === "CONTACT_CUSTOMER" && input.proposed_window && !(await openPromiseProposal(ctx.caseRow.id))) {
+    const promise = (await effectiveOrder(ctx.facts.id)).promise
+    const same = (a: string | null | undefined, b: string) => !!a && Date.parse(a) === Date.parse(b)
+    if (!promise || !same(promise.start_utc, input.proposed_window.start_utc) || !same(promise.end_utc, input.proposed_window.end_utc)) {
+      throw new DecisionError(409, "This message proposes a new delivery window to the customer. That is CHANGE_PROMISE, with the same window and draft, so that their answer can move the promise once an operator records it. Propose it again as CHANGE_PROMISE. A reply about a date already proposed or agreed carries no window.")
+    }
+  }
   // One question once. A card an operator is already looking at is not duplicated; a card they rejected on this case
   // is not asked again in other words: the agent works out a different step from the reason, or waits.
   // Two open "what do we do" questions on one case are one question asked twice, whatever their wording.
