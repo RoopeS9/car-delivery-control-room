@@ -100,7 +100,8 @@ export async function suggestReplies(d: Dossier | null, thread: SuggestThread, o
   const system = RULES + "\n\nOutput schema:\n" + SCHEMA
   let feedback: string | undefined, cost = 0, parsed: z.infer<typeof Output> | undefined, raw = ""
   for (let attempt = 0; attempt < 2 && !parsed; attempt++) {
-    const r = await chat(apiKey, model, system, user, feedback)
+    // A draft for a person to edit needs no hidden reasoning: with it on, the flash model took over two minutes.
+    const r = await chat(apiKey, model, system, user, feedback, { reasoning: { enabled: false } })
     raw = r.raw; cost += r.usage?.cost ?? 0
     let json: unknown
     try { json = JSON.parse(raw.replace(/^```(?:json)?\s*|```\s*$/g, "").trim()) } catch { feedback = "not valid JSON"; continue }
