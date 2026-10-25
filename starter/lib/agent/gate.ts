@@ -341,6 +341,11 @@ export async function newFactsSince(caseId: string, at: Date): Promise<boolean> 
 /** Who made a card the gate raised itself rather than the agent proposing it; it reads as the Road agent to people. */
 export const GATE_ID = `${AGENT_ID}-gate`
 
+/** The gate's own line on the case timeline: what it refused, held back or would not carry out, and why. */
+export function gateNote(caseId: string, orderId: string, body: string, data: Record<string, unknown>) {
+  return appendEvent({ caseId, orderId, actorType: "system", actorId: "gate", kind: "tool_call", channel: "internal", body, data })
+}
+
 /**
  * A message card to a customer or site who wrote on this case and had nothing back from us since, as of `at`: the
  * answer to their email or chat. It waits for a sign-off, not a decision, so it neither waits behind another card
@@ -606,11 +611,9 @@ async function markOutdated(proposal: ProposalRow, checks: AssumptionCheck[]): P
   const updated = await transitionProposal(proposal.id, ["PENDING", "APPROVED", "EDITED_AND_APPROVED"], {
     status: "OUTDATED", executionResult: { outdated: changed }, nextStep: "The agent redrafts the card with the current facts.",
   })
-  await appendEvent({
-    caseId: proposal.caseId, orderId: proposal.orderId, actorType: "system", actorId: "gate", kind: "tool_call", channel: "internal",
-    body: `Nothing was carried out: facts changed since "${proposal.title}" was drafted. ${changed.map((check) => `${check.assumption.label}: now ${check.now}`).join("; ")}.`,
-    data: { proposal_id: proposal.id, outdated: true, checks: changed },
-  })
+  await gateNote(proposal.caseId, proposal.orderId,
+    `Nothing was carried out: facts changed since "${proposal.title}" was drafted. ${changed.map((check) => `${check.assumption.label}: now ${check.now}`).join("; ")}.`,
+    { proposal_id: proposal.id, outdated: true, checks: changed })
   await updateCase(proposal.caseId, backToAgent("The agent redrafts the card with the current facts."))
   return updated ?? proposal
 }

@@ -14,7 +14,7 @@ import { AGENT_ID, MAX_ITERATIONS, MAX_TOKENS, deepEffort, fastEffort, type Effo
 import { loadOrderFacts, type End, type OrderFacts } from "./context"
 import { loadDriverSafetyContext, screenDriverMessage, type Screen } from "./drivability"
 import { agentCouldNotFinish, ensureOpenCaseFields, replyDeadlineMinutes } from "./followup"
-import { submitProposal } from "./gate"
+import { gateNote, submitProposal } from "./gate"
 import { localTime, relative, utcTime } from "./format"
 import { systemPrompt } from "./prompts"
 import { actorName, names } from "./timeline"
@@ -547,13 +547,10 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
     // The driver asked something and the reply also read as permission to drive on. Ask once for the same reply
     // without that; only if it is held again does the driver get the fixed line and an operator a clearance card.
     const again = await rewriteHeldReply(client, { model, system, tools, messages, effort }, gate, screen!, request.onText, usage)
-    await appendEvent({
-      caseId: caseRow.id, orderId: caseRow.orderId, actorType: "system", actorId: "gate", kind: "tool_call", channel: "internal",
-      body: again
-        ? `Drivability screen held back a reply that read as permission to drive on (${gate.blocked.reason ?? "screen"}); the agent wrote it again without that, and the new reply was sent.`
-        : `Drivability screen held back a reply that read as permission to drive on (${gate.blocked.reason ?? "screen"}); the rewrite was held too.`,
-      data: { refused: true, rule: "drivability_screen", text: gate.written.trim(), rewritten: Boolean(again) },
-    })
+    await gateNote(caseRow.id, caseRow.orderId, again
+      ? `Drivability screen held back a reply that read as permission to drive on (${gate.blocked.reason ?? "screen"}); the agent wrote it again without that, and the new reply was sent.`
+      : `Drivability screen held back a reply that read as permission to drive on (${gate.blocked.reason ?? "screen"}); the rewrite was held too.`,
+      { refused: true, rule: "drivability_screen", text: gate.written.trim(), rewritten: Boolean(again) })
     if (again) gate = again
     else { gate.sendFallback(); await holdForClearance(state, gate.written.trim(), gate.blocked.reason) }
   } else if (gate.blocked && !error) {

@@ -18,7 +18,7 @@ import { contextFor, loadOrderFacts, type End } from "./context"
 import { DRIVING_WORDS, findClearance, loadDriverSafetyContext, renderSafetyTemplate, SAFETY_TEMPLATES, screenDriverMessage } from "./drivability"
 import { firstName, localTime, relative, utcTime } from "./format"
 import {
-  checkTool, DecisionError, newFactsSince, openPromiseProposal, READ_TOOLS, recordedTravelSelection, submitProposal, TOOL_AUDIENCES,
+  checkTool, DecisionError, gateNote, newFactsSince, openPromiseProposal, READ_TOOLS, recordedTravelSelection, submitProposal, TOOL_AUDIENCES,
   unrecordedCustomerAnswer, validateProposal, type GateContext, type ProposalInput, type ToolName,
 } from "./gate"
 import { cityCoords, matchWarningLights, playbook, playbooks, troubleCode } from "./knowledge"
@@ -281,18 +281,14 @@ export async function holdForClearance(state: GateContext, text: string, reason:
   // "an operator has to confirm" line; the refusal is noted, and the agent reads it in the case notes.
   const rejected = (await listProposals({ caseId: state.caseRow.id, statuses: ["REJECTED"] })).filter((row) => row.actionType === "CLEAR_TO_CONTINUE").at(-1)
   if (rejected && !(rejected.decidedAt && await newFactsSince(state.caseRow.id, rejected.decidedAt))) {
-    await appendEvent({
-      caseId: state.caseRow.id, orderId: state.facts.id, actorType: "system", actorId: "gate", kind: "tool_call", channel: "internal",
-      body: `Drivability screen held back a message that reads as permission to drive on${reason ? ` (${reason})` : ""}. An operator already rejected clearing the driver on this case (${rejected.decisionNote ?? "no reason given"}), so no new card: the driver stays stopped.`,
-      data: { refused: true, rule: "drivability_screen", text, rejected_proposal_id: rejected.id },
-    })
+    await gateNote(state.caseRow.id, state.facts.id,
+      `Drivability screen held back a message that reads as permission to drive on${reason ? ` (${reason})` : ""}. An operator already rejected clearing the driver on this case (${rejected.decisionNote ?? "no reason given"}), so no new card: the driver stays stopped.`,
+      { refused: true, rule: "drivability_screen", text, rejected_proposal_id: rejected.id })
     return "noted"
   }
-  await appendEvent({
-    caseId: state.caseRow.id, orderId: state.facts.id, actorType: "system", actorId: "gate", kind: "tool_call", channel: "internal",
-    body: `Drivability screen held back a message that reads as permission to drive on${reason ? ` (${reason})` : ""}. It is now a card for an operator.`,
-    data: { refused: true, rule: "drivability_screen", text },
-  })
+  await gateNote(state.caseRow.id, state.facts.id,
+    `Drivability screen held back a message that reads as permission to drive on${reason ? ` (${reason})` : ""}. It is now a card for an operator.`,
+    { refused: true, rule: "drivability_screen", text })
   await submitProposal({ audience: "operator", caseRow: state.caseRow, facts: state.facts, systemHeld: true }, {
     action_type: "CLEAR_TO_CONTINUE",
     title: "Clear the driver to drive on?",
@@ -513,11 +509,9 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
         // agent rewrites. Only a recorded fault or restriction makes "may they drive on" a real question for a person.
         const kept = str(input.text).split(/(?<=[.!?])\s+|\n+/).filter((sentence) => sentence.trim() && !findClearance(sentence) && !DRIVING_WORDS.test(sentence) && !/\b(good to go|all clear|all set|all sorted|safe (last )?(stretch|drive|trip|travels|journey)|drive safe(ly)?)\b/i.test(sentence))
         const rest = kept.join(" ").trim()
-        await appendEvent({
-          caseId: state.caseRow.id, orderId: state.facts.id, actorType: "system", actorId: "gate", kind: "tool_call", channel: "internal",
-          body: `Drivability screen dropped a sentence that read as permission to drive on (${screen.reason ?? "classifier"}) from a reply on a case with no recorded fault or restriction; no card: nothing about the car is in question.`,
-          data: { refused: true, rule: "drivability_screen", text: str(input.text), sent: rest || null },
-        })
+        await gateNote(state.caseRow.id, state.facts.id,
+          `Drivability screen dropped a sentence that read as permission to drive on (${screen.reason ?? "classifier"}) from a reply on a case with no recorded fault or restriction; no card: nothing about the car is in question.`,
+          { refused: true, rule: "drivability_screen", text: str(input.text), sent: rest || null })
         if (!rest) return { content: `Not sent: it reads as permission to drive on (${screen.reason}). Nothing about the car is in question on this case: answer and say what happens next, without any remark about driving on or sign-off about the drive.`, isError: true, gate: "REFUSED" }
         await sendToDriver(state, { body: rest, channel: "driver_chat", data: { screened: screen.layer, trimmed: true } })
         return { content: `Sent to ${state.driverName ?? "the driver"} without the part that read as permission to drive on (${screen.reason}): "${rest.slice(0, 200)}"`, log: null }
@@ -755,10 +749,7 @@ export async function runTool(state: TurnState, name: string, rawInput: unknown)
   if (!verdict.ok) {
     outcome = { content: `Refused by the approval gate: ${verdict.reason}`, isError: true, gate: "REFUSED" }
     trace.gate_reason = verdict.reason
-    await appendEvent({
-      caseId: state.caseRow.id, orderId: state.facts.id, actorType: "system", actorId: "gate", kind: "tool_call", channel: "internal",
-      body: `Approval gate stopped the agent: ${verdict.reason}`, data: { tool: name, refused: true },
-    })
+    await gateNote(state.caseRow.id, state.facts.id, `Approval gate stopped the agent: ${verdict.reason}`, { tool: name, refused: true })
   } else {
     try {
       outcome = await handlers[name as ToolName](state, input)
@@ -770,10 +761,7 @@ export async function runTool(state: TurnState, name: string, rawInput: unknown)
     }
     if (outcome.gate === "REFUSED") {
       trace.gate_reason = typeof outcome.content === "string" ? outcome.content : null
-      await appendEvent({
-        caseId: state.caseRow.id, orderId: state.facts.id, actorType: "system", actorId: "gate", kind: "tool_call", channel: "internal",
-        body: `Approval gate stopped the agent: ${trace.gate_reason}`, data: { tool: name, refused: true },
-      })
+      await gateNote(state.caseRow.id, state.facts.id, `Approval gate stopped the agent: ${trace.gate_reason}`, { tool: name, refused: true })
     } else if (outcome.log && !outcome.isError) {
       await appendEvent({
         caseId: state.caseRow.id, orderId: state.facts.id, actorType: "agent", actorId: AGENT_ID, kind: outcome.log.kind, channel: "internal",
