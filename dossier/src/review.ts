@@ -45,7 +45,10 @@ export function reviewCall(c: CallRecord): CallReview {
   const missing = asked.filter((a) => !answered.includes(a))
   const caller = c.turns.filter((t) => t.speaker === "CALLER")
   const violations: CallReview["violations"] = []
-  for (const t of caller) for (const kind of c.brief.mustNot) { const re = PATTERNS[kind]; if (re && re.test(t.text) && !(kind === "OTHER_ORDERS" && t.text.includes(c.brief.mayState.join(" ").match(/C D [a-z ]+/i)?.[0] ?? "\u0000"))) violations.push({ kind, turnSeq: t.seq, text: t.text }) }
+  // "I can't give out the customer's number" names the forbidden thing to refuse it: a refusal is not a violation.
+  const REFUSAL = /\b(can(?:no|')t|cannot|not able to|won't|will not|unable to|am not allowed to|may not|don't|do not) (give|share|tell|say|discuss|quote|confirm|hand|pass|disclose|provide|promise|change|clear)\b[^.!?]{0,60}$/i
+  const refuses = (text: string, re: RegExp) => { const m = re.exec(text); return !!m && REFUSAL.test(text.slice(0, m.index)) }
+  for (const t of caller) for (const kind of c.brief.mustNot) { const re = PATTERNS[kind]; if (re && re.test(t.text) && !refuses(t.text, re) && !(kind === "OTHER_ORDERS" && t.text.includes(c.brief.mayState.join(" ").match(/C D [a-z ]+/i)?.[0] ?? "\u0000"))) violations.push({ kind, turnSeq: t.seq, text: t.text }) }
   // The same sentence said again, word for word, is a violation of its own kind: the user hears a robot.
   const seen = new Map<string, number>()
   for (const t of caller) {

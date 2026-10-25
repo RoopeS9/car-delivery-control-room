@@ -134,7 +134,9 @@ export async function handleSiteMessage(prepared: PreparedSiteMessage, onText?: 
     // card, whatever its state), else on the running site question; only then is it a new question.
     const contacted = new Set((await Promise.all((await listCases({ orderId: facts.id, statuses: [...OPEN_CASE_STATUSES] })).map(async (row) =>
       (await listProposals({ caseId: row.id })).some((p) => p.actionType === "CONTACT_CUSTOMER" || p.actionType === "CONTACT_SITE_AS_CUSTOMER") ? row.id : null))).filter((id): id is string => Boolean(id)))
-    const caseRow = await openCase(facts.id, (row) => (row.status === "WAITING_EXTERNAL" && (row.waitingFor === "site" || row.waitingFor === "customer")) || contacted.has(row.id) || row.kind === "SITE_QUESTION" || row.channelOpened === "site_chat", () => createCase({
+    // While the car is in trouble on this order, what the site writes is about that trouble: it lands on the incident case.
+    const incidentKinds = ["VEHICLE_WARNING", "BREAKDOWN", "ACCIDENT"]
+    const caseRow = await openCase(facts.id, (row) => (row.status === "WAITING_EXTERNAL" && (row.waitingFor === "site" || row.waitingFor === "customer")) || contacted.has(row.id) || incidentKinds.includes(row.kind) || row.kind === "SITE_QUESTION" || row.channelOpened === "site_chat", () => createCase({
       orderId: facts.id, kind: "SITE_QUESTION", status: "AGENT_WORKING", urgency: "NORMAL", title: `Question from ${name}`,
       summary: request.text.slice(0, 200), channelOpened: "site_chat", owner: "agent", driverId: activeDriverId(facts),
     }))
