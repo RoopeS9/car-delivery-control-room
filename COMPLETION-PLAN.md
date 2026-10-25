@@ -57,12 +57,12 @@ Not checked here: `docker compose` (no Docker daemon in this sandbox, I used a l
 
 | # | Task | Why | Size |
 |---|---|---|---|
-| 1 | **Two different counts.** The map and board say "16 need a person"; `/queue` says "20 need your decision". The board counts orders flagged by `needsPersonNow`; the queue counts its own rows. Pick one rule or explain the difference on screen. | A judge will spot it in the first ten seconds. | small |
-| 2 | **The clean-start queue is 20 red cards that all read "Open alert: …".** Several use record wording ("source is a conversation, not a verified outcome"), which sounds like a data tool, not an operations desk. Rewrite the first line of the card as a plain sentence, and consider showing the top 5 with "show 15 more". | Brief: "high signal, low noise, even with hundreds of orders", "one glance tells you what is wrong and what to do". | small to medium |
-| 3 | **README is out of date in four places.** (a) It says urgent and ended calls feed the road agent; `OVERVIEW.md` found that a live call does not start an agent turn. (b) The root `.env.example` asks for `ANTHROPIC_API_KEY`, but the app uses `OPENROUTER_API_KEY`. (c) `.env.example` defaults to Claude, while the README and run sheet describe DeepSeek runs: say which model the demo uses. (d) The `PLAN.md` §8 checklist is all unticked. | The brief: "should run from a fresh clone with the steps in your README". | small |
+| 1 | **Done** (`6d8ff7b`): one rule, 16 everywhere; signals moved to an amber "Worth a look" group. ~~**Two different counts.**~~ The map and board say "16 need a person"; `/queue` says "20 need your decision". The board counts orders flagged by `needsPersonNow`; the queue counts its own rows. Pick one rule or explain the difference on screen. | A judge will spot it in the first ten seconds. | small |
+| 2 | **Done** (`6d8ff7b`): rows lead with the item that needs a person; the packet's tooling phrase is reworded. ~~**The clean-start queue is 20 red cards that all read "Open alert: …".**~~ Several use record wording ("source is a conversation, not a verified outcome"), which sounds like a data tool, not an operations desk. Rewrite the first line of the card as a plain sentence, and consider showing the top 5 with "show 15 more". | Brief: "high signal, low noise, even with hundreds of orders", "one glance tells you what is wrong and what to do". | small to medium |
+| 3 | **(a)–(c) done** (`6d8ff7b`): live-call claim, root `.env.example`, a model table with DeepSeek as the example default. (d) done: the four finished items in `PLAN.md` §8 are ticked. ~~**README is out of date in four places.**~~ (a) It says urgent and ended calls feed the road agent; `OVERVIEW.md` found that a live call does not start an agent turn. (b) The root `.env.example` asks for `ANTHROPIC_API_KEY`, but the app uses `OPENROUTER_API_KEY`. (c) `.env.example` defaults to Claude, while the README and run sheet describe DeepSeek runs: say which model the demo uses. (d) The `PLAN.md` §8 checklist is all unticked. | The brief: "should run from a fresh clone with the steps in your README". | small |
 | 4 | **Add 2–3 screenshots to the README** (queue, an order with its decision card, the driver phone). The same picture serves as the write-up's cover. | First impression; "made with care". | small |
 | 5 | **Demo day: both services must be running.** If the call service is down, `/demo` shows "The call service is not running" in the middle of the page. Put "start both, then check `/api/cases`" at the top of the run sheet. | Avoid a live surprise. | tiny |
-| 6 | **Three older `claude/*` branches still show patches that are not in `roope`.** They are probably early versions that were superseded. Check in five minutes, then delete or leave a note, so nothing important is lost and the repo looks tidy. | Lost work or clutter. | tiny |
+| 6 | **Checked**: all three are ancestors of `roope` (fully merged; `git cherry` finds no patch missing), so they can be deleted on GitHub with nothing lost. ~~**Three older `claude/*` branches still show patches that are not in `roope`.**~~ They are probably early versions that were superseded. Check in five minutes, then delete or leave a note, so nothing important is lost and the repo looks tidy. | Lost work or clutter. | tiny |
 | 7 | **Known agent gaps from the second night** (`starter/scripts/night/MORNING.md`): on a missed ferry the reply still promises "inform the receiver" (a customer contact needing a card); the first reply to a steady yellow light is weak; the keys answer could be time-boxed. Fix only if it is a prompt change under 30 minutes. Otherwise say it honestly in the write-up. | Honest limits score well; surprises on stage do not. | prompt only |
 
 ### P2: only if there is time left after the video
@@ -86,6 +86,16 @@ Not checked here: `docker compose` (no Docker daemon in this sandbox, I used a l
 
 With a 13:00 freeze only two hours remain for the video, write-up and submission, and nothing in them can slip. If
 12:00 arrives and the app is not near-final, move the freeze earlier rather than shortening the video.
+
+## Since this plan was written (10:00)
+
+- A critical review from Bahn's side is in `REVIEW-BAHN.md` (42 findings). Fixed before the freeze: the stop
+  instruction on a serious fault now goes out before the model is asked (R3), safety instructions and the
+  "may drive on" screen work in Finnish, Swedish, German, Danish and French (R4), and the agent no longer calls a
+  fault "usually not critical" (R15). Commit `02241f7`, 132 tests.
+- Deliberately left for after the hackathon (new features, not polish): login and per-person identity (R1), timers
+  that run without an open tab (R2), Slack/SMS alerts (R7), an EU-hosted model and data retention (R5). Say so in the
+  write-up as the pilot conditions.
 
 ## Decisions for you
 

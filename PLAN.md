@@ -903,11 +903,11 @@ fallback.
 
 - [ ] Public GitHub repo (`origin`: RoopeS9/car-delivery-control-room) that runs
       from a fresh clone with the README steps.
-- [ ] README: what it is, how to run, how to trigger scenarios, architecture
-      sketch, what is mocked.
-- [ ] `traces/`: saved agent runs for each scenario.
-- [ ] Tests: approval gates, customer rule, site scoping.
-- [ ] `PROCESS.md`: how we used coding agents (30% of the score).
+- [x] README: what it is, how to run, how to trigger scenarios, architecture
+      sketch, what is mocked. (`OVERVIEW.md` has the two-page tour.)
+- [x] `traces/`: saved agent runs for each scenario.
+- [x] Tests: approval gates, customer rule, site scoping.
+- [x] `PROCESS.md`: how we used coding agents (30% of the score).
 - [ ] 2–3 min video: problem (15 s) → scenario A (60 s) → C and F (30 s) →
       queue and map (15 s) → **process (40 s)**: one AI suggestion we checked,
       what we rejected, and the improvement it led to, e.g. the Opus latency
@@ -915,7 +915,7 @@ fallback.
       that caught the operator-approval-vs-customer-agreement gap.
 - [ ] Prompthack write-up (name, tagline, story, cover screenshot, links) and
       marked as submitted.
-- [ ] Live demo run sheet, rehearsed twice.
+- [ ] Live demo run sheet (written: `RUN-SHEET.md`), rehearsed twice.
 
 ---
 
