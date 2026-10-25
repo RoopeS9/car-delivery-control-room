@@ -11,23 +11,23 @@
           <spine>
             <gap name="1a Opener" offset="0/30s" duration="180/30s" start="3600s">
               <chapter-marker start="3600s" duration="1/30s" value="1 Opener" posterOffset="0s"/>
-              <marker start="3600s" duration="1/30s" value="1a Opener: Film L1: all three in the lobby, thumbs up, phone propped, hold 4 s. Words: voice-over, we built Road Desk, AI agents do the legwork, people make the calls. Sound: cue 1." completed="0"/>
+              <marker start="3600s" duration="1/30s" value="1a Opener: Film L1: all three in the lobby, thumbs up, phone propped, hold 4 s. Words: voice-over, we built Road Desk, AI agents do the legwork, people make the calls. Music: cue 1, Upbeat Corporate." completed="0"/>
             </gap>
             <gap name="1b The numbers" offset="180/30s" duration="240/30s" start="3600s">
-              <marker start="3600s" duration="1/30s" value="1b The numbers: Use: business slide still plus cards/footnote-estimates.png. Words: voice-over, on our estimates under ten minutes not half an hour, twelve cents of AI. Sound: cue 1 peaks." completed="0"/>
+              <marker start="3600s" duration="1/30s" value="1b The numbers: Use: business slide still plus cards/footnote-estimates.png. Words: voice-over, on our estimates under ten minutes not half an hour, twelve cents of AI. Music: cue 1 peaks on the numbers." completed="0"/>
             </gap>
             <gap name="2a A calm shift" offset="420/30s" duration="240/30s" start="3600s">
               <chapter-marker start="3600s" duration="1/30s" value="2 A quiet shift" posterOffset="0s"/>
-              <marker start="3600s" duration="1/30s" value="2a A calm shift: Film L3: operator slumped at the desk, feet up, mug. Use: cards/calm-shift.png. Words: Quiet morning. Sound: cue 2." completed="0"/>
+              <marker start="3600s" duration="1/30s" value="2a A calm shift: Film L3: operator slumped at the desk, feet up, mug. Use: cards/calm-shift.png. Words: Quiet morning. Music: cue 2, Jazz Lofi." completed="0"/>
             </gap>
             <gap name="2b Simulator, keys" offset="660/30s" duration="210/30s" start="3600s">
-              <marker start="3600s" duration="1/30s" value="2b Simulator, keys: Screen R1: run C. Film L4: the simulator hand in the dark room. Use: cards/sim-keys.png, sfx/click.wav, sfx/pop.wav. Words: Keys. Agent's got it." completed="0"/>
+              <marker start="3600s" duration="1/30s" value="2b Simulator, keys: Screen R1: run C. Film L4: the simulator hand in the dark room. Use: cards/sim-keys.png, sfx/click.wav, Pixabay Pop Cartoon (or sfx/pop.wav). Words: Keys. Agent's got it." completed="0"/>
             </gap>
             <gap name="2c Panic" offset="870/30s" duration="240/30s" start="3600s">
-              <marker start="3600s" duration="1/30s" value="2c Panic: Screen R2: run A. Film L4 (the hand) and L2 (the driver in the pod, dash-cam angle). Use: cards/sim-warning.png, sfx/alarm-sting.wav, sfx/panic-pulse.wav. Words: No no no no, what is that light, it's shaking." completed="0"/>
+              <marker start="3600s" duration="1/30s" value="2c Panic: Screen R2: run A. Film L4 (the hand) and L2 (the driver in the pod, dash-cam angle). Use: cards/sim-warning.png, sfx/alarm-sting.wav. Music: cue 2b, Panic Attack, file started at 0:30 (cut at engine off). Words: No no no no, what is that light, it's shaking." completed="0"/>
             </gap>
             <gap name="2d The stop line" offset="1110/30s" duration="270/30s" start="3600s">
-              <marker start="3600s" duration="1/30s" value="2d The stop line: Screen R2 and R3: Leo's phone, Finnish and English. Film: driver pulls over. Use: cards/hazard-triangle.png flashing, sfx/hazard-tick.wav, sfx/engine-off.wav. Words: Okay, okay." completed="0"/>
+              <marker start="3600s" duration="1/30s" value="2d The stop line: Screen R2 and R3: Leo's phone, Finnish and English. Film: driver pulls over. Use: cards/hazard-triangle.png flashing, sfx/hazard-tick.wav, sfx/engine-off.wav; Panic Attack stops here. Words: Okay, okay." completed="0"/>
             </gap>
             <gap name="2e Relief" offset="1380/30s" duration="210/30s" start="3600s">
               <marker start="3600s" duration="1/30s" value="2e Relief: Screen R3: the agent's real reply. Film: shoulders drop. Use: sfx/relief-chord.wav. Words: Okay. Somebody's got this." completed="0"/>
@@ -40,18 +40,18 @@
             </gap>
             <gap name="3a The shift lead" offset="2220/30s" duration="180/30s" start="3600s">
               <chapter-marker start="3600s" duration="1/30s" value="3 The control room" posterOffset="0s"/>
-              <marker start="3600s" duration="1/30s" value="3a The shift lead: Film L3: same actor upright, dim desk, lit by the map. Words: Hamburg. Sound: cue 3." completed="0"/>
+              <marker start="3600s" duration="1/30s" value="3a The shift lead: Film L3: same actor upright, dim desk, lit by the map. Words: Hamburg. Music: cue 3, Calm Ambient Dreamscape." completed="0"/>
             </gap>
             <gap name="3b The real map" offset="2400/30s" duration="210/30s" start="3600s">
               <marker start="3600s" duration="1/30s" value="3b The real map: Screen R6: the map, dark theme, slow pan. Words: voice-over, the map shows every car and only the ones that need a person glow red." completed="0"/>
             </gap>
             <gap name="4 Timelapse" offset="2610/30s" duration="450/30s" start="3600s">
               <chapter-marker start="3600s" duration="1/30s" value="4 Timelapse" posterOffset="0s"/>
-              <marker start="3600s" duration="1/30s" value="4 Timelapse: Screen R7: the timelapse page. Use: cards/tag-simulated.png, sfx/timelapse-build.wav. No voice. Sound: cue 4." completed="0"/>
+              <marker start="3600s" duration="1/30s" value="4 Timelapse: Screen R7: the timelapse page. Use: cards/tag-simulated.png, sfx/timelapse-build.wav. No voice. Music: cue 4, Epic Build, a 15 s stretch that builds and ends on a hit." completed="0"/>
             </gap>
             <gap name="5a Process" offset="3060/30s" duration="840/30s" start="3600s">
               <chapter-marker start="3600s" duration="1/30s" value="5 On camera" posterOffset="0s"/>
-              <marker start="3600s" duration="1/30s" value="5a Process: Voice-over over B-roll R8: PROCESS.md, session list, night harness; one 2 s hand-held shot of the team. Words: see SCRIPT.md scene 5a. Sound: cue 5." completed="0"/>
+              <marker start="3600s" duration="1/30s" value="5a Process: Voice-over over B-roll R8: PROCESS.md, session list, night harness; one 2 s hand-held shot of the team. Words: see SCRIPT.md scene 5a. Music: cue 5, warm bed (not chosen yet)." completed="0"/>
             </gap>
             <gap name="5b Limits and next steps" offset="3900/30s" duration="780/30s" start="3600s">
               <marker start="3600s" duration="1/30s" value="5b Limits and next steps: Voice-over over the limits and next-steps slides (6-8 s each) with the live map between. Words: see SCRIPT.md scene 5b." completed="0"/>

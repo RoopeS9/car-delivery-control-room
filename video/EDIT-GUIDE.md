@@ -82,7 +82,7 @@ use *Match Color* on the others; lower the exposure a little on the dark-room sc
 
 **11. Export.** *File ▸ Share ▸ Master File*, set the format to *Computer*, video codec *H.264 Faster Encode*, resolution
 1920×1080. On the *Roles* tab, set the captions to **Burn In** so the English subtitles are in the picture (judges may watch
-with the sound off). Name it `road-desk-demo.mp4`. Check the file once on a phone before you upload it.
+with the sound off). Name it `road-desk-demo.mp4`. Check the file once on a phone before you upload it. Paste the music credits from `video/CREDITS.md` into the video description.
 
 ## Keys you will use all day
 

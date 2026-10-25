@@ -22,6 +22,39 @@ One track per cue is enough; two or three tracks in total is fine. Times follow 
 Sound effects (all short): a cartoon pop (2b), an alarm sting (2c), a mouse click (every “Run”), a snare roll (2g), a
 mug being put down (2f), a record scratch if you want a joke at “Not now.”
 
+## Your picks (checked against each track’s page this morning)
+
+All of them say **“Free for use under the Pixabay Content License”**. Nothing here has been downloaded or listened to by me.
+
+| Cue | Where in the film | Track | Artist | Length | In and out |
+|---|---|---|---|---|---|
+| 1 | 0:00–0:14 | [Upbeat Corporate](https://pixabay.com/music/corporate-upbeat-corporate-617614/) | AtlasAudio | 2:36 | Start at the track’s beginning; fade out over 1 s into cue 2. If the build peaks late, start from a later point so a bar lands on the numbers at 0:06. |
+| 2 | 0:14–1:14 (not under the panic) | [Jazz Lofi](https://pixabay.com/music/smooth-jazz-jazz-lofi-590181/) | ZephiraMusic | 2:40 | 60 s needed. Duck it to silence for the panic (0:29–0:46); bring it back with the relief at 0:46. |
+| 2b | 0:29–0:46 | [Panic Attack](https://pixabay.com/music/crime-scene-panic-attack-427789/) | geoffharvey | 1:10 | **Start the file at 0:30**, as you said: that leaves 40 s and you need 17. Cut it hard at “engine off” (0:46), with the alarm sting from `sfx/` on the way in. |
+| 3 | 1:14–1:27 | [Calm Ambient Dreamscape](https://pixabay.com/music/ambient-calm-ambient-dreamscape-589108/) | MondaMusic | 1:54 | 13 s needed. Fade in over 1 s, fade out into the timelapse. |
+| 4 | 1:27–1:42 | [Epic Build](https://pixabay.com/music/main-title-epic-build-137050/) | The_Mountain | 2:10 | 15 s needed. Audition it and pick a 15-second stretch that **builds and ends on a hit**; the film’s loudest point. |
+| 5 | 1:42–2:50 | **Not chosen yet.** The link was a search page, not a track. | | | 68 s needed. See the candidates below. |
+| SFX | the “Run” clicks | [Pop Cartoon](https://pixabay.com/sound-effects/film-special-effects-pop-cartoon-328167/) | CreatorsHome | about 1 s | Use it instead of my synthesized `sfx/pop.wav`. |
+
+**Cue 5 candidates** (from that search page; titles, artists and lengths only, I have not heard them), all long enough:
+[Hopeful Warm Music](https://pixabay.com/music/modern-classical-hopeful-warm-music-601663/) (andriih, 2:14),
+[Inspiring Piano](https://pixabay.com/music/small-drama-inspiring-piano-602520/) (NastelBom, 1:54),
+[Piano inspiring](https://pixabay.com/music/modern-classical-piano-inspiring-152810/) (PaulYudin, 2:36).
+It sits under voice-over for over a minute, so choose the plainest one, with no drums and no melody that fights the words.
+
+### Three things the pages showed
+
+1. **Content ID.** The pages for all five music tracks (cues 1, 2, 2b, 3 and 4) show “Content ID Registered”. In practice an
+   upload to YouTube may show a claim even though the licence allows the use. The artist of *Panic Attack* writes on the page
+   that crediting “Geoff Harvey - Pixabay” in a YouTube description avoids matches, so put the credits in the description (the
+   text is in `video/CREDITS.md`). If a claim appears anyway, dispute it with the Pixabay licence page and your screenshots. If
+   you can, host the file somewhere that does not scan (the hackathon may want only a link or a file). The *Pop Cartoon* page
+   shows no Content ID mark.
+2. ***Jazz Lofi* is AI-generated.** The page’s description says so. That is allowed by the same licence, and it suits this
+   hackathon, but say it in the credits rather than leave it out.
+3. **Download your own copies.** Take each file from its page yourself, so the licence screenshot and the download are tied
+   together (see “Licence record” below).
+
 ## Where to find them
 
 | Source | Licence, as I could confirm it | What you must do | Fit |
