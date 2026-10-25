@@ -140,7 +140,7 @@ export function CallScreen({ target, onClose, autoStart = false, onResult }: {
     stopPlayback()
     try { if (current.ws) { current.ws.onclose = null; current.ws.close() } } catch { /* closing */ }
     try { current.stream?.getTracks().forEach((track) => track.stop()) } catch { /* stopped */ }
-    try { void current.ctx.close() } catch { /* closed */ }
+    current.ctx.close().catch(() => { /* closed */ })
     flags.current.live = false
   }
 
@@ -240,7 +240,7 @@ export function CallScreen({ target, onClose, autoStart = false, onResult }: {
     setLinked(null)
     // The AudioContext must be created inside the tap.
     const ctx = new AudioContext()
-    void ctx.resume()
+    ctx.resume().catch(() => { /* closed before it resumed */ })
     try {
       const book = await fetch(`${LINE}/phonebook`, { cache: "no-store" }).then((response) => response.ok ? response.json() : null) as { busy?: unknown; contacts?: { id: string; status: string; detail?: string }[] } | null
       if (!book) throw new Error("The phone line is not reachable.")
@@ -293,7 +293,7 @@ export function CallScreen({ target, onClose, autoStart = false, onResult }: {
       setPhase("connecting")
       openSocket(placed.ws)
     } catch (error) {
-      try { void ctx.close() } catch { /* closed */ }
+      ctx.close().catch(() => { /* closed */ })
       setPhase("failed")
       setStatus(error instanceof Error ? (error.name === "NotAllowedError" ? "The microphone was not allowed. Allow it in the browser and try again." : error.message) : "The call could not start.")
     }
