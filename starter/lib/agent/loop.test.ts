@@ -11,7 +11,7 @@ import assert from "node:assert/strict"
 import { after, before, describe, test } from "node:test"
 import { inArray } from "drizzle-orm"
 import { closeCrDb, crDb } from "@/lib/cr/db"
-import { createProposal, getCase, listEffects, listEvents, listProposals, resolveOrder, updateCase } from "@/lib/cr/queries"
+import { appendEvent, createProposal, getCase, insertEffect, listEffects, listEvents, listProposals, resolveOrder, updateCase } from "@/lib/cr/queries"
 import { crAgentRuns, crCases, crEffects, crEvents, crProposals } from "@/lib/cr/schema"
 import { useTestLlm } from "./client"
 import { decide, handleDriverMessage, handleTelemetryFault, outcome, prepareDriverMessage, runFollowUps } from "./triggers"
@@ -263,6 +263,25 @@ describe("scenario A wiring", () => {
     await runFollowUps([{ kind: "analysis", caseId, reason: "The customer's answer was recorded." }])
     assert.equal((await getCase(caseId))?.status, "NEEDS_DECISION", "the open card stays in Needs you")
     await crDb().delete(crProposals).where(inArray(crProposals.id, [card.id]))
+  })
+
+  test("a customer's emailed yes to a new date keeps the case with operations until a person records it", async () => {
+    const row = (await getCase(caseId))!
+    const effect = await insertEffect({
+      orderId: row.orderId, caseId, kind: "PROMISE_CHANGE", state: "PROPOSED_TO_CUSTOMER", value: { text: "Fri 23 Oct 12:00–16:00" },
+      authority: { by: "ops-shift", by_type: "operator", at: new Date().toISOString(), proposal_id: null, basis: "Test." },
+    })
+    await appendEvent({ caseId, orderId: row.orderId, actorType: "customer", actorId: "cus-test", kind: "message", channel: "customer_email", recipientType: "agent", body: "Friday works, we agree." })
+    await updateCase(caseId, { status: "AGENT_WORKING" })
+    useTestLlm(scriptedModel([
+      { stop_reason: "tool_use", content: [tool("w3", "wait_for", { waiting_for: "provider", waiting_on: "the roadside partner", next_action: "Check the collection happened.", check_in_minutes: 60 })] },
+      { stop_reason: "end_turn", content: [text("The customer wrote that they agree; an operator records it.")] },
+    ]))
+    await runFollowUps([{ kind: "analysis", caseId, reason: "The customer answered the new date." }])
+    const after = await getCase(caseId)
+    assert.equal(after?.status, "NEEDS_DECISION")
+    assert.match(String(after?.waitingOn), /record the customer's answer/)
+    await crDb().delete(crEffects).where(inArray(crEffects.id, [effect.id]))
   })
 
   test("notes before a separator line never reach the driver", async () => {

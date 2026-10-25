@@ -66,10 +66,19 @@ clears the driver.
 Scenario H walks a whole delivery. The clock moves to Kasper Darevik's pickup
 slot in Stockholm; in his phone he reports each step (at the pickup, car and
 keys collected, checked in for the ferry, at the delivery address, handed over
-to a named receiver). The map, the order and the board follow every step, and
+to a named receiver). At the collection and the handover he can add photos of
+the car (his own, or labelled demo pictures); they become the order's pickup or
+delivery photo proof. The map, the order (its assignment steps, evidence and
+timeline), the board and the pickup desk on `/dealer` follow every step, and
 the handover brings operations the customer's delivery confirmation to approve.
 The steps are our own events laid over the unchanged snapshot; reset removes
 them.
+
+Scenario B can go on to a new date: tell the agent the owner's plan and ask for
+a new window; approve the proposal card (the customer gets the message), then
+send the customer's agreement from `/demo`. The order's **Delivery promise**
+block quotes their email; **Customer agreed** records it, and only then does
+the promise move.
 
 The customer's side is messages only. On `/demo`, **The customer writes** sends
 a simulated email from the paying customer of any order; it lands on the order's
@@ -131,6 +140,13 @@ DATABASE_URL=postgres://controlroom:controlroom@localhost:5438/controlroom_test 
 consume API credit. Run them against disposable demo data; scenario A clears
 the added road-support records. Agent traces are under `starter/traces/`.
 `npm run voice:test` is a separate real-model interview harness.
+
+`APP_URL=http://localhost:3000 npm run e2e:roles` plays the driver, the pickup
+desk, the customer and the operator through scenarios A, B, C, D, F, G, H and a
+customer email against a running app with the real model (a few cents on
+DeepSeek), checking what the records must show rather than the wording. It
+resets the demo before and between stories; run it on demo data. Name stories
+to run only some: `npm run e2e:roles -- B H`.
 
 ## Repository guide
 

@@ -7,6 +7,8 @@
 // Prints one line per check and exits non-zero when one fails. Model wording varies; the checks look at what the
 // records must show (a case, a card of the right kind, nothing sent to a customer without a person), not at words.
 
+import { readFileSync } from "node:fs"
+
 const APP = process.env.APP_URL ?? "http://127.0.0.1:3000"
 const OPS = "ops-shift"
 
@@ -159,11 +161,18 @@ const stories: Record<string, () => Promise<void>> = {
   },
   async H() {
     await call("/api/sim/scenarios/pickup-to-handover-442", {})
+    // One condition photo at the collection, as the driver's phone uploads it.
+    const form = new FormData()
+    form.set("file", new File([readFileSync(new URL("../public/sim/dashboard-misfire.jpg", import.meta.url))], "car.jpg", { type: "image/jpeg" }))
+    form.set("orderRef", "CD-420442"); form.set("uploadedBy", "drv-165"); form.set("subject", "condition at pickup")
+    const photo = await (await fetch(`${APP}/api/channels/photos`, { method: "POST", body: form })).json() as { photoId: string }
     for (const step of ["ARRIVED_PICKUP", "COLLECTED", "CHECKED_IN", "ARRIVED_DELIVERY"]) {
-      await call("/api/channels/driver/milestone", { orderRef: "CD-420442", driverId: "drv-165", milestone: step, keys: 2 })
+      await call("/api/channels/driver/milestone", { orderRef: "CD-420442", driverId: "drv-165", milestone: step, keys: 2, photoIds: step === "COLLECTED" ? [photo.photoId] : [] })
     }
-    const order = await call<{ order: { status: string } }>("/api/orders/ord-00442")
+    const order = await call<{ order: { status: string }; view: { proofs: { kind: string; status: string }[]; assignments: { steps: { kind: string; status: string }[] }[] } }>("/api/orders/ord-00442")
     check("a collection puts the order in transit", order.order.status === "IN_TRANSIT", order.order.status)
+    check("the pickup photo becomes the pickup proof", order.view.proofs.some((proof) => proof.kind === "PICKUP_PHOTOS" && proof.status === "SUBMITTED"))
+    check("the pickup step reads completed", order.view.assignments.some((row) => row.steps.some((step) => step.kind === "VEHICLE_PICKUP" && step.status === "COMPLETED")))
     const handed = await call<{ caseId: string | null }>("/api/channels/driver/milestone", { orderRef: "CD-420442", driverId: "drv-165", milestone: "DELIVERED", receiverName: "Mikko Rautio", keys: 2 })
     const card = handed.caseId ? (await detail(handed.caseId)).proposals.find((proposal) => proposal.status === "PENDING") : null
     check("a handover brings the customer's confirmation as a card", card?.actionType === "CONTACT_CUSTOMER" && /Mikko Rautio/.test(card.draftMessage?.body ?? ""))

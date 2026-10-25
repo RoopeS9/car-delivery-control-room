@@ -17,7 +17,7 @@ import { AGENT_ID } from "./config"
 import { contextFor, loadOrderFacts, type End } from "./context"
 import { loadDriverSafetyContext, renderSafetyTemplate, SAFETY_TEMPLATES, screenDriverMessage } from "./drivability"
 import { firstName, localTime, relative, utcTime } from "./format"
-import { checkTool, newFactsSince, recordedTravelSelection, submitProposal, validateProposal, type GateContext, type ProposalInput, type ToolName } from "./gate"
+import { checkTool, newFactsSince, recordedTravelSelection, submitProposal, unrecordedCustomerAnswer, validateProposal, type GateContext, type ProposalInput, type ToolName } from "./gate"
 import { cityCoords, matchWarningLights, playbook, playbooks, troubleCode } from "./knowledge"
 import { findNearbyHelp, searchTravelOptions, type HelpKind, type TravelKind } from "./mocks"
 import { orderTimeline, renderLines } from "./timeline"
@@ -578,8 +578,14 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
       if (statedMinutes >= 1 && statedMinutes <= 24 * 60 && Math.abs(statedMinutes - minutes) > 15) { minutes = statedMinutes; corrected = true }
     }
     // A card still waiting for a person keeps the case in "Needs you"; the wait only sets when the agent looks again.
+    // So does a customer's answer to a proposed date that nobody has recorded yet: their email is not the record.
     const pending = await listProposals({ caseId: state.caseRow.id, statuses: ["PENDING"] })
-    const updated = await updateCase(state.caseRow.id, {
+    const unrecorded = !pending.length && await unrecordedCustomerAnswer(state.caseRow.id)
+    const updated = await updateCase(state.caseRow.id, unrecorded ? {
+      status: "NEEDS_DECISION", owner: null, waitingFor: "operator", waitingOn: "an operator to record the customer's answer to the new date",
+      nextAction: `Record the customer's answer in the Delivery promise block (their email is not the record). Then: ${str(input.next_action) || "the agent continues."}`,
+      nextCheckAt: new Date(simNow().getTime() + minutes * 60000),
+    } : {
       status: pending.length ? "NEEDS_DECISION" as const : "WAITING_EXTERNAL" as const,
       owner: "agent", waitingFor: str(input.waiting_for) as WaitingFor, waitingOn: str(input.waiting_on) || "an answer",
       nextAction: str(input.next_action) || null, nextCheckAt: new Date(simNow().getTime() + minutes * 60000),
@@ -593,6 +599,7 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
       caseId: state.caseRow.id, orderId: state.facts.id, actorType: "agent", actorId: AGENT_ID, kind: "note", channel: "internal",
       body: `Waiting on ${str(input.waiting_on)}. Next check at ${utcTime(at)}, in ${minutes} min: ${str(input.next_action)}`,
     })
+    if (unrecorded) return { content: `Recorded, but the case stays with operations: the customer answered the proposed date and nobody has recorded their answer yet, so the promise has not changed. Do not write that it changed; say the customer wrote that they agree (or decline) and an operator records it. Your check runs in ${minutes} minutes, at ${when} (simulated clock).`, log: null }
     return { content: `The case waits on ${str(input.waiting_on)}. The follow-up runs in ${minutes} minutes, at ${when} (simulated clock)${corrected ? ", the time your next action names (the minutes you gave did not match it)" : ""}. If that is not the time you meant, call wait_for again with the corrected minutes.`, log: null }
   },
 

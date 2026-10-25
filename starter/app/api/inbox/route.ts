@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm"
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
+import { listProposals } from "@/lib/cr/queries"
 import { buildInboxView } from "@/lib/present/inbox"
 import { loadShared, orderRefs } from "@/lib/present/load"
 import { conversations, messages, relatedRecords } from "@/lib/schema"
@@ -38,5 +39,12 @@ export async function GET() {
   const snapshots = new Map<string, string>()
   for (const message of orderMessages) if (typeof message.author_id === "string" && typeof message.author_name_snapshot === "string") snapshots.set(message.author_id, message.author_name_snapshot)
   const view = buildInboxView(threads, all, shared.makeDirectory(snapshots), refs, shared.snapshotAt)
+  // A reply Road Desk already drafted for this person waits as a card: say so where the desk would write its own.
+  const drafts = (await listProposals({ statuses: ["PENDING"] }).catch(() => [])).filter((row) => row.draftMessage && (row.actionType === "CONTACT_CUSTOMER" || row.actionType === "CONTACT_SITE_AS_CUSTOMER"))
+  for (const thread of view.threads) {
+    const order = thread.linked[0]
+    const draft = order && thread.counterparty ? drafts.find((row) => row.orderId === order.id && row.draftMessage!.to_id === thread.counterparty!.id) : null
+    thread.drafted = draft ? { title: draft.title, caseId: draft.caseId, orderId: draft.orderId } : null
+  }
   return NextResponse.json({ threads: mail, messages: mailMessages, view })
 }

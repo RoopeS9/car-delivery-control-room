@@ -670,6 +670,8 @@ export type InboxThreadView = {
   linked: OrderRef[]
   resolution: { decisionLabel: string; at: string | null } | null
   messages: InboxMessageView[]
+  /** A reply Road Desk drafted to this person that waits for approval on the order's case. */
+  drafted?: { title: string; caseId: string; orderId: string } | null
 }
 
 export type InboxView = { snapshotAt: string | null; threads: InboxThreadView[]; open: number }

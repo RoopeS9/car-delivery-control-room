@@ -43,7 +43,9 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
 
   useEffect(() => {
     if (detail) document.title = `${detail.view.header.reference} · ${detail.view.header.vehicle?.title ?? "Order"} · Road Desk`
-  }, [detail])
+    // Opened by its reference: keep the address on the record's id, like every link in the app.
+    if (detail && detail.order.id !== id) window.history.replaceState(null, "", `/orders/${detail.order.id}${window.location.hash}`)
+  }, [detail, id])
 
   // A deep link from the map (#thread-…, #call-…, #case-…) lands on that conversation once it has rendered.
   const landed = useRef(false)
@@ -65,7 +67,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
     <nav className="crumbs" aria-label="Breadcrumb"><Link href="/">Map</Link><span>/</span><span>{detail?.view.header.reference ?? "Record"}</span></nav>
     {error && !detail && <div className="record-state" role="alert"><h1>{error}</h1><p>The record could not be opened. <Link href="/">Back to the map</Link></p></div>}
     {!error && !detail && <div className="record-state" aria-busy="true"><div className="cover skeleton-cover" /><p>Loading order…</p></div>}
-    {detail && <ActionStrip orderId={id} />}
+    {detail && <ActionStrip orderId={detail.order.id} />}
     {detail && <OrderPane detail={detail} onChange={refresh} />}
   </main></AppFrame>
 }

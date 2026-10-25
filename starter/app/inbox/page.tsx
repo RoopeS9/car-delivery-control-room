@@ -170,6 +170,8 @@ function Thread({ thread, onBack, onChange }: { thread: InboxThreadView; onBack:
       </div>
     </header>
     {thread.messages.length > 0 ? <ThreadMessages thread={thread} /> : <p className="empty">No messages filed under this thread.</p>}
+    {thread.drafted && <p className="mail-drafted"><Icon name="proposal" size={14} /> <span><b>Road Desk drafted a reply:</b> “{thread.drafted.title}”. It waits for your approval on the order, so write here only if you mean to answer yourself.</span>
+      <Link className="btn small" href={`/orders/${thread.drafted.orderId}#case-${thread.drafted.caseId}`}>Open the card</Link></p>}
     <Composer to={thread.counterparty?.name ?? null} channelLabel={thread.channelLabel} autoFocus={thread.unanswered}
       suggest={(intent) => postJson<Draft>(`${base}/suggest`, onOrder ? { orderId: order?.id, intent } : { intent })}
       send={(body, internal, language) => postJson(`${base}/messages`, { body, internal, language }).then(() => undefined)}

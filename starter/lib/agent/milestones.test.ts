@@ -10,7 +10,7 @@ import { closeCrDb, crDb } from "@/lib/cr/db"
 import { lifecycleOf, nextMilestone, overlayProofs, overlayStatus, overlayStep, syntheticEvents, type Lifecycle } from "@/lib/cr/lifecycle"
 import { listEffects, listProposals, resolveOrder } from "@/lib/cr/queries"
 import { crCases, crEvents, crProposals } from "@/lib/cr/schema"
-import { loadOrderFacts } from "./context"
+import { getSiteContext, loadOrderFacts } from "./context"
 import { recordMilestone } from "./milestones"
 
 const ORDER = "CD-420442"
@@ -49,6 +49,9 @@ describe("delivery steps reported in the driver app", () => {
     const facts = (await loadOrderFacts(orderId))!
     assert.equal(facts.status, "IN_TRANSIT")
     assert.equal(facts.assignments.find((row) => row.driver_id === DRIVER)?.status, "IN_PROGRESS")
+    const desk = await getSiteContext(facts, "pickup")
+    assert.deepEqual(desk.steps_reported_at_your_end.map((step) => step.step), ["Car and keys collected"], "the desk can say the car left")
+    assert.equal((await getSiteContext(facts, "delivery")).steps_reported_at_your_end.length, 0, "the other end sees nothing of it")
   })
 
   test("a check-in reads as the ferry's simulated gate scan", async () => {

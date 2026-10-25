@@ -6,7 +6,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm"
 import { crDb } from "@/lib/cr/db"
 import { effectiveOrder, type EffectiveBooking, type EffectiveOrder } from "@/lib/cr/effective"
 import { latestTelemetry } from "@/lib/cr/queries"
-import { lifecycleOf, overlayAssignment, overlayReservation, overlayStatus } from "@/lib/cr/lifecycle"
+import { lifecycleOf, MILESTONE_WORDS, MILESTONES, overlayAssignment, overlayReservation, overlayStatus, type Milestone } from "@/lib/cr/lifecycle"
 import type { Audience, GpsData, ObdData, SourceRef } from "@/lib/cr/types"
 import { addresses, alerts, conversations, customers, drivers, messages, orderItems, orders, relatedRecords, sites, vehicles } from "@/lib/schema"
 import { firstName, localTime, money, relative, utcTime } from "./format"
@@ -50,6 +50,8 @@ export type OrderFacts = {
   openConversations: Raw[]
   /** Ferry terminal id → IANA time zone, for local departure times. */
   terminalZones: Map<string, string>
+  /** The delivery's steps the driver reported in the driver app (simulated), in order. */
+  steps: { milestone: Milestone; at: string; driverId: string; keys: number | null; receiver: string | null; photos: number; eventId: string }[]
 }
 
 const RELATED = [
@@ -135,7 +137,20 @@ export async function loadOrderFacts(orderId: string): Promise<OrderFacts | null
     expenses: byCollection("expenses").sort(byTime("submitted_at")),
     openConversations: conversationRows.map((row) => row.details),
     terminalZones: new Map(terminalRows.map((row) => [row.id, String(row.details.timezone ?? "UTC")])),
+    steps: MILESTONES.flatMap((milestone) => {
+      const step = lifecycle?.[milestone]
+      return step ? [{ milestone, at: step.at, driverId: step.driverId, keys: step.data.keys ?? null, receiver: step.data.receiver_name ?? null, photos: step.data.photo_ids?.length ?? 0, eventId: step.eventId }] : []
+    }),
   }
+}
+
+/** The driver's reported steps for a reader: `end` keeps a site to its own end of the trip. */
+function stepsView(facts: OrderFacts, end?: End) {
+  const ends: Record<End, Milestone[]> = { pickup: ["ARRIVED_PICKUP", "COLLECTED"], delivery: ["ARRIVED_DELIVERY", "DELIVERED"] }
+  return facts.steps.filter((step) => !end || ends[end].includes(step.milestone)).map((step) => ({
+    step: MILESTONE_WORDS[step.milestone], at: utcTime(step.at), keys: step.keys, ...(step.receiver ? { handed_to: step.receiver } : {}), ...(step.photos ? { photos: step.photos } : {}),
+    source: ref("cr_events", step.eventId, `${MILESTONE_WORDS[step.milestone]}, reported in the driver app (simulated)`, step.at),
+  }))
 }
 
 /** The driver currently working this order: the started assignment first, then a booked one. */
@@ -409,6 +424,7 @@ export async function getSiteContext(facts: OrderFacts, end: End) {
     driver_first_name: firstName(driver),
     driver_booking: assignment ? { status: str(assignment.status) === "IN_PROGRESS" ? "on the job" : str(assignment.status) === "ASSIGNED" ? "booked" : str(assignment.status)?.toLowerCase(), source: ref("work_assignments", assignment.id, "Driver booking", assignment.accepted_at) } : null,
     journey_start: journeyStart(assignment),
+    steps_reported_at_your_end: stepsView(facts, end),
     planned_window: end === "pickup" ? (slot ? windowView(slot) : null) : promiseView(effective, "site"),
     latest_driver_position: telemetry.phone_position,
     may_not_share: "Prices, other orders, the customer's details, conversations, internal notes.",
@@ -440,6 +456,7 @@ function commonView(facts: OrderFacts, audience: "driver" | "operator", driverId
       source: ref("work_assignments", assignment?.id, `Driver booking, ${driver}`, assignment?.accepted_at),
     } : null,
     last_driver_app_progress: trackingView(facts.tracking.at(-1)),
+    steps_reported_in_driver_app: stepsView(facts),
   }
 }
 

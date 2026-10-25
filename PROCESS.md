@@ -1320,3 +1320,45 @@ Checked / changed / rejected:
   case (the record marks it unconfirmed). Kept: it is a defensible reading of the evidence, and the harness accepts
   either a closed case or exactly one card.
 - Spend for the whole night so far: about $3.20 of model calls (DeepSeek v4 for the agent).
+
+## 2026-10-25 ~00:00–01:30 UTC · RoopeS + Claude Code (cloud) · night run, third part
+
+Asked: keep iterating on your own within the budget; walk the paths the first runs did not reach.
+
+Got:
+- Scenario B through a new date, as four roles: the operator instructs a new window, approves the proposal (the
+  customer's message goes out, the promise does not move), the customer agrees by email from `/demo`, the agent
+  drafts the acknowledgement as a card, the operator records the agreement, and only then does the promise read
+  Fri 23 Oct on the order, the header and the story. Harness story B checks each of those (6/6).
+- Defects that run found, fixed: after a recorded customer answer the agent set a wait with the reply card still
+  open, and the case sat in "agent working" (now it stays in Needs you); a reply card listed "Delivery promise:
+  agreed" as a change, which approving a message never makes (message cards carry no record changes now); card
+  changes carried raw UTC instants in brackets (the words stay human, the instant stays in the value); the agent
+  once drafted a separate "record the agreement" card next to the reply (the instructions now keep one card).
+- The Delivery promise block quotes the customer's email under the proposal and uses it as the evidence when the
+  operator presses Customer agreed or declined.
+- The seller's desk (`/dealer`) keeps a car the driver reported collected, marked "Collected 09:50 (driver app,
+  simulated)", and no longer offers a readiness call for it: the call service's actions now read the live app
+  state, so the same car gets a position check for the driver instead.
+- The driver's collection and handover take condition photos (his own or labelled demo pictures). They become
+  the dataset's own PICKUP_PHOTOS / DELIVERY_PHOTOS proof (a required one is submitted, else one is added), and
+  the dataset's pickup and delivery assignment steps complete with the synthetic event as their evidence.
+- `/orders/CD-420322` opens the order by its reference.
+- The full harness run caught one more: on the turn after the customer's "we agree" email the agent told
+  operations "delivery is now Friday" and set a wait that moved the case out of Needs you, though nobody had
+  recorded the answer. Now a wait cannot hide an unrecorded customer answer to a proposed date (the case stays
+  with operations, "record the customer's answer"), the tool result says the promise has not changed, and the
+  prompt names the email-yes case.
+- The Inbox thread says when Road Desk already drafted a reply to that person and links to the card, so the desk
+  does not answer twice.
+- The agent's order context lists the steps the driver reported (with their event as the source); a pickup or
+  delivery desk sees only its own end's steps.
+
+Checked / changed / rejected:
+- One "missing card" was the turn still running when I looked (the sim clock had not moved); checked the run
+  record before changing anything, and changed nothing for it.
+- Scenario A after the logged recovery: the agent tells the driver and waits on the roadside help with the
+  ferry cutoff in its note, and drafts no customer delay message. Kept: the promise is 26 Oct with days of slack,
+  and the plan says scripts state boundaries, not conclusions.
+- Loading states: every page renders in 10–270 ms on the production build and the order page has its own loading
+  view; no loading.tsx added.

@@ -848,6 +848,18 @@ export async function logOutcome(caseId: string, input: LogOutcomeRequest): Prom
 }
 
 /**
+ * The customer wrote after a new date was proposed to them, and nobody has recorded their answer yet: their email
+ * is not the record, so the case stays with operations until a person records it (agreed or declined).
+ */
+export async function unrecordedCustomerAnswer(caseId: string): Promise<boolean> {
+  const effects = await listEffects({ caseId, kinds: ["PROMISE_CHANGE"] })
+  const answered = new Set(effects.map((row) => row.supersedesId).filter(Boolean))
+  const open = effects.filter((row) => row.state === "PROPOSED_TO_CUSTOMER" && !answered.has(row.id)).at(-1)
+  if (!open) return false
+  return (await listEvents({ caseId })).some((event) => event.actorType === "customer" && event.kind === "message" && event.at > open.at)
+}
+
+/**
  * The customer's answer to a proposed promise change. Only "agreed", with its
  * evidence, changes the effective promise (PLAN.md rule 2).
  */

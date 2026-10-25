@@ -314,7 +314,8 @@ export type OrderLoad = {
 
 /** One order with every linked record, including shared bundle offers and threads filed on related orders. */
 export async function loadOrder(id: string): Promise<OrderLoad | null> {
-  const [order] = await db.select().from(orders).where(eq(orders.id, id)).limit(1)
+  // By id, or by the reference people type ("CD-420322").
+  const [order] = await db.select().from(orders).where(/^cd-/i.test(id) ? eq(orders.reference, id.toUpperCase()) : eq(orders.id, id)).limit(1)
   if (!order) return null
   const shared = await loadShared()
   const [customer] = await db.select().from(customers).where(eq(customers.id, order.customerId)).limit(1)
