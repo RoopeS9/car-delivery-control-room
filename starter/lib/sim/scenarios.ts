@@ -8,7 +8,9 @@ import { and, eq, sql } from "drizzle-orm"
 import { beginRuntimeReset, RuntimeBusyError, withRuntimeWork } from "@/lib/cr/activity"
 import { advanceSimClock, resetSimClock, simNow } from "@/lib/cr/clock"
 import { crDb } from "@/lib/cr/db"
-import { appendEvent, insertTelemetry } from "@/lib/cr/queries"
+import { appendEvent, insertTelemetry, listCases } from "@/lib/cr/queries"
+import { lifecycleOf, MILESTONE_WORDS, nextMilestone, type Milestone } from "@/lib/cr/lifecycle"
+import { OPEN_CASE_STATUSES } from "@/lib/cr/types"
 import type { DriverMessageRequest, SiteMessageRequest, SourceRef, TelemetryTriggerRequest } from "@/lib/cr/types"
 import { orders, relatedRecords } from "@/lib/schema"
 import { fleetCar, loadFleet, type FleetCar } from "./fleet"
@@ -83,7 +85,8 @@ export const SCENARIOS: ScenarioInfo[] = [
     orderRef: "CD-420442",
     description: "The next morning in Stockholm: the clock moves to the start of Kasper Darevik's pickup slot at Orvendin Cars. " +
       "In his phone he reports each step: at the pickup, car and keys collected, checked in for the ferry, at the delivery address in Tampere, handed over. " +
-      "The map, the order and the board follow each step; the handover brings operations the customer's delivery confirmation to approve. Jump the clock between steps to watch the car drive.",
+      "Run it again after a step to move the clock to the next one's time in the records (the ferry check-in, then the delivery window). " +
+      "The map, the order and the board follow each step; the handover brings operations the customer's delivery confirmation to approve.",
     links: [{ label: "Kasper Darevik's driver app", href: "/driver?driver=drv-165&job=CD-420442" }],
   },
   {
@@ -287,18 +290,39 @@ async function sensorLight439(): Promise<ScenarioResult> {
 
 async function pickupToHandover442(): Promise<ScenarioResult> {
   const name = "pickup-to-handover-442"
-  const [slot] = await crDb().select({ details: relatedRecords.details }).from(relatedRecords)
-    .where(and(eq(relatedRecords.orderId, "ord-00442"), eq(relatedRecords.collection, "time_windows"), sql`${relatedRecords.details}->>'purpose' = 'SELECTED_PICKUP_SLOT'`)).limit(1)
-  const start = slot ? Date.parse(String(slot.details.start_at)) : NaN
-  if (!Number.isFinite(start)) return { ok: false, name, message: "CD-420442 has no selected pickup slot in this dataset." }
-  const now = simNow()
-  // Ten minutes before the slot opens; a clock already past it stays where it is.
-  const target = start - 10 * 60_000
-  if (target > now.getTime()) advanceSimClock(Math.round((target - now.getTime()) / 60_000))
+  const related = await crDb().select({ collection: relatedRecords.collection, details: relatedRecords.details }).from(relatedRecords)
+    .where(and(eq(relatedRecords.orderId, "ord-00442"), sql`${relatedRecords.collection} in ('time_windows', 'travel_reservations')`))
+  const when = (row: { details: Record<string, unknown> } | undefined, field: string) => (row ? Date.parse(String(row.details[field])) : NaN)
+  const slot = related.find((row) => row.details.purpose === "SELECTED_PICKUP_SLOT")
+  const promise = related.find((row) => row.details.purpose === "CUSTOMER_DELIVERY_PROMISE" && row.details.is_selected === true)
+  const ferry = related.find((row) => row.details.kind === "FERRY" && row.details.status === "BOOKED")
+  const lifecycle = await lifecycleOf("ord-00442")
+  const next = nextMilestone(lifecycle, Boolean(ferry))
+  if (!next) return { ok: true, name, orderId: "ord-00442", message: "The car is handed over. Reset the demo to run H again." }
+  // When the next step happens in the records: the pickup slot, an hour before the ferry's check-in closes, just before
+  // the delivery window opens, then inside it. Each run moves the clock there.
+  const times: Record<Milestone, { at: number; why: string }> = {
+    ARRIVED_PICKUP: { at: when(slot, "start_at") - 10 * 60_000, why: "just before Kasper Darevik's pickup slot at Orvendin Cars Stockholm" },
+    COLLECTED: { at: when(slot, "start_at"), why: "the pickup slot opens" },
+    CHECKED_IN: { at: when(ferry, "check_in_cutoff_at") - 60 * 60_000, why: "an hour before the ferry's check-in closes" },
+    ARRIVED_DELIVERY: { at: when(promise, "start_at") - 10 * 60_000, why: "ten minutes before the delivery window opens in Tampere" },
+    DELIVERED: { at: Math.max(Date.parse(lifecycle.ARRIVED_DELIVERY?.at ?? "") + 10 * 60_000, when(promise, "start_at") + 10 * 60_000), why: "inside the delivery window" },
+  }
+  const target = times[next]
+  if (!Number.isFinite(target.at)) return { ok: false, name, message: `CD-420442 has no time in the records for "${MILESTONE_WORDS[next]}".` }
+  const now = simNow().getTime()
+  if (target.at > now) {
+    // A jump of days would fire every other open case's timers on the way: those belong to another story.
+    const others = (await listCases({ statuses: [...OPEN_CASE_STATUSES] })).filter((row) => row.orderId !== "ord-00442")
+    if (target.at - now > 12 * 3600_000 && others.length) {
+      return { ok: false, name, message: `The next step is ${Math.round((target.at - now) / 86_400_000)} days ahead and ${others.length} other ${others.length === 1 ? "case is" : "cases are"} open; their timers would fire on the way. Reset the demo first, or run H last.` }
+    }
+    advanceSimClock(Math.round((target.at - now) / 60_000))
+  }
   await syncTelemetry()
   return {
     ok: true, name, orderId: "ord-00442",
-    message: `Clock at ${simNow().toISOString().slice(0, 16).replace("T", " ")} UTC, just before Kasper Darevik's pickup slot at Orvendin Cars Stockholm. Report the steps in his phone.`,
+    message: `Clock at ${simNow().toISOString().slice(0, 16).replace("T", " ")} UTC, ${target.at > now ? target.why : "already past the step's time"}. In Kasper's phone: ${MILESTONE_WORDS[next].toLowerCase()}.`,
   }
 }
 

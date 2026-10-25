@@ -28,6 +28,15 @@ export type MilestoneResult = { eventId: string; at: string; milestone: Mileston
 const placeName = (endpoint: OrderFacts["pickup"]) => endpoint.site?.name ? String(endpoint.site.name)
   : `the ${endpoint.end === "pickup" ? "pickup" : "delivery"} address in ${String(endpoint.address.city ?? "town")}`
 
+/** The step as one line with its place: "Arrived at Orvendin Cars Stockholm", "Arrived at the delivery address in Tampere". */
+const STEP_LINE: Record<Milestone, (where: string) => string> = {
+  ARRIVED_PICKUP: (where) => `Arrived at ${where}`,
+  COLLECTED: (where) => `Car and keys collected at ${where}`,
+  CHECKED_IN: (where) => `Checked in for the ferry at ${where}`,
+  ARRIVED_DELIVERY: (where) => `Arrived at ${where}`,
+  DELIVERED: (where) => `Handed over at ${where}`,
+}
+
 export function hasFerry(facts: OrderFacts): boolean {
   return facts.reservations.some((row) => row.kind === "FERRY" && row.status === "BOOKED")
 }
@@ -52,7 +61,8 @@ export async function recordMilestone(request: MilestoneRequest): Promise<Milest
   if (index < lastDone) throw new ChannelError(409, "A later step is already recorded.")
   const collected = Boolean(lifecycle.COLLECTED) || facts.status === "IN_TRANSIT"
   if (index > steps.indexOf("COLLECTED") && !collected) throw new ChannelError(409, "Record the collection first.")
-  const receiver = request.receiverName?.trim().slice(0, 120) || null
+  // Who took the car belongs to the handover only.
+  const receiver = request.milestone === "DELIVERED" ? request.receiverName?.trim().slice(0, 120) || null : null
   if (request.milestone === "DELIVERED" && !receiver) throw new ChannelError(400, "Write who took the car and keys.")
   const counted = request.milestone === "COLLECTED" || request.milestone === "DELIVERED"
   const keys = counted && typeof request.keys === "number" && Number.isFinite(request.keys) && request.keys >= 0 && request.keys <= 9 ? Math.round(request.keys) : null
@@ -62,7 +72,7 @@ export async function recordMilestone(request: MilestoneRequest): Promise<Milest
     : request.milestone === "CHECKED_IN" ? String(facts.reservations.find((row) => row.kind === "FERRY" && row.status === "BOOKED")?.origin_terminal ?? "the terminal") : placeName(facts.delivery)
   const photos = request.photoIds?.filter((id) => typeof id === "string").slice(0, 8) ?? []
   const detail = [keys != null ? `${keys} ${keys === 1 ? "key" : "keys"}` : null, receiver ? `to ${receiver}` : null, photos.length ? `${photos.length} ${photos.length === 1 ? "photo" : "photos"}` : null].filter(Boolean).join(", ")
-  const text = `${MILESTONE_WORDS[request.milestone]} at ${where}${detail ? ` (${detail})` : ""}.${request.note?.trim() ? ` ${request.note.trim().slice(0, 300)}` : ""}`
+  const text = `${STEP_LINE[request.milestone](where)}${detail ? ` (${detail})` : ""}.${request.note?.trim() ? ` ${request.note.trim().slice(0, 300)}` : ""}`
   const data: MilestoneData = {
     milestone: request.milestone, assignment_id: String(assignment.id), keys, receiver_name: receiver, photo_ids: photos,
     note: request.note?.trim().slice(0, 300) || null, simulated: true,

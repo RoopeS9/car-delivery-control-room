@@ -77,7 +77,10 @@ clears the driver.
 Scenario H walks a whole delivery. The clock moves to Kasper Darevik's pickup
 slot in Stockholm; in his phone he reports each step (at the pickup, car and
 keys collected, checked in for the ferry, at the delivery address, handed over
-to a named receiver). At the collection and the handover he can add photos of
+to a named receiver). Running H again after a step moves the clock to the next
+step's time in the records: an hour before the ferry's check-in closes, then
+the delivery window four days later (refused while other cases are open, whose
+timers would fire on the way). At the collection and the handover he can add photos of
 the car (his own, or labelled demo pictures); they become the order's pickup or
 delivery photo proof. The map, the order (its assignment steps, evidence and
 timeline), the board and the pickup desk on `/dealer` follow every step, and
