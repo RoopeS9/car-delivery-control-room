@@ -1586,3 +1586,31 @@ harness on the final build before the merge to `main`.
   runs). The gate now refuses a customer message carrying a window other than the promise while no date waits for an
   answer, and says to propose `CHANGE_PROMISE`. B then passed 9/9 twice; the refusal fired and the agent re-proposed.
   `main` was fast-forwarded to `roope` (`594703a`). Spend on Roope's key: $1.29.
+
+## 2026-10-25 ~09:00–10:00 UTC · RoopeS + Claude Code (cloud) · the map timelapse for the video
+
+Asked: build `/timelapse` from `video/TIMELAPSE-BRIEF.md`: a deterministic, illustrative day played in about 15 seconds on
+the real map, with a clock marked "simulated", a "need a person" counter, two tallies, a legend, a permanent caption, and a
+recording helper. No model calls, no database writes, no change to how `/` or Replay behave.
+
+Got:
+- `lib/present/timelapse.ts`: a pure storyline from the orders and a seed (24 events: the four named scenarios A, C, F and
+  G, the rest from the dataset's own open items or the queue's plain wording; 16 cleared by the agent, 8 by a person; seven
+  people overlap around the middle, none at the calm frame), with nine unit tests.
+- `/timelapse` (client component beside the chart, same tiles and car marks): `duration`, `seed`, `clean=1`, `loop=1`,
+  `start=0`, and `t=` to hold one film second for stills. A link on `/demo`. `npm run video:timelapse` records an MP4 and
+  three stills with Playwright and ffmpeg.
+
+Checked / changed / rejected:
+- Rejected the stored-fix route for car positions. Replay's fixes are only the minutes since the app started, and they are
+  written by `syncTelemetry` when someone opens `/`, so a fresh database has none and the page would have had to write to
+  get them. Cars follow the simulator's own pure motion model (`baseMotion`) sampled across the day, which is the function
+  that writes those fixes; the page reads the fleet and the orders and writes nothing. Checked: after opening the page
+  several times on a freshly seeded database, `cr_telemetry`, `cr_events` and `cr_cases` were still empty.
+- Rejected adding a timelapse mode to `ChartHome`: it is a 600-line component built around polling, selection and the
+  dossier. The new component reuses its tiles, theme reading and CSS (they are now exported; nothing else changed there).
+- The first storyline shuffled with `sort(() => random() - 0.5)`. The server and the browser disagreed about the order
+  (a hydration mismatch: 7 versus 6 on the counter), so it is a seeded Fisher-Yates now.
+- Looked at the stills in headless Chromium in dark and light theme: text is 18 px or more at 1920x1080; two named labels
+  that collided on the same corridor now open to opposite sides.
+- Typecheck, `npm test` on the test database (143 pass, 9 of them new) and `npm run build` all pass.

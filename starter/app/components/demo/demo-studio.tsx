@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import type { CallData } from "../calls/call-section"
 import { CallSimulator } from "../calls/call-simulator"
 import { DemoPanel } from "./demo-panel"
@@ -14,7 +15,7 @@ import "./studio.css"
  */
 export function DemoStudio({ calls, runnable }: { calls: CallData; runnable: { reference: string; id: string; title: string; phase: string }[] }) {
   return <main className="studio">
-    <section className="studio-col studio-left" aria-label="Make things happen" data-keep-scroll="controls"><DemoPanel /></section>
+    <section className="studio-col studio-left" aria-label="Make things happen" data-keep-scroll="controls"><DemoPanel /><p style={{ marginTop: 18, fontSize: 12.5 }}><Link href="/timelapse" style={{ color: "var(--subtle)" }}>Timelapse for the video</Link></p></section>
     <section className="studio-col studio-right" aria-label="Calls" data-keep-scroll="calls"><DeliveryRun orders={runnable} /><CallSimulator {...calls} /></section>
   </main>
 }

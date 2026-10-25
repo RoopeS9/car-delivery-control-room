@@ -16,12 +16,12 @@ import { clockOf, dayOf } from "./format"
 // Esri's canvas basemaps need no key (CARTO watermarks every tile without one,
 // Stadia 401s off localhost). They follow the app's theme; OpenSeaMap's
 // seamarks sit on top, dimmed, when zoomed in.
-const TILES = {
+export const TILES = {
   dark: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
   light: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
   seamarks: "https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png",
 }
-const ATTRIBUTION = 'Tiles &copy; <a href="https://www.esri.com/">Esri</a>, HERE, Garmin, GEBCO &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · Seamarks &copy; <a href="https://www.openseamap.org/">OpenSeaMap</a>'
+export const ATTRIBUTION = 'Tiles &copy; <a href="https://www.esri.com/">Esri</a>, HERE, Garmin, GEBCO &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · Seamarks &copy; <a href="https://www.openseamap.org/">OpenSeaMap</a>'
 
 const POLL_MS = 3000
 const GLIDE_MS = 1400
@@ -31,10 +31,10 @@ const FAN_ZOOM = 6
 /** Harbour marks gather cities whose marks would sit within this many pixels. */
 const CLUSTER_PX = 28
 
-type ChartTheme = "dark" | "light"
+export type ChartTheme = "dark" | "light"
 
 /** The app's theme: a saved choice, else the system setting. */
-function readTheme(): ChartTheme {
+export function readTheme(): ChartTheme {
   const saved = document.documentElement.dataset.theme
   if (saved === "light" || saved === "dark") return saved
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
