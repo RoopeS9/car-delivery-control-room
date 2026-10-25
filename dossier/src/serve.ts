@@ -54,11 +54,18 @@ const reasonCache = new Map<string, ReasonRun>()
 const calls = new Map<string, CallRecord>()
 type Job = { id: string; personaId: string; mode: string; startedAt: string; status: "running" | "done" | "failed"; call?: CallRecord; note?: Record<string, unknown>; review?: unknown; error?: string }
 const jobs = new Map<string, Job>()
+/** A model-played call runs as a job the UI polls: it takes longer than the proxies in front of the UI wait. */
+const newJob = (personaId: string, mode: string): Job => {
+  const job: Job = { id: `job-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, personaId, mode, startedAt: new Date().toISOString(), status: "running" }
+  jobs.set(job.id, job); return job
+}
 const runs = new Map<string, RunReport>()
 for (const f of readdirSync(runsDir).filter((f) => f.endsWith(".json"))) {
   try { const r = JSON.parse(readFileSync(new URL(f, runsDir), "utf8")) as RunReport; if (r.status === "running") { r.status = "failed"; r.error = "the service restarted during the run" } runs.set(r.id, r) } catch { /* a half-written file */ }
 }
 const saveRun = (r: RunReport) => writeFileSync(new URL(`${r.id}.json`, runsDir), JSON.stringify(r, null, 1))
+/** A call is kept in memory and on disk, so the service still has it after a restart. */
+const storeCall = (call: CallRecord) => { calls.set(call.id, call); writeFileSync(new URL(`${call.id}.json`, callsDir), JSON.stringify(call, null, 1)) }
 for (const f of readdirSync(callsDir).filter((f) => f.endsWith(".json"))) {
   const r = CallRecord.safeParse(JSON.parse(readFileSync(new URL(f, callsDir), "utf8")))
   if (r.success) calls.set(r.data.id, r.data)
@@ -145,7 +152,7 @@ createServer(async (req, res) => {
       // The turn-based line's system prompt: the brief (model-composed with ?by=model) and the whole dossier, with stored calls.
       const id = byRef.get(parts[1]); if (!id) return json(res, 404, { error: `no order ${parts[1]}` })
       const purpose = CallPurpose.safeParse(parts[2]); if (!purpose.success) return json(res, 400, { error: `unknown purpose ${parts[2]}` })
-      const d = buildDossier(ds, id, { ...emptyLive(), calls: [...calls.values()].filter((c) => c.orderId === id) })
+      const d = buildDossier(ds, id, { ...emptyLive(), calls: storedCalls(id) })
       let brief: CallBrief, by = "RULE"
       try {
         if (url.searchParams.get("by") === "model") { const key = `${parts[1]}/${purpose.data}`; let hit = briefCache.get(key); if (!hit) { const r = await composeBrief(d, purpose.data); hit = { brief: r.brief, by: r.by, at: new Date().toISOString() }; briefCache.set(key, hit) } brief = hit.brief; by = hit.by }
@@ -183,12 +190,10 @@ createServer(async (req, res) => {
       const d = await dossierFor(input.ref!, id, input.live !== false)
       let persona; try { persona = personaFor(d, purpose.data, twist.data) } catch (e) { return json(res, 400, { error: (e as Error).message }) }
       const at = input.at ?? new Date().toISOString()
-      const store = (call: CallRecord) => { calls.set(call.id, call); writeFileSync(new URL(`${call.id}.json`, callsDir), JSON.stringify(call, null, 1)) }
-      const job: Job = { id: `job-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, personaId: persona.id, mode: "llm", startedAt: new Date().toISOString(), status: "running" }
-      jobs.set(job.id, job)
+      const job = newJob(persona.id, "llm")
       void (async () => {
         try {
-          const r = await runLlmCall(d, persona, purpose.data, at); store(r.record)
+          const r = await runLlmCall(d, persona, purpose.data, at); storeCall(r.record)
           job.call = r.record; job.note = { costUsd: r.costUsd, briefBy: r.briefBy, twist: twist.data }; job.review = reviewCall(r.record); job.status = "done"
         } catch (e) { job.status = "failed"; job.error = (e as Error).message.slice(0, 600) }
       })()
@@ -200,16 +205,14 @@ createServer(async (req, res) => {
       const d = buildDossier(ds, byRef.get(persona.orderRef)!)
       const at = input.at ?? new Date().toISOString()
       const mode = input.mode ?? (process.env.OPENROUTER_API_KEY ? "llm" : "scripted")
-      const store = (call: CallRecord) => { calls.set(call.id, call); writeFileSync(new URL(`${call.id}.json`, callsDir), JSON.stringify(call, null, 1)) }
-      if (mode !== "llm") { const call = runSimulatedCall(briefFor(d, purposeFor(persona)), persona, at); store(call); return json(res, 201, { ...call, review: reviewCall(call) }) }
+      if (mode !== "llm") { const call = runSimulatedCall(briefFor(d, purposeFor(persona)), persona, at); storeCall(call); return json(res, 201, { ...call, review: reviewCall(call) }) }
       // A model-driven run takes 30 to 90 s, longer than the proxies in front of the UI allow: run it as a job and let the UI poll.
-      const job: Job = { id: `job-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, personaId: persona.id, mode, startedAt: new Date().toISOString(), status: "running" }
-      jobs.set(job.id, job)
+      const job = newJob(persona.id, mode)
       void (async () => {
         try {
-          const r = await runLlmCall(d, persona, purposeFor(persona), at); store(r.record)
+          const r = await runLlmCall(d, persona, purposeFor(persona), at); storeCall(r.record)
           // Speech for every turn, after the record is stored: a failed render never loses the call.
-          const spoken = await renderCallAudio(r.record, audioDir); if (spoken.rendered) store(spoken.call)
+          const spoken = await renderCallAudio(r.record, audioDir); if (spoken.rendered) storeCall(spoken.call)
           job.call = spoken.call; job.note = { costUsd: r.costUsd + spoken.costUsd, briefBy: r.briefBy, audio: ttsEnabled() ? { rendered: spoken.rendered, costUsd: spoken.costUsd, failed: spoken.failed } : null }
           job.review = reviewCall(r.record); job.status = "done"
         }
@@ -227,7 +230,7 @@ createServer(async (req, res) => {
       const d = buildDossier(ds, id)
       try {
         const r = await ingestTranscript(d, purpose.data, input.turns, { startedAt: input.startedAt, endedAt: input.endedAt, engine: input.engine, lineCallId: input.lineCallId })
-        calls.set(r.record.id, r.record); writeFileSync(new URL(`${r.record.id}.json`, callsDir), JSON.stringify(r.record, null, 1))
+        storeCall(r.record)
         return json(res, 201, { ...r.record, review: reviewCall(r.record), costUsd: r.costUsd })
       } catch (e) { return json(res, 502, { error: (e as Error).message.slice(0, 400) }) }
     }
@@ -241,10 +244,9 @@ createServer(async (req, res) => {
       if (!process.env.OPENROUTER_API_KEY) return json(res, 503, { error: "OPENROUTER_API_KEY is not set: a run needs the model" })
       const report = newRunReport(input.ref, mode.data, twist.data)
       runs.set(report.id, report); saveRun(report)
-      const store = (call: CallRecord) => { calls.set(call.id, call); writeFileSync(new URL(`${call.id}.json`, callsDir), JSON.stringify(call, null, 1)) }
-      void runDelivery(ds, id, report, { twist: twist.data, mode: mode.data, store, onStep: saveRun }).then(async (done) => {
+      void runDelivery(ds, id, report, { twist: twist.data, mode: mode.data, store: storeCall, onStep: saveRun }).then(async (done) => {
         // speech for the run's calls, after the fact, so the run itself is not slowed by it
-        for (const step of done.steps) for (const placed of step.calls) { const c = calls.get(placed.callId); if (c) { const spoken = await renderCallAudio(c, audioDir); if (spoken.rendered) store(spoken.call) } }
+        for (const step of done.steps) for (const placed of step.calls) { const c = calls.get(placed.callId); if (c) { const spoken = await renderCallAudio(c, audioDir); if (spoken.rendered) storeCall(spoken.call) } }
       }).catch((e) => { report.status = "failed"; report.error = (e as Error).message.slice(0, 500); saveRun(report) })
       return json(res, 202, { runId: report.id, status: report.status, poll: `/runs/${report.id}` })
     }
