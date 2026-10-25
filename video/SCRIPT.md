@@ -119,6 +119,9 @@ Sources for every claim above: 5.9 s and the voice split are in `PROCESS.md` (â€
 
 ## Screen recordings to capture first
 
+**These are scripted.** `video/tools/capture/` drives the app and records R1 to R8 for you, repeatably, with a visible pointer, and
+writes an `events.json` with what was said and when (see its README). Recording by hand, as below, still works.
+
 Record these **once**, in one session, before any actor is filmed. macOS: Cmd+Shift+5, the whole screen, 2560Ã—1440 or higher.
 Browser zoom 125%, bookmarks bar hidden, no other tabs showing, notifications off. **Never show `.env`, the OpenRouter
 dashboard or any key.**

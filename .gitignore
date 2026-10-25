@@ -35,3 +35,7 @@ out/
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# Raw screen captures and rendered video are large: keep them out of git
+video/captures/
+video/rendered/

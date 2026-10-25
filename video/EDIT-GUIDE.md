@@ -37,6 +37,10 @@ Tags* to see the to-do markers; tick each one off as the beat is covered. (I cou
 untested in the app. If the import is refused, skip the file and use the table in this guide: the same beats and times are in
 `video/SCRIPT.md`.)
 
+**1b. The screen clips come from scripts.** `video/tools/capture/` records the screen parts and `frame.cjs` puts them in a phone or
+window frame at 1080p. Each run also writes an `events.json`: the agent’s real messages with times, and where every clip starts, so
+the phone, the operator’s screen and the demo panel line up. Use the framed clips; keep the raw ones for punch-ins.
+
 **2. Import everything.** *File ▸ Import ▸ Media…* for footage, screens, `cards/` and `sfx/`. Turn on *Keywords from Finder
 tags* only if you used them. Do *not* tick “copy to library” for the full-size footage if the disk is tight; do tick it for
 the cards and sound effects (they are small).

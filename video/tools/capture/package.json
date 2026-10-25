@@ -1,0 +1,19 @@
+{
+  "name": "road-desk-video-capture",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Scripts that drive the Road Desk app and record the screen portions of the demo video",
+  "scripts": {
+    "install-browser": "playwright install chromium",
+    "keys": "node r1-keys.cjs",
+    "scenario-a": "node r2-scenario-a.cjs",
+    "chaos": "node r5-chaos.cjs",
+    "map": "node r6-map.cjs",
+    "timelapse": "node r7-timelapse.cjs",
+    "process": "node r8-process.cjs",
+    "frame": "node frame.cjs"
+  },
+  "dependencies": {
+    "playwright": "^1.50.0"
+  }
+}
