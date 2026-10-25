@@ -8,3 +8,4 @@
 .driver-stage > div { flex: none; height: min(844px, calc(100dvh - var(--role-bar) - 60px)); }
 .driver-note { font-size: 12px; color: var(--subtle); }
 @media (max-width: 900px) { .driver-panel { grid-template-columns: 1fr; height: auto; } }
+@media (max-width: 480px) { .driver-panel { padding: 0 12px; gap: 16px; } }

@@ -1130,3 +1130,16 @@ a.source:hover { border-color: var(--sand); color: var(--ink); }
 /* Pages leave room under the bar; the map keeps its full height and moves its panel below it. */
 .app:not(.app-rail) .main { padding-top: var(--role-bar); }
 @media (max-width: 720px) { .role-text { display: none; } .role { padding: 0 10px; } }
+/* Where the sidebar becomes a top bar, its links scroll in the space the floating role switch leaves free. */
+@media (max-width: 900px) {
+  .app:not(.app-rail) .sidebar { padding-right: 384px; overflow: visible; }
+  .app:not(.app-rail) .sidebar-foot { display: none; }
+  .app:not(.app-rail) .sidebar-nav { flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .app:not(.app-rail) .main { padding-top: 12px; }
+}
+/* A phone: the wordmark beside the role switch, the links on their own row under it; the theme follows the system. */
+@media (max-width: 720px) {
+  .app:not(.app-rail) .sidebar { flex-wrap: wrap; row-gap: 6px; padding-right: 12px; }
+  .app:not(.app-rail) .sidebar-top { min-height: 38px; display: flex; align-items: center; }
+  .app:not(.app-rail) .sidebar-nav { flex: 1 1 100%; order: 3; }
+}

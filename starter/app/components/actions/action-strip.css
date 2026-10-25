@@ -29,3 +29,10 @@
 .action-strip.compact .as-actions { flex: 1 1 auto; flex-wrap: wrap; min-width: 0; }
 .action-strip.compact .as-btn { min-height: 27px; padding: 0 9px; font-size: 11.5px; gap: 4px; }
 .action-strip.compact .as-btn .icon { width: 12px; height: 12px; }
+
+/* A phone-width page: the route on its own line, the pills wrap under it. */
+@media (max-width: 640px) {
+  .action-strip { flex-wrap: wrap; }
+  .as-route { flex-basis: 100%; }
+  .as-actions { flex: 1 1 100%; flex-wrap: wrap; }
+}
