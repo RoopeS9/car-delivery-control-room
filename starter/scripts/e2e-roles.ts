@@ -4,11 +4,13 @@
 //
 //   APP_URL=http://127.0.0.1:3000 npx tsx scripts/e2e-roles.ts [A B C D F G H customer]
 //   KEEP=1 … keeps the last story's records instead of resetting after it.
+//   TRACE_DIR=<the app's AGENT_TRACE_DIR> … files each story's agent runs and a timeline under TRACE_DIR/<story>/.
 //
 // Prints one line per check and exits non-zero when one fails. Model wording varies; the checks look at what the
 // records must show (a case, a card of the right kind, nothing sent to a customer without a person), not at words.
 
-import { readFileSync } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
+import path from "node:path"
 
 const APP = process.env.APP_URL ?? "http://127.0.0.1:3000"
 const OPS = "ops-shift"
@@ -121,7 +123,7 @@ const stories: Record<string, () => Promise<void>> = {
     const row = await until(async () => {
       const all = await call<{ cases: Case[] }>(`/api/cases?since=${encodeURIComponent(new Date(0).toISOString())}`)
       return all.cases.find((item) => item.order_ref === "CD-420145" && item.status !== "AGENT_WORKING") ?? null
-    }, 120)
+    }, 300)
     await sleep(5000)
     const told = row ? (await detail(row.id)).events.filter((event) => event.recipientType === "driver").map((event) => event.body).join(" ") : ""
     check("the driver is told where the car and keys go", /reception|keys/i.test(told), told.slice(0, 80))
@@ -146,10 +148,12 @@ const stories: Record<string, () => Promise<void>> = {
     await call("/api/sim/scenarios/driver-silent-537", {})
     await call("/api/sim/clock", { minutes: 2 })
     await settled("CD-420537")
-    await call("/api/sim/clock", { minutes: 6 })
-    await sleep(15000)
-    await call("/api/sim/clock", { minutes: 6 })
-    const card = await pending("CD-420537")
+    // Past the reply deadline, then past the reminder's: keep moving the clock while the agent's turns run.
+    let card: Proposal | null = null
+    for (let jump = 0; jump < 5 && !card; jump++) {
+      await call("/api/sim/clock", { minutes: 6 })
+      card = await pending("CD-420537", 60)
+    }
     check("a silent driver ends with a card for a person", Boolean(card), card?.title ?? "no card")
     check("the card title fits the queue", (card?.title.length ?? 0) <= 110)
   },
@@ -191,6 +195,33 @@ const stories: Record<string, () => Promise<void>> = {
   },
 }
 
+/**
+ * TRACE_DIR (the same folder the app writes runs to, its AGENT_TRACE_DIR): after each story its agent runs move into
+ * TRACE_DIR/<story>/ next to a readable timeline.md of the story's cases and checks.
+ */
+const TRACE_DIR = process.env.TRACE_DIR ?? null
+
+async function saveTrace(name: string) {
+  if (!TRACE_DIR || !existsSync(TRACE_DIR)) return
+  // Let a follow-up still running finish, so its run is filed with this story and not the next.
+  await until(async () => !(await cases()).cases.some((row) => row.status === "AGENT_WORKING"), 150)
+  const dir = path.join(TRACE_DIR, name)
+  mkdirSync(dir, { recursive: true })
+  for (const file of readdirSync(TRACE_DIR).filter((entry) => entry.endsWith(".json"))) renameSync(path.join(TRACE_DIR, file), path.join(dir, file))
+  const all = await call<{ cases: Case[] }>(`/api/cases?since=${encodeURIComponent(new Date(0).toISOString())}`)
+  const lines = [`# Story ${name}`, "", ...results.filter((row) => row.story === name).map((row) => `- ${row.ok ? "ok" : "FAIL"}: ${row.check}${row.detail ? ` (${row.detail.replace(/\s+/g, " ").slice(0, 160)})` : ""}`), ""]
+  for (const row of all.cases.filter((item) => item.order_ref === CASE_REFS[name])) {
+    const { case: kase, proposals, events } = await detail(row.id)
+    lines.push(`## ${kase.order_ref} · ${kase.title} [${kase.status}]`, "")
+    for (const event of events) lines.push(`- ${event.actorType}/${event.kind}${event.recipientType ? ` → ${event.recipientType}` : ""}: ${event.body.replace(/\s+/g, " ").slice(0, 400)}`)
+    for (const card of proposals) lines.push(`- card [${card.status}] ${card.actionType}: ${card.title}`)
+    lines.push("")
+  }
+  writeFileSync(path.join(dir, "timeline.md"), lines.join("\n"))
+}
+
+const CASE_REFS: Record<string, string> = { A: "CD-420584", B: "CD-420322", C: "CD-420145", D: "CD-420442", F: "CD-420537", G: "CD-420439", H: "CD-420442", customer: "CD-420584" }
+
 /** Each story's order: its page and the queue must still render once the story has run. */
 const ORDERS: Record<string, string> = { A: "ord-00584", B: "ord-00322", C: "ord-00145", D: "ord-00442", F: "ord-00537", G: "ord-00439", H: "ord-00442", customer: "ord-00584" }
 
@@ -210,6 +241,7 @@ async function main() {
     await reset()
     try { await stories[name]() } catch (error) { check("ran without an error", false, error instanceof Error ? error.message : String(error)) }
     if (ORDERS[name]) await pagesRender(name)
+    await saveTrace(name).catch((error) => console.log(`trace for ${name} not saved: ${error}`))
   }
   // KEEP=1 leaves the last story's records in place to read after a failure.
   if (!process.env.KEEP) await reset()

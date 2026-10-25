@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { LANES } from "@/lib/present/labels"
+import { needsPersonItem } from "@/lib/present/tone-rule"
 import type { Overview } from "@/lib/present/types"
 import { AppFrame } from "../components/app-frame"
 import { Card } from "../components/card"
@@ -26,7 +27,7 @@ export default function Board() {
 
   const visible = useMemo(() => {
     const cards = overview?.visible ?? []
-    return onlyAttention ? cards.filter((card) => card.attention.length > 0) : cards
+    return onlyAttention ? cards.filter((card) => card.attention.some(needsPersonItem)) : cards
   }, [overview, onlyAttention])
   const attentionTotal = overview ? Object.values(overview.attentionCounts).reduce((sum, count) => sum + count, 0) : 0
   const filtering = !!search || onlyAttention

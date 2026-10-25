@@ -23,6 +23,17 @@ npm run attachments:seed
 npm run dev
 ```
 
+In a second terminal, start the call service (order dossiers, the agent's
+robo-calls, the inbox's suggested replies and simulated delivery runs) on port
+8799. The app works without it, but those features read as unavailable:
+
+```sh
+cd dossier
+cp .env.example .env   # add OPENROUTER_API_KEY; APP_URL is the app (port 3000)
+npm ci
+npm run serve
+```
+
 Open http://localhost:3000. Add `OPENROUTER_API_KEY` to `starter/.env` to use the
 real agent and voice interviewer. For cheap runs the agent also works on DeepSeek
 through OpenRouter (`AGENT_MODEL=deepseek/deepseek-v4-pro`,

@@ -33,6 +33,14 @@ function scenarioDriver(scenario: Scenario): string | null {
   return null
 }
 
+/** "deepseek/deepseek-v4-flash" → "DeepSeek v4 flash", "anthropic/claude-haiku-5.5" → "Claude Haiku 5.5". */
+function modelName(model: string | null | undefined): string {
+  if (!model) return "a model"
+  const name = model.split("/").pop() ?? model
+  return name.replace(/^deepseek-/, "DeepSeek ").replace(/^claude-/, "Claude ").replace(/-(\d)/g, " $1").replace(/-/g, " ")
+    .replace(/\b(haiku|sonnet|opus|fable)\b/gi, (word) => word[0].toUpperCase() + word.slice(1).toLowerCase())
+}
+
 export function DemoPanel({ onFocus }: { onFocus?: (driverId: string, orderRef: string | null) => void }) {
   const [scenarios, setScenarios] = useState<Scenario[] | null>(null)
   const [fleet, setFleet] = useState<FleetState | null>(null)
@@ -43,7 +51,7 @@ export function DemoPanel({ onFocus }: { onFocus?: (driverId: string, orderRef: 
   useEffect(() => { if (log.length) remember("demo:log", log) }, [log])
   const [error, setError] = useState("")
   const [keepRoutine, setKeepRoutine] = useState(true)
-  const [simDriver, setSimDriver] = useState<{ available: boolean; enabled: boolean; humans: string[]; usesModel: boolean } | null>(null)
+  const [simDriver, setSimDriver] = useState<{ available: boolean; enabled: boolean; humans: string[]; usesModel: boolean; model?: string | null } | null>(null)
 
   const refresh = useCallback(async () => {
     try {
@@ -168,7 +176,7 @@ export function DemoPanel({ onFocus }: { onFocus?: (driverId: string, orderRef: 
       <h2 id="simdriver">Simulated driver <span className={styles.count}>video only</span></h2>
       <label className={styles.keep}>
         <input type="checkbox" checked={simDriver.enabled} onChange={(event) => void toggleSimDriver(event.target.checked)} />
-        Let a simulated driver answer the agent in scenarios A, B and C ({simDriver.usesModel ? "Claude Haiku 5.5 from a fact sheet" : "scripted answers, no model key"}).
+        Let a simulated driver answer the agent in scenarios A, B and C ({simDriver.usesModel ? `${modelName(simDriver.model)} from a fact sheet` : "scripted answers, no model key"}).
       </label>
       <p className={styles.muted}>Keep this off in the live demo: a teammate plays the driver. Typing in a driver app takes over from it for that driver.
         In scenario F nobody answers, on purpose.{simDriver.humans.length ? ` A person is playing ${simDriver.humans.length} driver${simDriver.humans.length === 1 ? "" : "s"}.` : ""}</p>

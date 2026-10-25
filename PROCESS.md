@@ -1362,3 +1362,36 @@ Checked / changed / rejected:
   and the plan says scripts state boundaries, not conclusions.
 - Loading states: every page renders in 10–270 ms on the production build and the order page has its own loading
   view; no loading.tsx added.
+
+## 2026-10-25 ~00:40–02:00 UTC · RoopeS + Claude Code (cloud) · night run, bug sweep
+
+Asked: keep improving along the plan, bugs and issues before extensions.
+
+Found and fixed (each from a run or a screenshot, not from reading the code):
+- **The simulated clock went backwards after a server restart.** The catch-up to the newest stored event ran only
+  inside the telemetry sync, so a decision made right after a restart was stamped minutes before the events it
+  answered, and the timeline read out of order. It now runs once at server start (Next's instrumentation hook) and
+  retries if the database was not ready.
+- **One card made the whole order page fail (500).** The model sent a fact without its sources list; the gate took
+  it and the view mapped over nothing. The gate now stores such a fact with no sources, the view tolerates it, and
+  the card marks the line "no source given" (where every fact came from is a judging question). The role harness
+  now also checks that each story's order page and the queue still render.
+- **A second date proposal while the first waited for the customer.** On the customer's emailed yes the agent
+  proposed a CHANGE_PROMISE "record the agreement": approving it would have sent a second proposal and left two
+  dates pending. The gate refuses a new date card while one waits; the answer is recorded on the case by a person.
+- **The driver's phone offered "I'm at the pickup" to a driver who collected the car at 07:00** (the records hold the
+  collection; only app reports were counted). Steps now count the record's collection and gate scan, at the
+  record's pickup time rather than the assignment start.
+- **The order story said "Leo is driving it" next to a stopped car with a flashing engine light.** With an open
+  warning or breakdown case and the dongle at 0 km/h it now says he has stopped, and marks the ETA as from before.
+- Under a case panel the agent's card was shown three times; the order section no longer repeats it.
+- The driver's newest message hid behind the photo request (pinning ran only on new messages); the thread now
+  re-pins on any resize while the driver reads the end, and never scrolls the page.
+- Site chat had no sidebar or role switch; operator notes showed raw backticks and "---"; the demo panel named
+  Claude Haiku for a simulated driver running on DeepSeek.
+- Fresh clone: the README never started the call service (port 8799), which the desk, suggested replies and
+  delivery runs use; the service never read its own `.env` and pointed at the app on 8797 while the README runs it
+  on 3000. All three fixed.
+
+Added for the deliverables: `RUN-SHEET.md` (roles, clicks, expected screens, timings and fallbacks for the live
+demo), and agent traces for every scenario from a full role-harness run under `starter/traces/e2e-roles-*/`.

@@ -115,7 +115,7 @@ export function simDriverAvailable(): boolean {
 
 export function simDriverStatus() {
   const current = state()
-  return { available: simDriverAvailable(), enabled: current.enabled && simDriverAvailable(), humans: [...current.humans], usesModel: !!llm() }
+  return { available: simDriverAvailable(), enabled: current.enabled && simDriverAvailable(), humans: [...current.humans], usesModel: !!llm(), model: llm() ? simDriverModel() : null }
 }
 
 export function setSimDriver(enabled: boolean): void {

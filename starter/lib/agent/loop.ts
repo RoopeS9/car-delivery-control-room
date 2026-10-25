@@ -164,12 +164,15 @@ class ReplyGate {
 
   /** Set for a driver or a site: what reaches them is the message alone. */
   forPerson = false
+  /** The person's first name, to tell the model's own note about them from the message to them. */
+  personName: string | null = null
 
   private release(raw: string) {
     // Some models write their own notes, a "---" line, then the message: only the message reaches a person.
     if (this.forPerson) {
       const parts = raw.split(/\n\s*(?:-{3,}|\*{3,}|_{3,})\s*(?:\n|$)/).map((part) => part.trim()).filter(Boolean)
       if (parts.length > 1) raw = parts.at(-1)!
+      raw = withoutLeadingNote(raw, this.personName)
       // A phone chat shows text as written: no bold or heading marks.
       raw = raw.replace(/\*\*([^*\n]+)\*\*/g, "$1").replace(/__([^_\n]+)__/g, "$1").replace(/^#{1,6}\s+/gm, "")
     }
@@ -189,6 +192,25 @@ class ReplyGate {
       this.emit?.(piece)
     })
   }
+}
+
+/**
+ * "Now let me contact Leo — he hasn't written yet. Leo, the car has reported …": a note about the person, then the
+ * message to them. When the text before the first "<Name>," reads as the model's own note (it plans, or speaks of the
+ * person in the third person), only the message from "<Name>," on is sent.
+ */
+export function withoutLeadingNote(text: string, name: string | null): string {
+  if (!name) return text
+  const first = name.trim().split(/\s+/)[0]
+  if (!first) return text
+  const escaped = first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const vocative = new RegExp(`(^|[.!?…]\\s+|\\n\\s*)(${escaped},)`).exec(text)
+  if (!vocative || vocative.index === 0 && !vocative[1]) return text
+  const before = text.slice(0, vocative.index + vocative[1].length)
+  // A planning opener ("Now let me …"), or the person or "the driver" spoken of in the third person.
+  const note = /^(now,?\s+|first,?\s+|next,?\s+|okay,?\s+|ok,?\s+|alright,?\s+)?(let me|let's|I'll now|I will now|I need to|I should|I'm going to)\b/i.test(before.trim())
+    || new RegExp(`\\b(contact|message|reach|tell|ask|write to|reply to)\\s+(${escaped}|the driver)\\b|\\b(${escaped}|the driver)\\s+(hasn't|has not|is|was|wrote|said)\\b|\\b(he|she|they) (hasn't|has not)\\b`, "i").test(before)
+  return note ? text.slice(vocative.index + vocative[1].length) : text
 }
 
 /** One more call after a held driver reply: the same answer without any word on whether the car may be driven. */
@@ -460,6 +482,7 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
   let gate = new ReplyGate(screen, holdsReply ? undefined : request.onText)
   gate.deferFallback = request.audience === "driver"
   gate.forPerson = request.audience !== "operator"
+  gate.personName = request.counterpart.name ?? null
   let stopReason: string | null = null
   let error: string | null = null
 
@@ -516,6 +539,7 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
     gate = new ReplyGate(screen, holdsReply ? undefined : request.onText)
     gate.deferFallback = request.audience === "driver"
     gate.forPerson = request.audience !== "operator"
+    gate.personName = request.counterpart.name ?? null
   }
   usage.cost_usd += gate.costUsd + state.costUsd
 

@@ -17,7 +17,7 @@ import { AGENT_ID } from "./config"
 import { contextFor, loadOrderFacts, type End } from "./context"
 import { loadDriverSafetyContext, renderSafetyTemplate, SAFETY_TEMPLATES, screenDriverMessage } from "./drivability"
 import { firstName, localTime, relative, utcTime } from "./format"
-import { checkTool, newFactsSince, recordedTravelSelection, submitProposal, unrecordedCustomerAnswer, validateProposal, type GateContext, type ProposalInput, type ToolName } from "./gate"
+import { checkTool, newFactsSince, openPromiseProposal, recordedTravelSelection, submitProposal, unrecordedCustomerAnswer, validateProposal, type GateContext, type ProposalInput, type ToolName } from "./gate"
 import { cityCoords, matchWarningLights, playbook, playbooks, troubleCode } from "./knowledge"
 import { findNearbyHelp, searchTravelOptions, type HelpKind, type TravelKind } from "./mocks"
 import { orderTimeline, renderLines } from "./timeline"
@@ -633,6 +633,8 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
       if (!selection) return { content: "Not recorded: that quote is not on this case. Search travel options and choose one returned quote_id.", isError: true, gate: "REFUSED" }
       proposal.booking_selection = { ...selection, replaces_reservation_id: str(input.replaces_reservation_id).trim() || null }
     }
+    const answer = await answerCardRefusal(state, proposal)
+    if (answer) return { content: `Not recorded: ${answer}`, isError: true, gate: "REFUSED" }
     const verdict = validateProposal(proposal, state.facts)
     if (!verdict.ok) return { content: `Not recorded: ${verdict.reason}`, isError: true, gate: "REFUSED" }
     state.sideEffects = true
@@ -661,6 +663,8 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
       next_step_if_approved: str(input.next_step_if_decided),
       next_step_if_rejected: "The agent asks what to do instead.",
     }
+    const answer = await answerCardRefusal(state, proposal)
+    if (answer) return { content: `Not recorded: ${answer}`, isError: true, gate: "REFUSED" }
     const verdict = validateProposal(proposal, state.facts)
     if (!verdict.ok) return { content: `Not recorded: ${verdict.reason}`, isError: true, gate: "REFUSED" }
     state.sideEffects = true
@@ -685,6 +689,23 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
     return { content: state.audience === "operator" ? "Case closed as handled by the agent."
       : `Recorded. Your final text now goes to ${state.audience === "driver" ? "the driver" : "the site"} exactly as you write it: the answer to their question, in full, even if you wrote it before. Nothing about cases, closing or tools.`, log: null }
   },
+}
+
+/**
+ * While a new date waits for the customer's answer, no card is about that answer: a second date card would send a
+ * second proposal, and a "record their agreement?" question repeats what the case's promise block already asks of a
+ * person. The one card left to draft is the reply to the customer.
+ */
+async function answerCardRefusal(state: TurnState, proposal: ProposalInput): Promise<string | null> {
+  const reply = "your card is the reply to the customer (CONTACT_CUSTOMER), unless one is already waiting."
+  if (proposal.action_type === "CHANGE_PROMISE" && await openPromiseProposal(state.caseRow.id)) {
+    return `a new date already waits for the customer's answer. If they answered, an operator records it in the case's Delivery promise block; ${reply}`
+  }
+  if (proposal.action_type === "OPERATOR_DECISION" && /\b(agree\w*|accept\w*|answer\w*|record\w*|confirm\w*)\b/i.test(proposal.title)
+    && await unrecordedCustomerAnswer(state.caseRow.id)) {
+    return `no card is needed to record the customer's answer: an operator records it in the case's Delivery promise block, and the case already waits on that; ${reply}`
+  }
+  return null
 }
 
 /** Ids in a text: every `"id": "…"` a tool result or the case notes carried. */

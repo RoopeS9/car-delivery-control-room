@@ -4,7 +4,7 @@
 import { DtcCode, GpsFix, ObdReading, AppCase, AppEvent, PhoneState, emptyLive, type Live, type TelemetrySample } from "./live"
 import type { Dataset } from "./build"
 
-export const APP_URL = process.env.APP_URL ?? "http://127.0.0.1:8797"
+export const APP_URL = process.env.APP_URL ?? "http://127.0.0.1:3000"
 
 type Row = { id: string; at: string; vehicleId: string | null; data: Record<string, unknown> }
 type Payload = {

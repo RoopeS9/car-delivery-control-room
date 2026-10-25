@@ -14,6 +14,7 @@ import { closeCrDb, crDb } from "@/lib/cr/db"
 import { appendEvent, createProposal, getCase, insertEffect, listEffects, listEvents, listProposals, resolveOrder, updateCase } from "@/lib/cr/queries"
 import { crAgentRuns, crCases, crEffects, crEvents, crProposals } from "@/lib/cr/schema"
 import { useTestLlm } from "./client"
+import { withoutLeadingNote } from "./loop"
 import { decide, handleDriverMessage, handleTelemetryFault, outcome, prepareDriverMessage, runFollowUps } from "./triggers"
 
 type Block = { type: "text"; text: string } | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
@@ -95,6 +96,18 @@ after(async () => {
   useTestLlm(null)
   await clearOrder()
   await closeCrDb()
+})
+
+describe("the model's own note before a message never reaches the person", () => {
+  test("a planning note about the driver is dropped; the message from his name on is sent", () => {
+    assert.equal(withoutLeadingNote("Now let me contact Leo — he hasn't written yet but the car stopped. Leo, are you safe?", "Leo Quellford"), "Leo, are you safe?")
+    assert.equal(withoutLeadingNote("The driver hasn't replied. Leo, please answer when you can.", "Leo Quellford"), "Leo, please answer when you can.")
+  })
+  test("an ordinary opening stays", () => {
+    assert.equal(withoutLeadingNote("Thanks, I'll pass it on. Leo, please stay with the car.", "Leo Quellford"), "Thanks, I'll pass it on. Leo, please stay with the car.")
+    assert.equal(withoutLeadingNote("Leo, please stay with the car.", "Leo Quellford"), "Leo, please stay with the car.")
+    assert.equal(withoutLeadingNote("Got it. Leo, the truck is on its way.", null), "Got it. Leo, the truck is on its way.")
+  })
 })
 
 describe("scenario A wiring", () => {
@@ -273,14 +286,18 @@ describe("scenario A wiring", () => {
     })
     await appendEvent({ caseId, orderId: row.orderId, actorType: "customer", actorId: "cus-test", kind: "message", channel: "customer_email", recipientType: "agent", body: "Friday works, we agree." })
     await updateCase(caseId, { status: "AGENT_WORKING" })
-    useTestLlm(scriptedModel([
+    const model = scriptedModel([
+      { stop_reason: "tool_use", content: [tool("e1", "escalate", { question: "Record the customer's agreement to Friday?", what_happened: "They agreed by email.", facts: [], options: [], evidence_refs: [], next_step_if_decided: "Record it." })] },
       { stop_reason: "tool_use", content: [tool("w3", "wait_for", { waiting_for: "provider", waiting_on: "the roadside partner", next_action: "Check the collection happened.", check_in_minutes: 60 })] },
       { stop_reason: "end_turn", content: [text("The customer wrote that they agree; an operator records it.")] },
-    ]))
+    ])
+    useTestLlm(model)
     await runFollowUps([{ kind: "analysis", caseId, reason: "The customer answered the new date." }])
     const after = await getCase(caseId)
     assert.equal(after?.status, "NEEDS_DECISION")
     assert.match(String(after?.waitingOn), /record the customer's answer/)
+    assert.match(JSON.stringify(model.requests[1]), /no card is needed to record the customer's answer/)
+    assert.ok(!(await listProposals({ caseId, statuses: ["PENDING"] })).some((row) => row.actionType === "OPERATOR_DECISION"), "no card asks a person to record it")
     await crDb().delete(crEffects).where(inArray(crEffects.id, [effect.id]))
   })
 

@@ -14,6 +14,10 @@
 //   GET  /runs?ref=CD-xxxxxx              -> stored runs, newest first;  GET /runs/:id -> one run (mutating while it runs);  GET /runs/plan/:ref -> the timeline a run would walk
 import { createServer } from "node:http"
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+
+// dossier/.env (see .env.example) for the model key and the app's address; variables already set win.
+const envFile = new URL("../.env", import.meta.url)
+if (existsSync(envFile)) process.loadEnvFile(envFile)
 import { buildDossier, liveOverlay, loadDataset } from "./build"
 import { briefFor } from "./brief"
 import { CallPurpose, CallRecord, emptyLive, type CallBrief } from "./live"

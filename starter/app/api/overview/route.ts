@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { buildBoardCard } from "@/lib/present/board"
 import { LANE_ORDER } from "@/lib/present/labels"
+import { needsPersonItem } from "@/lib/present/tone-rule"
 import { loadBoardBundles } from "@/lib/present/load"
 import type { BoardCard, Overview, Tone } from "@/lib/present/types"
 
@@ -27,7 +28,8 @@ export async function GET(request: NextRequest) {
   const { snapshotAt, bundles } = await loadBoardBundles()
   const all = bundles.map(buildBoardCard)
   const counts = Object.fromEntries(LANE_ORDER.map((lane) => [lane, all.filter((card) => card.displayLane === lane).length]))
-  const attentionCounts = Object.fromEntries(LANE_ORDER.map((lane) => [lane, all.filter((card) => card.displayLane === lane && card.attention.length > 0).length]))
+  // "Need a person" is the map's rule (lib/present/tone-rule.ts): a decision waiting, not any open signal.
+  const attentionCounts = Object.fromEntries(LANE_ORDER.map((lane) => [lane, all.filter((card) => card.displayLane === lane && card.attention.some(needsPersonItem)).length]))
   const matches = query ? all.filter((card) => [
     card.reference, card.customer, card.vehicle, card.origin, card.destination, card.plate ?? "",
   ].some((field) => field.toLowerCase().includes(query))) : all
