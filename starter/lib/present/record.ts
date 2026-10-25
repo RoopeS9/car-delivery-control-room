@@ -1,7 +1,7 @@
 // The order record, read out section by section. Every value here points back to
 // a record in the API response; the view adds labels, names and grouping.
 
-import { OPEN_CASE_STATUSES, type ObdData } from "@/lib/cr/types"
+import { OPEN_CASE_STATUSES, type GpsData, type ObdData } from "@/lib/cr/types"
 import { needsPersonItem } from "./tone-rule"
 import { chosenWindows, deriveAttention, deriveKeyDates, latestTracking, strongestTone, windowSource, windowViews } from "./attention"
 import {
@@ -802,6 +802,8 @@ function laneStory(bundle: Bundle, keyDates: KeyDate[], assignments: AssignmentV
     // records support: the promise, and the driver's next scheduled step after the arrival.
     // Road Desk's open case and the car's own dongle can say it has stopped; "is driving it" would read wrong next to them.
     const obd = bundle.cr.obd?.data as ObdData | undefined
+    const gps = bundle.cr.gps ? { data: bundle.cr.gps.data as GpsData, at: bundle.cr.gps.at.toISOString() } : null
+    const gpsNow = gps ? { place: gps.data.place_label ?? "on the road", at: gps.at } : null
     const stopCase = obd && (obd.speed_kmh ?? 1) === 0 ? bundle.cr.cases.find((row) => OPEN_CASE_STATUSES.includes(row.status) && STOP_KINDS.has(row.kind)) ?? null : null
     const headline = stopCase
       ? `${driver ?? "The driver"} has stopped with it on the way to ${to.city}: ${(CASE_KIND_LABELS[stopCase.kind] ?? "a problem").toLowerCase()}.`
@@ -816,7 +818,10 @@ function laneStory(bundle: Bundle, keyDates: KeyDate[], assignments: AssignmentV
       ...fact("Promise", promise ? `by ${fmtDateTime(promise.end ?? promise.start, promise.zone)}` : null, marginText, margin != null && margin < 0 ? "danger" : margin != null && margin < 30 ? "warn" : "neutral"),
       ...(late && margin != null && margin < 0 ? fact("If nothing changes", `delivery ${minutes(-margin)} late`, "the receiver is not told yet; a promise change needs the customer's agreement", "warn") : []),
       ...(nextDuty && dutyMargin != null ? fact("Driver's next step", `${nextDuty.title} ${clock(nextDuty.scheduledStart!, eta?.zone ?? null)}`, dutyMargin < 0 ? `${minutes(-dutyMargin)} after the ETA: missed` : dutyMargin < 90 ? `${minutes(dutyMargin)} after the ETA: tight` : `${minutes(dutyMargin)} after the ETA`, dutyMargin < 0 ? "danger" : dutyMargin < 90 ? "warn" : "neutral") : []),
-      ...(!eta ? fact("Position", "none from the driver app in this packet", null, "warn") : []),
+      // No position in the records; the simulated phone GPS may still have one (a car collected in this app).
+      ...(!eta ? (gpsNow
+        ? fact("Position", gpsNow.place, `phone GPS, simulated, ${relativeTo(gpsNow.at, bundle.cr.now)?.text ?? "now"}`, "neutral")
+        : fact("Position", "none from the driver app in this packet", null, "warn")) : []),
     ]
     // Running late is a signal to watch; a person is pulled in by a decision, not by a tight margin.
     return { intro, headline, tone: late ? "warn" : "accent", detail: sentence(facts), facts }
