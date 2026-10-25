@@ -23,3 +23,8 @@ export function attentionTone(items: AttentionItem[], fallback: Tone): Tone {
 export function isRoadDeskItem(item: AttentionItem): boolean {
   return item.kind === "decision" || item.kind === "case"
 }
+
+/** A need that is due: a work item whose next check is still ahead is watched until then (the map's and story's rule). */
+export function needsPersonNow(item: AttentionItem, now: string | null): boolean {
+  return needsPersonItem(item) && !(item.kind === "work" && item.at && now && item.at > now)
+}

@@ -1,0 +1,595 @@
+{
+  "run": {
+    "id": "run-da264b811c25",
+    "caseId": "case-d63e146b5aaf",
+    "orderId": "ord-00322",
+    "audience": "operator",
+    "startedAt": {},
+    "finishedAt": {},
+    "status": "DONE",
+    "model": "deepseek/deepseek-v4-pro",
+    "effort": "medium",
+    "input": "An operator logged an outcome or gave an instruction; it is the latest entry in the case notes. Continue the case: tell the driver what happens next if they need to know (message_driver), propose the next decision if one is needed, or put the case into a deliberate wait with wait_for (who we wait on and when to check again). End with one line for the operators.",
+    "toolCalls": [
+      {
+        "at": "2026-10-21T09:00:31.720Z",
+        "ms": 8,
+        "gate": "ALLOWED",
+        "name": "get_order_context",
+        "input": {
+          "order_ref": "CD-420322"
+        },
+        "result": "{\n \"order\": {\n  \"reference\": \"CD-420322\",\n  \"stage\": \"car collected and on its way\",\n  \"route\": \"Abendhainweg 111, Munich, DE → Wolkenfeldstraße 74, Hamburg, DE\",\n  \"route_kind\": \"domestic\",\n  \"source\": {\n   \"kind\": \"orders\",\n   \"id\": \"ord-00322\",\n   \"label\": \"Order CD-420322\",\n   \"at\": null\n  }\n },\n \"vehicle\": {\n  \"make\": \"Bentley\",\n  \"model\": \"Continental GT\",\n  \"year\": 2021,\n  \"fuel\": \"petrol\",\n  \"plate\": \"not recorded\",\n  \"vin\": \"SYNNWPB5ZZSFETNFP\",\n  \"source\": {\n   \"kind\": \"vehicles\",\n   \"id\": \"veh-00322\",\n   \"label\": \"Vehicle record, Bentley Continental GT\",\n   \"at\": null\n  }\n },\n \"pickup\": {\n  \"place\": \"Private handoff\",\n  \"address\": \"Abendhainweg 111, Munich, DE\",\n  \"time_zone\": \"Europe/Berlin\",\n  \"opening_hours\": {\n   \"by_appointment\": true\n  },\n  \"access_instruction\": \"Arrange a named seller handover at the door; no unattended key collection is agreed.\",\n  \"access_status\": \"NEEDS_VERIFICATION\",\n  \"contact\": {\n   \"name\": \"Frederic Fallowmere\",\n   \"role\": \"handoff contact\",\n   \"handle\": \"handoff-00322-pickup@example.test\",\n   \"status\": \"UNCONFIRMED\"\n  },\n  \"how_confirmed\": \"not confirmed for this order\",\n  \"confirmed_at\": null,\n  \"source\": {\n   \"kind\": \"order_endpoint_details\",\n   \"id\": \"ep-x69cef016edfbc8b0\",\n   \"label\": \"Pickup details, unconfirmed\",\n   \"at\": \"2026-10-16T09:03:00Z\"\n  },\n  \"belongs_to_customer\": false\n },\n \"delivery\": {\n  \"place\": \"Marvellin Hamburg\",\n  \"address\": \"Wolkenfeldstraße 74, Hamburg, DE\",\n  \"time_zone\": \"Europe/Berlin\",\n  \"opening_hours\": {\n   \"sat\": null,\n   \"sun\": null,\n   \"mon_fri\": \"08:00-17:00\"\n  },\n  \"access_instruction\": \"Yard staff must meet the driver at the gate. Do not leave the car or keys unattended.\",\n  \"access_status\": \"CONFIRMED\",\n  \"contact\": {\n   \"name\": \"Iris Alderfield\",\n   \"role\": \"site desk\",\n   \"handle\": \"site-041@example.test\",\n   \"status\": \"CONFIRMED\"\n  },\n  \"how_confirmed\": \"the site's standard profile, not a call about this car\",\n  \"confirmed_at\": \"2026-10-16 09:03 UTC\",\n  \"source\": {\n   \"kind\": \"order_endpoint_details\",\n   \"id\": \"ep-xccdd7f7c549de6f5\",\n   \"label\": \"Delivery details, the site's standard profile, not a call about this car\",\n   \"at\": \"2026-10-16T09:03:00Z\"\n  },\n  \"site_rules\": {\n   \"handover_mode\": \"staffed_yard\",\n   \"requires_signed_release\": false,\n   \"release_document_rule\": \"Confirm order reference and driver ID with site staff before handover\",\n   \"advance_notice_minutes\": 0\n  },\n  \"belongs_to_customer\": true\n },\n \"driver\": {\n  \"name\": \"Kasper Kovelund\",\n  \"job_status\": \"IN_PROGRESS\",\n  \"journey_start\": {\n   \"recorded\": true,\n   \"at\": \"2026-10-20 06:43 UTC\",\n   \"text\": \"Journey start recorded 26 h 18 min ago\"\n  },\n  \"source\": {\n   \"kind\": \"work_assignments\",\n   \"id\": \"asg-x0fdee1ca8311136b\",\n   \"label\": \"Driver booking, Kasper Kovelund\",\n   \"at\": \"2026-10-17T00:41:00Z\"\n  }\n },\n \"last_driver_app_progress\": {\n  \"observed\": \"2026-10-21 05:00 UTC\",\n  \"age\": \"4 h 1 min ago\",\n  \"received\": \"2026-10-21 05:01 UTC\",\n  \"progress_percent\": 70,\n  \"distance_remaining_km\": 233,\n  \"app_estimate_of_delivery_utc\": \"2026-10-21T11:13:00Z\",\n  \"quality\": \"STALE\",\n  \"note\": \"Coarse driver-app progress. It has no coordinates and is not a verified location.\",\n  \"source\": {\n   \"kind\": \"tracking_observations\",\n   \"id\": \"track-x4ec652df41547497\",\n   \"label\": \"Driver app progress, 2026-10-21 05:00 UTC\",\n   \"at\": \"2026-10-21T05:00:00Z\"\n  }\n },\n \"steps_reported_in_driver_app\": [],\n \"customer\": {\n  \"name\": \"Marvellin Motorhandel\",\n  \"country\": \"DE\",\n  \"rule\": \"The customer pays Bahn. The agent never contacts them directly; use a CONTACT_CUSTOMER proposal.\",\n  \"source\": {\n   \"kind\": \"customers\",\n   \"id\": \"cus-024\",\n   \"label\": \"Customer account, Marvellin Motorhandel\",\n   \"at\": null\n  }\n },\n \"delivery_promise\": {\n  \"start_utc\": \"2026-10-21T10:00:00Z\",\n  \"end_utc\": \"2026-10-21T14:00:00Z\",\n  \"zone\": \"Europe/Berlin\",\n  \"start\": \"Wed 21 Oct 12:00 CEST\",\n  \"end\": \"Wed 21 Oct 16:00 CEST\",\n  \"basis\": \"set by the customer\",\n  \"source\": {\n   \"kind\": \"time_windows\",\n   \"id\": \"win-x7c87",
+        "is_error": false,
+        "gate_reason": null
+      },
+      {
+        "at": "2026-10-21T09:00:31.728Z",
+        "ms": 10,
+        "gate": "ALLOWED",
+        "name": "get_timeline",
+        "input": {
+          "last": 40,
+          "order_ref": "CD-420322"
+        },
+        "result": "[\n {\n  \"at\": \"2026-10-16 09:03 UTC\",\n  \"who\": \"Marvellin Motorhandel (customer)\",\n  \"channel\": \"record\",\n  \"text\": \"order created (item id: item-x22a9ae91273fc323, customer id: cus-024)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x8010593290de0532\",\n   \"label\": \"Event log, order.created, 2026-10-16 09:03 UTC\",\n   \"at\": \"2026-10-16T09:03:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-16 10:01 UTC\",\n  \"who\": \"Transport planning\",\n  \"channel\": \"record\",\n  \"text\": \"plan created (pickup point id: point-x9af61c0caf2bb41a, delivery point id: point-x8ac151fa8b84e25b)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x97fcaee7b284802b\",\n   \"label\": \"Event log, plan.created, 2026-10-16 10:01 UTC\",\n   \"at\": \"2026-10-16T10:01:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-16 12:19 UTC\",\n  \"who\": \"Readiness desk\",\n  \"channel\": \"record\",\n  \"text\": \"availability confirmed (pickup window known: true)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x7ca5fa28b7b7537d\",\n   \"label\": \"Event log, availability.confirmed, 2026-10-16 12:19 UTC\",\n   \"at\": \"2026-10-16T12:19:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-16 12:40 UTC\",\n  \"who\": \"Transport planning\",\n  \"channel\": \"record\",\n  \"text\": \"plan activated\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-xc7f8ea9095a58dfa\",\n   \"label\": \"Event log, plan.activated, 2026-10-16 12:40 UTC\",\n   \"at\": \"2026-10-16T12:40:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-16 18:18 UTC\",\n  \"who\": \"Dispatch agent\",\n  \"channel\": \"record\",\n  \"text\": \"offer published (fee cents: 34300, segment id: seg-xafb380e3be4757ec)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x1543edbdbf87d75f\",\n   \"label\": \"Event log, offer.published, 2026-10-16 18:18 UTC\",\n   \"at\": \"2026-10-16T18:18:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-17 00:41 UTC\",\n  \"who\": \"Kasper Kovelund (driver)\",\n  \"channel\": \"record\",\n  \"text\": \"offer accepted\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x111d757ae02da699\",\n   \"label\": \"Event log, offer.accepted, 2026-10-17 00:41 UTC\",\n   \"at\": \"2026-10-17T00:41:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-17 00:41 UTC\",\n  \"who\": \"Kasper Kovelund (driver)\",\n  \"channel\": \"record\",\n  \"text\": \"assignment booked (segment id: seg-xafb380e3be4757ec, source offer id: offer-xcecc1a594576e71f)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x02b7b2ef87ec8e2d\",\n   \"label\": \"Event log, assignment.booked, 2026-10-17 00:41 UTC\",\n   \"at\": \"2026-10-17T00:41:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-17 00:42 UTC\",\n  \"who\": \"System\",\n  \"channel\": \"record\",\n  \"text\": \"order status changed\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-xc37cec00251e273d\",\n   \"label\": \"Event log, order.status_changed, 2026-10-17 00:42 UTC\",\n   \"at\": \"2026-10-17T00:42:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-20 06:43 UTC\",\n  \"who\": \"Kasper Kovelund (driver)\",\n  \"channel\": \"record\",\n  \"text\": \"assignment started\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x0d34887ad28c81dd\",\n   \"label\": \"Event log, assignment.started, 2026-10-20 06:43 UTC\",\n   \"at\": \"2026-10-20T06:43:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-20 08:30 UTC\",\n  \"who\": \"Kasper Kovelund (driver)\",\n  \"channel\": \"record\",\n  \"text\": \"vehicle picked up (segment id: seg-xafb380e3be4757ec, occurred at: 2026-10-20T08:30:00Z)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-xa47fd42897da4d9f\",\n   \"label\": \"Event log, vehicle.picked_up, 2026-10-20 08:30 UTC\",\n   \"at\": \"2026-10-20T08:30:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-20 08:33 UTC\",\n  \"who\": \"System\",\n  \"channel\": \"record\",\n  \"text\": \"order status changed\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x36a6bd0778b8bf16\",\n   \"label\": \"Event log, order.status_changed, 2026-10-20 08:33 UTC\",\n   \"at\": \"2026-10-20T08:33:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-20 08:37 UTC\",\n  \"who\": \"Kasper Kovelund (driver)\",\n  \"channel\": \"record\",\n  \"text\": \"proof submitted (kind: PICKUP_PHOTOS, file count: 4)\",\n  \"source\": {\n   \"kind\": \"operational_events\",",
+        "is_error": false,
+        "gate_reason": null
+      },
+      {
+        "at": "2026-10-21T09:01:19.466Z",
+        "ms": 4,
+        "gate": "ALLOWED",
+        "name": "update_case",
+        "input": {
+          "kind": "DELAY",
+          "title": "Recovery set for 12:00 — propose new delivery window",
+          "summary": "The Bentley is stopped safely at a service area near Göttingen after a red warning light. The owner's roadside partner collects it at 12:00 today for the Hamburg workshop, so today's delivery is lost. Proposing a new delivery window of Friday 23 Oct 10:00–14:00 UTC to the customer.",
+          "urgency": "HIGH"
+        },
+        "result": "Case updated.",
+        "is_error": false,
+        "gate_reason": null
+      },
+      {
+        "at": "2026-10-21T09:01:19.470Z",
+        "ms": 686,
+        "gate": "ALLOWED",
+        "name": "message_driver",
+        "input": {
+          "text": "Kasper, the owner's roadside partner will collect the Bentley from the service area at 12:00 today. Please stay with the car, engine off, until they arrive, and hand it over only to them."
+        },
+        "result": "Sent to Kasper Kovelund.",
+        "is_error": false,
+        "gate_reason": null
+      },
+      {
+        "at": "2026-10-21T09:01:37.145Z",
+        "ms": 22,
+        "gate": "PROPOSED",
+        "name": "propose_action",
+        "input": {
+          "facts": [
+            {
+              "text": "The driver reported a red warning light and that the car felt different when accelerating, then stopped at a service-area car park with the engine off.",
+              "sources": [
+                {
+                  "at": "2026-10-21T08:04:00.000Z",
+                  "id": "msg-xbd0256027a9d35dd",
+                  "kind": "messages",
+                  "label": "Kasper Kovelund (driver), driver chat, 2026-10-21 08:04 UTC"
+                },
+                {
+                  "at": "2026-10-21T08:22:00.000Z",
+                  "id": "msg-xc6eef673bb0bd1f0",
+                  "kind": "messages",
+                  "label": "Kasper Kovelund (driver), driver chat, 2026-10-21 08:22 UTC"
+                }
+              ]
+            },
+            {
+              "text": "A critical vehicle-warning incident was opened at 08:07 UTC with the driver reported safe stop.",
+              "sources": [
+                {
+                  "at": "2026-10-21T08:07:00.000Z",
+                  "id": "evt-x94800d28af1fbdb5",
+                  "kind": "operational_events",
+                  "label": "Event log, incident.opened, 2026-10-21 08:07 UTC"
+                }
+              ]
+            },
+            {
+              "text": "The customer, Marvellin Motorhandel, instructed us to keep the vehicle stopped while they checked whether it needed roadside assistance or collection.",
+              "sources": [
+                {
+                  "at": "2026-10-21T08:40:00.000Z",
+                  "id": "msg-x61cd4aae96d91cff",
+                  "kind": "messages",
+                  "label": "Marvellin Motorhandel (customer), customer email, 2026-10-21 08:40 UTC"
+                }
+              ]
+            },
+            {
+              "text": "The shift lead recorded the owner's decision: their roadside partner collects the car from the service area at 12:00 today and takes it to their Hamburg workshop; today's delivery is lost.",
+              "sources": [
+                {
+                  "at": "2026-10-21T09:00:20.167Z",
+                  "id": "evt-e28b96850563",
+                  "kind": "cr_events",
+                  "label": "Shift lead, internal, 2026-10-21 09:00 UTC"
+                }
+              ]
+            },
+            {
+              "text": "The current delivery promise is Wednesday 21 October 12:00–16:00 CEST (10:00–14:00 UTC), set by the customer.",
+              "sources": [
+                {
+                  "at": "",
+                  "id": "win-x7c8722a53360a2ad",
+                  "kind": "time_windows",
+                  "label": "Delivery promise, set by the customer"
+                }
+              ]
+            },
+            {
+              "text": "The delivery site, Marvellin Hamburg, belongs to the customer.",
+              "sources": [
+                {
+                  "at": "2026-10-16T09:03:00Z",
+                  "id": "ep-xccdd7f7c549de6f5",
+                  "kind": "order_endpoint_details",
+                  "label": "Delivery details, the site's standard profile, not a call about this car"
+                }
+              ]
+            }
+          ],
+          "title": "Propose new delivery window to the customer",
+          "changes": [
+            {
+              "after": "Fri 23 Oct 12:00–16:00 CEST (10:00–14:00 UTC), proposed to the customer (pending agreement)",
+              "label": "Delivery promise",
+              "before": "Wed 21 Oct 12:00–16:00 CEST (10:00–14:00 UTC), set by the customer"
+            }
+          ],
+          "options": [],
+          "draft_to": "customer",
+          "unknowns": [
+            "Whether the customer accepts the proposed Friday window",
+            "Whether the Hamburg workshop can attend to the car in time for Friday",
+            "The diagnosis of the red warning light (driver said it has not been diagnosed)",
+            "The driver's next steps after the handover (release and travel home) have not been planned"
+          ],
+          "agent_did": [
+            "Read the order record and timeline",
+            "Updated the case to reflect the recovery decision and lost delivery",
+            "Told Kasper that the owner's roadside partner collects the car at 12:00 today and to stay with the car, engine off, until they arrive"
+          ],
+          "rationale": "The owner has decided their roadside partner collects the car at 12:00 today and takes it to the Hamburg workshop, so the car cannot be delivered today. The current promise (set by the customer for Wednesday) can no longer be met, and the shift lead asked us to propose Friday 23 Oct 10:00–14:00 UTC.",
+          "draft_body": "Dear Marvellin Motorhandel,\n\nAs you instructed, the Bentley Continental GT (order CD-420322) remains stopped at the service area after the red warning light. Your roadside partner will collect the car from the service area at 12:00 today and take it to your Hamburg workshop.\n\nBecause the car cannot reach Hamburg today, the delivery window agreed for today, Wednesday 21 October 12:00–16:00 CEST, can no longer be met. We propose a new delivery window of Friday 23 October 12:00–16:00 CEST (10:00–14:00 UTC), after your workshop has attended to the car.\n\nPlease confirm whether this window works for you.",
+          "action_type": "CHANGE_PROMISE",
+          "assumptions": [
+            {
+              "id": "win-x7c8722a53360a2ad",
+              "kind": "record",
+              "field": "end_utc",
+              "label": "Delivery promise still set to Wed 21 Oct 12:00–16:00 CEST",
+              "table": "time_windows",
+              "expected": "2026-10-21T14:00:00Z"
+            },
+            {
+              "from": "driver",
+              "kind": "no_new_message",
+              "after": "2026-10-21T09:00:00.078Z",
+              "label": "No new driver message after 09:00 UTC"
+            },
+            {
+              "from": "customer",
+              "kind": "no_new_message",
+              "after": "2026-10-21T08:40:00.000Z",
+              "label": "No new customer message after 08:40 UTC"
+            }
+          ],
+          "alternatives": [
+            "Hold the promise change until the Hamburg workshop confirms it can attend to the car by Friday",
+            "Propose a later window if the workshop needs more time"
+          ],
+          "draft_channel": "email",
+          "draft_subject": "CD-420322 – proposed new delivery window",
+          "evidence_refs": [
+            {
+              "at": "2026-10-21T08:04:00.000Z",
+              "id": "msg-xbd0256027a9d35dd",
+              "kind": "messages",
+              "label": "Kasper Kovelund (driver), driver chat, 2026-10-21 08:04 UTC"
+            },
+            {
+              "at": "2026-10-21T08:22:00.000Z",
+              "id": "msg-xc6eef673bb0bd1f0",
+              "kind": "messages",
+              "label": "Kasper Kovelund (driver), driver chat, 2026-10-21 08:22 UTC"
+            },
+            {
+              "at": "2026-10-21T08:07:00.000Z",
+              "id": "evt-x94800d28af1fbdb5",
+              "kind": "operational_events",
+              "label": "Event log, incident.opened, 2026-10-21 08:07 UTC"
+            },
+            {
+              "at": "2026-10-21T08:40:00.000Z",
+              "id": "msg-x61cd4aae96d91cff",
+              "kind": "messages",
+              "label": "Marvellin Motorhandel (customer), customer email, 2026-10-21 08:40 UTC"
+            },
+            {
+              "at": "2026-10-21T09:00:20.167Z",
+              "id": "evt-e28b96850563",
+              "kind": "cr_events",
+              "label": "Shift lead, internal, 2026-10-21 09:00 UTC"
+            },
+            {
+              "at": "",
+              "id": "win-x7c8722a53360a2ad",
+              "kind": "time_windows",
+              "label": "Delivery promise, set by the customer"
+            },
+            {
+              "at": "2026-10-16T09:03:00Z",
+              "id": "ep-xccdd7f7c549de6f5",
+              "kind": "order_endpoint_details",
+              "label": "Delivery details, the site's standard profile, not a call about this car"
+            }
+          ],
+          "what_happened": "The Bentley stopped with a red warning light; the owner decided their roadside partner collects it at 12:00 today for the Hamburg workshop, so today's delivery cannot be made.",
+          "draft_language": "en",
+          "recommendation": "Propose to the customer a new delivery window of Friday 23 October 12:00–16:00 CEST (10:00–14:00 UTC), as the shift lead instructed.",
+          "window_end_utc": "2026-10-23T14:00:00Z",
+          "booking_quote_id": "",
+          "window_start_utc": "2026-10-23T10:00:00Z",
+          "next_step_if_approved": "The proposal is sent to Marvellin Motorhandel; when they agree, an operator records the new promise and we update the driver and delivery site.",
+          "next_step_if_rejected": "Return with the operator's preferred window or wording and redraft the proposal.",
+          "replaces_reservation_id": ""
+        },
+        "result": "Recorded for an operator to decide: Propose new delivery window to the customer. Nothing changes until they approve.",
+        "is_error": false,
+        "gate_reason": null
+      }
+    ],
+    "output": "Kasper has been told the roadside partner collects the car at 12:00 today and to stay with it until then. The CHANGE_PROMISE card is ready for an operator to approve — it proposes Friday 23 Oct 12:00–16:00 CEST to the customer.",
+    "stopReason": "end_turn",
+    "usage": {
+      "calls": 4,
+      "attempts": 1,
+      "cost_usd": 0.10391539467999998,
+      "input_tokens": 41618,
+      "output_tokens": 9467,
+      "cache_read_input_tokens": 51968,
+      "cache_creation_input_tokens": 0
+    },
+    "error": null
+  },
+  "system_prompt": "systemPrompt(\"operator\")",
+  "case_notes": "# Case notes\nJob: Instruction from an operator\nNow: 2026-10-21 09:00 UTC (simulated clock); local time: Wed 21 Oct 11:00 CEST (Europe/Berlin)\nOrder: CD-420322 · Bentley Continental GT · Munich → Hamburg\nCase: Warning light, Bentley stopped at service area near Göttingen · vehicle warning · agent working · urgency high · opened now\nYou are talking to: Operations (operator) via internal\nWaiting on: the agent since 2026-10-21 09:00 UTC, next check 2026-10-21 09:30 UTC\nNext action on record: The agent follows the instruction: The owner says their roadside partner collects the car from the service area at 12:00 today and takes it to their Hamburg workshop. Today's delivery is lost. Propose to the customer a new delivery window Friday 23 Oct 10:00-14:00 UTC.\nDecisions waiting for an operator: none\n# Conversation and work on this case so far (oldest first)\n[2026-10-21 09:00 UTC] Kasper Kovelund (driver) → Road Desk agent (driver chat): Still waiting at the service area with the Bentley. Has anyone decided who is collecting the car? I need to know if I should stay.\n[2026-10-21 09:00 UTC] Road Desk agent (internal): Read the order record for CD-420322\n[2026-10-21 09:00 UTC] Road Desk agent (internal): Checked the car and phone data for the last 30 min: nothing received\n[2026-10-21 09:00 UTC] Road Desk agent (internal): Waiting on the car owner's decision on recovery for the Bentley (incident opened 08:07 UTC). Next check at 2026-10-21 09:30 UTC, in 30 min: Once the owner's decision is recorded, tell Kasper who is collecting the car and when.\n[2026-10-21 09:00 UTC] Shift lead → Road Desk agent (internal): Instruction to the agent: The owner says their roadside partner collects the car from the service area at 12:00 today and takes it to their Hamburg workshop. Today's delivery is lost. Propose to the customer a new delivery window Friday 23 Oct 10:00-14:00 UTC.\n[2026-10-21 09:00 UTC] Road Desk agent → Kasper Kovelund (driver) (driver chat): No decision yet, Kasper. Operations is still waiting for the Bentley's owner to say who recovers the car and how. Please stay at the service area with the engine off — we will message you the moment we know who is coming and when.\n# Now\nAn operator logged an outcome or gave an instruction; it is the latest entry in the case notes. Continue the case: tell the driver what happens next if they need to know (message_driver), propose the next decision if one is needed, or put the case into a deliberate wait with wait_for (who we wait on and when to check again). End with one line for the operators.",
+  "messages": [
+    {
+      "role": "user",
+      "content": "# Case notes\nJob: Instruction from an operator\nNow: 2026-10-21 09:00 UTC (simulated clock); local time: Wed 21 Oct 11:00 CEST (Europe/Berlin)\nOrder: CD-420322 · Bentley Continental GT · Munich → Hamburg\nCase: Warning light, Bentley stopped at service area near Göttingen · vehicle warning · agent working · urgency high · opened now\nYou are talking to: Operations (operator) via internal\nWaiting on: the agent since 2026-10-21 09:00 UTC, next check 2026-10-21 09:30 UTC\nNext action on record: The agent follows the instruction: The owner says their roadside partner collects the car from the service area at 12:00 today and takes it to their Hamburg workshop. Today's delivery is lost. Propose to the customer a new delivery window Friday 23 Oct 10:00-14:00 UTC.\nDecisions waiting for an operator: none\n# Conversation and work on this case so far (oldest first)\n[2026-10-21 09:00 UTC] Kasper Kovelund (driver) → Road Desk agent (driver chat): Still waiting at the service area with the Bentley. Has anyone decided who is collecting the car? I need to know if I should stay.\n[2026-10-21 09:00 UTC] Road Desk agent (internal): Read the order record for CD-420322\n[2026-10-21 09:00 UTC] Road Desk agent (internal): Checked the car and phone data for the last 30 min: nothing received\n[2026-10-21 09:00 UTC] Road Desk agent (internal): Waiting on the car owner's decision on recovery for the Bentley (incident opened 08:07 UTC). Next check at 2026-10-21 09:30 UTC, in 30 min: Once the owner's decision is recorded, tell Kasper who is collecting the car and when.\n[2026-10-21 09:00 UTC] Shift lead → Road Desk agent (internal): Instruction to the agent: The owner says their roadside partner collects the car from the service area at 12:00 today and takes it to their Hamburg workshop. Today's delivery is lost. Propose to the customer a new delivery window Friday 23 Oct 10:00-14:00 UTC.\n[2026-10-21 09:00 UTC] Road Desk agent → Kasper Kovelund (driver) (driver chat): No decision yet, Kasper. Operations is still waiting for the Bentley's owner to say who recovers the car and how. Please stay at the service area with the engine off — we will message you the moment we know who is coming and when.\n# Now\nAn operator logged an outcome or gave an instruction; it is the latest entry in the case notes. Continue the case: tell the driver what happens next if they need to know (message_driver), propose the next decision if one is needed, or put the case into a deliberate wait with wait_for (who we wait on and when to check again). End with one line for the operators."
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "Let me read the order context and timeline to gather facts before drafting the proposal.\n\nThe instruction: owner's roadside partner collects the car at 12:00 today, takes it to their Hamburg workshop. Today's delivery is lost. Propose to customer a new delivery window Friday 23 Oct 10:00-14:00 UTC.\n\nSo I need to:\n1. message_driver - tell Kasper who's coming (roadside partner at 12:00) and that he can hand over.\n2. Propose ACTION: CHANGE_PROMISE (new delivery window). But wait - CHANGE_PROMISE sends the question to the customer. Actually the instruction says \"Propose to the customer a new delivery window.\" This means CHANGE_PROMISE with a CONTACT_CUSTOMER draft? Let me think.\n\nThe propose_action action_type CHANGE_PROMISE: \"Approving CHANGE_PROMISE only sends the question to the customer; the promise changes when they agree.\" So proposing CHANGE_PROMISE with a draft_body to the customer is the right approach.\n\nActually, wait - let me re-read. The rulebook says: \"A later delivery is a customer agreement (CHANGE_PROMISE, after recovery is clear).\" And \"Approving CHANGE_PROMISE only sends the question to the customer.\"\n\nSo I propose CHANGE_PROMISE with draft to customer.\n\nBut also there's the issue of who is the customer vs the owner. \"The owner\" - the dealer owns the car? Actually owner = the dealer who is the customer. Let me read the order context.\n\nLet me gather facts first.",
+          "signature": ""
+        },
+        {
+          "type": "tool_use",
+          "id": "call_a635b2a120394318a86c9116",
+          "caller": {
+            "type": "direct"
+          },
+          "name": "get_order_context",
+          "input": {
+            "order_ref": "CD-420322"
+          }
+        },
+        {
+          "type": "tool_use",
+          "id": "call_126877745f0e40a8a252ee07",
+          "caller": {
+            "type": "direct"
+          },
+          "name": "get_timeline",
+          "input": {
+            "order_ref": "CD-420322",
+            "last": 40
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "call_a635b2a120394318a86c9116",
+          "content": "{\n \"order\": {\n  \"reference\": \"CD-420322\",\n  \"stage\": \"car collected and on its way\",\n  \"route\": \"Abendhainweg 111, Munich, DE → Wolkenfeldstraße 74, Hamburg, DE\",\n  \"route_kind\": \"domestic\",\n  \"source\": {\n   \"kind\": \"orders\",\n   \"id\": \"ord-00322\",\n   \"label\": \"Order CD-420322\",\n   \"at\": null\n  }\n },\n \"vehicle\": {\n  \"make\": \"Bentley\",\n  \"model\": \"Continental GT\",\n  \"year\": 2021,\n  \"fuel\": \"petrol\",\n  \"plate\": \"not recorded\",\n  \"vin\": \"SYNNWPB5ZZSFETNFP\",\n  \"source\": {\n   \"kind\": \"vehicles\",\n   \"id\": \"veh-00322\",\n   \"label\": \"Vehicle record, Bentley Continental GT\",\n   \"at\": null\n  }\n },\n \"pickup\": {\n  \"place\": \"Private handoff\",\n  \"address\": \"Abendhainweg 111, Munich, DE\",\n  \"time_zone\": \"Europe/Berlin\",\n  \"opening_hours\": {\n   \"by_appointment\": true\n  },\n  \"access_instruction\": \"Arrange a named seller handover at the door; no unattended key collection is agreed.\",\n  \"access_status\": \"NEEDS_VERIFICATION\",\n  \"contact\": {\n   \"name\": \"Frederic Fallowmere\",\n   \"role\": \"handoff contact\",\n   \"handle\": \"handoff-00322-pickup@example.test\",\n   \"status\": \"UNCONFIRMED\"\n  },\n  \"how_confirmed\": \"not confirmed for this order\",\n  \"confirmed_at\": null,\n  \"source\": {\n   \"kind\": \"order_endpoint_details\",\n   \"id\": \"ep-x69cef016edfbc8b0\",\n   \"label\": \"Pickup details, unconfirmed\",\n   \"at\": \"2026-10-16T09:03:00Z\"\n  },\n  \"belongs_to_customer\": false\n },\n \"delivery\": {\n  \"place\": \"Marvellin Hamburg\",\n  \"address\": \"Wolkenfeldstraße 74, Hamburg, DE\",\n  \"time_zone\": \"Europe/Berlin\",\n  \"opening_hours\": {\n   \"sat\": null,\n   \"sun\": null,\n   \"mon_fri\": \"08:00-17:00\"\n  },\n  \"access_instruction\": \"Yard staff must meet the driver at the gate. Do not leave the car or keys unattended.\",\n  \"access_status\": \"CONFIRMED\",\n  \"contact\": {\n   \"name\": \"Iris Alderfield\",\n   \"role\": \"site desk\",\n   \"handle\": \"site-041@example.test\",\n   \"status\": \"CONFIRMED\"\n  },\n  \"how_confirmed\": \"the site's standard profile, not a call about this car\",\n  \"confirmed_at\": \"2026-10-16 09:03 UTC\",\n  \"source\": {\n   \"kind\": \"order_endpoint_details\",\n   \"id\": \"ep-xccdd7f7c549de6f5\",\n   \"label\": \"Delivery details, the site's standard profile, not a call about this car\",\n   \"at\": \"2026-10-16T09:03:00Z\"\n  },\n  \"site_rules\": {\n   \"handover_mode\": \"staffed_yard\",\n   \"requires_signed_release\": false,\n   \"release_document_rule\": \"Confirm order reference and driver ID with site staff before handover\",\n   \"advance_notice_minutes\": 0\n  },\n  \"belongs_to_customer\": true\n },\n \"driver\": {\n  \"name\": \"Kasper Kovelund\",\n  \"job_status\": \"IN_PROGRESS\",\n  \"journey_start\": {\n   \"recorded\": true,\n   \"at\": \"2026-10-20 06:43 UTC\",\n   \"text\": \"Journey start recorded 26 h 18 min ago\"\n  },\n  \"source\": {\n   \"kind\": \"work_assignments\",\n   \"id\": \"asg-x0fdee1ca8311136b\",\n   \"label\": \"Driver booking, Kasper Kovelund\",\n   \"at\": \"2026-10-17T00:41:00Z\"\n  }\n },\n \"last_driver_app_progress\": {\n  \"observed\": \"2026-10-21 05:00 UTC\",\n  \"age\": \"4 h 1 min ago\",\n  \"received\": \"2026-10-21 05:01 UTC\",\n  \"progress_percent\": 70,\n  \"distance_remaining_km\": 233,\n  \"app_estimate_of_delivery_utc\": \"2026-10-21T11:13:00Z\",\n  \"quality\": \"STALE\",\n  \"note\": \"Coarse driver-app progress. It has no coordinates and is not a verified location.\",\n  \"source\": {\n   \"kind\": \"tracking_observations\",\n   \"id\": \"track-x4ec652df41547497\",\n   \"label\": \"Driver app progress, 2026-10-21 05:00 UTC\",\n   \"at\": \"2026-10-21T05:00:00Z\"\n  }\n },\n \"steps_reported_in_driver_app\": [],\n \"customer\": {\n  \"name\": \"Marvellin Motorhandel\",\n  \"country\": \"DE\",\n  \"rule\": \"The customer pays Bahn. The agent never contacts them directly; use a CONTACT_CUSTOMER proposal.\",\n  \"source\": {\n   \"kind\": \"customers\",\n   \"id\": \"cus-024\",\n   \"label\": \"Customer account, Marvellin Motorhandel\",\n   \"at\": null\n  }\n },\n \"delivery_promise\": {\n  \"start_utc\": \"2026-10-21T10:00:00Z\",\n  \"end_utc\": \"2026-10-21T14:00:00Z\",\n  \"zone\": \"Europe/Berlin\",\n  \"start\": \"Wed 21 Oct 12:00 CEST\",\n  \"end\": \"Wed 21 Oct 16:00 CEST\",\n  \"basis\": \"set by the customer\",\n  \"source\": {\n   \"kind\": \"time_windows\",\n   \"id\": \"win-x7c8722a53360a2ad\",\n   \"label\": \"Delivery promise, set by the customer\"\n  },\n  \"pending_changes\": [],\n  \"history\": []\n },\n \"windows\": [\n  {\n   \"what\": \"Pickup slot\",\n   \"selected\": true,\n   \"start\": \"Tue 20 Oct 10:00 CEST\",\n   \"end\": \"Tue 20 Oct 13:00 CEST\",\n   \"start_utc\": \"2026-10-20T08:00:00Z\",\n   \"end_utc\": \"2026-10-20T11:00:00Z\",\n   \"starts\": \"25 h 1 min ago\",\n   \"set_by\": \"selected by operations\",\n   \"source\": {\n    \"kind\": \"time_windows\",\n    \"id\": \"win-x71d4980005d38643\",\n    \"label\": \"Pickup slot, selected by operations\",\n    \"at\": null\n   }\n  },\n  {\n   \"what\": \"Delivery promise\",\n   \"selected\": true,\n   \"start\": \"Wed 21 Oct 12:00 CEST\",\n   \"end\": \"Wed 21 Oct 16:00 CEST\",\n   \"start_utc\": \"2026-10-21T10:00:00Z\",\n   \"end_utc\": \"2026-10-21T14:00:00Z\",\n   \"starts\": \"in 59 min\",\n   \"set_by\": \"set by the customer\",\n   \"source\": {\n    \"kind\": \"time_windows\",\n    \"id\": \"win-x7c8722a53360a2ad\",\n    \"label\": \"Delivery promise, set by the customer\",\n    \"at\": null\n   }\n  }\n ],\n \"eta_estimate\": {\n  \"text\": \"Driver app estimate 2026-10-21T11:13:00Z\",\n  \"estimate_utc\": \"2026-10-21T11:13:00Z\",\n  \"basis\": \"driver app, coarse\",\n  \"source\": {\n   \"kind\": \"tracking_observations\",\n   \"id\": \"track-x4ec652df41547497\",\n   \"label\": \"Driver app progress\",\n   \"at\": \"2026-10-21T05:00:00Z\"\n  },\n  \"is_estimate\": true\n },\n \"travel_bookings\": [],\n \"travel_quotes\": [],\n \"driver_fee\": \"€343.00\",\n \"phone_position\": {\n  \"lat\": 51.752254,\n  \"lng\": 10.012307,\n  \"place\": \"Last app position near Göttingen\",\n  \"speed_kmh\": null,\n  \"at\": \"2026-10-21 05:00 UTC\",\n  \"age\": \"4 h 1 min ago\",\n  \"note\": \"Simulated phone GPS for this demo, not a verified position.\",\n  \"source\": {\n   \"kind\": \"cr_telemetry\",\n   \"id\": \"tel-af9bba0016c3\",\n   \"label\": \"Simulated phone GPS, 2026-10-21 05:00 UTC\",\n   \"at\": \"2026-10-21T05:00:00.000Z\"\n  }\n },\n \"car_status\": null,\n \"open_records\": {\n  \"alerts\": [\n   {\n    \"summary\": \"No recent driver-app position; check before changing a promise.\",\n    \"status\": \"OPEN\",\n    \"severity\": \"medium\",\n    \"raised\": \"3 h 45 min ago\",\n    \"note\": \"An alert is a reason to look, not a diagnosis.\",\n    \"source\": {\n     \"kind\": \"alerts\",\n     \"id\": \"alert-x105238e92e7f3ba6\",\n     \"label\": \"Alert, tracking gap\",\n     \"at\": \"2026-10-21T05:16:00Z\"\n    }\n   },\n   {\n    \"summary\": \"Driver reports a red warning and has stopped safely. Diagnosis and recovery remain open.\",\n    \"status\": \"ACKNOWLEDGED\",\n    \"severity\": \"critical\",\n    \"raised\": \"54 min ago\",\n    \"note\": \"An alert is a reason to look, not a diagnosis.\",\n    \"source\": {\n     \"kind\": \"alerts\",\n     \"id\": \"alert-x539dcfdd5a51d9ab\",\n     \"label\": \"Alert, safety stop\",\n     \"at\": \"2026-10-21T08:07:00Z\"\n    }\n   }\n  ],\n  \"incidents\": [\n   {\n    \"kind\": \"VEHICLE_WARNING\",\n    \"status\": \"NEEDS_HUMAN\",\n    \"opened\": \"54 min ago\",\n    \"source\": {\n     \"kind\": \"incidents\",\n     \"id\": \"incident-x589908b2ed24936a\",\n     \"label\": \"Incident, vehicle warning\",\n     \"at\": \"2026-10-21T08:07:00Z\"\n    }\n   }\n  ],\n  \"work_items\": [\n   {\n    \"summary\": \"Critical vehicle warning: driver stopped safely; recovery and onward movement remain undecided.\",\n    \"next_action\": \"Obtain the dashboard photo and owner's service decision; agree recovery or safe custody, then separately replan the driver and customer promise. Do not authorize driving from the warning report alone.\",\n    \"owner\": \"ops-shift\",\n    \"due\": \"in 14 min\",\n    \"source\": {\n     \"kind\": \"work_items\",\n     \"id\": \"work-xbfed2fad876cbd13\",\n     \"label\": \"Open work item\",\n     \"at\": null\n    }\n   }\n  ],\n  \"open_conversations\": [\n   {\n    \"topic\": \"vehicle condition\",\n    \"waiting_on\": null,\n    \"owner\": null,\n    \"source\": {\n     \"kind\": \"conversations\",\n     \"id\": \"conv-x161031d9cde93df9\",\n     \"label\": \"Conversation, vehicle condition\",\n     \"at\": \"2026-10-21T08:58:00Z\"\n    }\n   }\n  ]\n },\n \"expense_claims\": [\n  {\n   \"kind\": \"FUEL\",\n   \"amount\": \"€58.76\",\n   \"status\": \"REJECTED\",\n   \"payer\": \"DRIVER\",\n   \"submitted\": \"2026-10-20 13:06 UTC\",\n   \"receipt\": \"ATTACHED_NOT_SAMPLED\",\n   \"source\": {\n    \"kind\": \"expenses\",\n    \"id\": \"expense-x414f2a0bc9a24012\",\n    \"label\": \"Expense claim, fuel\",\n    \"at\": \"2026-10-20T13:06:14Z\"\n   }\n  },\n  {\n   \"kind\": \"FUEL\",\n   \"amount\": \"€128.57\",\n   \"status\": \"APPROVED\",\n   \"payer\": \"DRIVER\",\n   \"submitted\": \"2026-10-20 19:07 UTC\",\n   \"receipt\": \"ATTACHED_NOT_SAMPLED\",\n   \"source\": {\n    \"kind\": \"expenses\",\n    \"id\": \"expense-xf3bcda8956ffd11d\",\n    \"label\": \"Expense claim, fuel\",\n    \"at\": \"2026-10-20T19:07:24Z\"\n   }\n  }\n ]\n}"
+        },
+        {
+          "type": "tool_result",
+          "tool_use_id": "call_126877745f0e40a8a252ee07",
+          "content": "[\n {\n  \"at\": \"2026-10-16 09:03 UTC\",\n  \"who\": \"Marvellin Motorhandel (customer)\",\n  \"channel\": \"record\",\n  \"text\": \"order created (item id: item-x22a9ae91273fc323, customer id: cus-024)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x8010593290de0532\",\n   \"label\": \"Event log, order.created, 2026-10-16 09:03 UTC\",\n   \"at\": \"2026-10-16T09:03:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-16 10:01 UTC\",\n  \"who\": \"Transport planning\",\n  \"channel\": \"record\",\n  \"text\": \"plan created (pickup point id: point-x9af61c0caf2bb41a, delivery point id: point-x8ac151fa8b84e25b)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x97fcaee7b284802b\",\n   \"label\": \"Event log, plan.created, 2026-10-16 10:01 UTC\",\n   \"at\": \"2026-10-16T10:01:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-16 12:19 UTC\",\n  \"who\": \"Readiness desk\",\n  \"channel\": \"record\",\n  \"text\": \"availability confirmed (pickup window known: true)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x7ca5fa28b7b7537d\",\n   \"label\": \"Event log, availability.confirmed, 2026-10-16 12:19 UTC\",\n   \"at\": \"2026-10-16T12:19:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-16 12:40 UTC\",\n  \"who\": \"Transport planning\",\n  \"channel\": \"record\",\n  \"text\": \"plan activated\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-xc7f8ea9095a58dfa\",\n   \"label\": \"Event log, plan.activated, 2026-10-16 12:40 UTC\",\n   \"at\": \"2026-10-16T12:40:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-16 18:18 UTC\",\n  \"who\": \"Dispatch agent\",\n  \"channel\": \"record\",\n  \"text\": \"offer published (fee cents: 34300, segment id: seg-xafb380e3be4757ec)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x1543edbdbf87d75f\",\n   \"label\": \"Event log, offer.published, 2026-10-16 18:18 UTC\",\n   \"at\": \"2026-10-16T18:18:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-17 00:41 UTC\",\n  \"who\": \"Kasper Kovelund (driver)\",\n  \"channel\": \"record\",\n  \"text\": \"offer accepted\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x111d757ae02da699\",\n   \"label\": \"Event log, offer.accepted, 2026-10-17 00:41 UTC\",\n   \"at\": \"2026-10-17T00:41:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-17 00:41 UTC\",\n  \"who\": \"Kasper Kovelund (driver)\",\n  \"channel\": \"record\",\n  \"text\": \"assignment booked (segment id: seg-xafb380e3be4757ec, source offer id: offer-xcecc1a594576e71f)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x02b7b2ef87ec8e2d\",\n   \"label\": \"Event log, assignment.booked, 2026-10-17 00:41 UTC\",\n   \"at\": \"2026-10-17T00:41:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-17 00:42 UTC\",\n  \"who\": \"System\",\n  \"channel\": \"record\",\n  \"text\": \"order status changed\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-xc37cec00251e273d\",\n   \"label\": \"Event log, order.status_changed, 2026-10-17 00:42 UTC\",\n   \"at\": \"2026-10-17T00:42:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-20 06:43 UTC\",\n  \"who\": \"Kasper Kovelund (driver)\",\n  \"channel\": \"record\",\n  \"text\": \"assignment started\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x0d34887ad28c81dd\",\n   \"label\": \"Event log, assignment.started, 2026-10-20 06:43 UTC\",\n   \"at\": \"2026-10-20T06:43:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-20 08:30 UTC\",\n  \"who\": \"Kasper Kovelund (driver)\",\n  \"channel\": \"record\",\n  \"text\": \"vehicle picked up (segment id: seg-xafb380e3be4757ec, occurred at: 2026-10-20T08:30:00Z)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-xa47fd42897da4d9f\",\n   \"label\": \"Event log, vehicle.picked_up, 2026-10-20 08:30 UTC\",\n   \"at\": \"2026-10-20T08:30:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-20 08:33 UTC\",\n  \"who\": \"System\",\n  \"channel\": \"record\",\n  \"text\": \"order status changed\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x36a6bd0778b8bf16\",\n   \"label\": \"Event log, order.status_changed, 2026-10-20 08:33 UTC\",\n   \"at\": \"2026-10-20T08:33:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-20 08:37 UTC\",\n  \"who\": \"Kasper Kovelund (driver)\",\n  \"channel\": \"record\",\n  \"text\": \"proof submitted (kind: PICKUP_PHOTOS, file count: 4)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x76ec6417ba80d74b\",\n   \"label\": \"Event log, proof.submitted, 2026-10-20 08:37 UTC\",\n   \"at\": \"2026-10-20T08:37:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-20 13:06 UTC\",\n  \"who\": \"Kasper Kovelund (driver)\",\n  \"channel\": \"record\",\n  \"text\": \"expense submitted (kind: FUEL, receipt count: 2)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x48c9879750b53cc3\",\n   \"label\": \"Event log, expense.submitted, 2026-10-20 13:06 UTC\",\n   \"at\": \"2026-10-20T13:06:14.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-20 14:38 UTC\",\n  \"who\": \"Support desk\",\n  \"channel\": \"record\",\n  \"text\": \"expense reviewed (decision: REJECTED, payment recorded: false)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x52d0fecb9efb2910\",\n   \"label\": \"Event log, expense.reviewed, 2026-10-20 14:38 UTC\",\n   \"at\": \"2026-10-20T14:38:14.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-20 19:07 UTC\",\n  \"who\": \"Kasper Kovelund (driver)\",\n  \"channel\": \"record\",\n  \"text\": \"expense submitted (kind: FUEL, receipt count: 1)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-xae82aa2f6bff9496\",\n   \"label\": \"Event log, expense.submitted, 2026-10-20 19:07 UTC\",\n   \"at\": \"2026-10-20T19:07:24.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-20 19:50 UTC\",\n  \"who\": \"Support desk\",\n  \"channel\": \"record\",\n  \"text\": \"expense reviewed (decision: APPROVED, payment recorded: false)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-xc24da031356e82f1\",\n   \"label\": \"Event log, expense.reviewed, 2026-10-20 19:50 UTC\",\n   \"at\": \"2026-10-20T19:50:24.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 05:16 UTC\",\n  \"who\": \"System\",\n  \"channel\": \"record\",\n  \"text\": \"alert raised (signal: TRACKING_GAP, tracking observation id: track-x4ec652df41547497)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x71e55d68abaf4950\",\n   \"label\": \"Event log, alert.raised, 2026-10-21 05:16 UTC\",\n   \"at\": \"2026-10-21T05:16:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 08:04 UTC\",\n  \"who\": \"Kasper Kovelund (driver) → Support desk\",\n  \"channel\": \"driver chat\",\n  \"text\": \"I have stopped the Bentley Continental GT on CD-420322. A red warning came on and the car felt different when accelerating.\",\n  \"source\": {\n   \"kind\": \"messages\",\n   \"id\": \"msg-xbd0256027a9d35dd\",\n   \"label\": \"Kasper Kovelund (driver), driver chat, 2026-10-21 08:04 UTC\",\n   \"at\": \"2026-10-21T08:04:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 08:07 UTC\",\n  \"who\": \"System\",\n  \"channel\": \"record\",\n  \"text\": \"alert raised (signal: SAFETY_STOP, conversation id: conv-x161031d9cde93df9)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-xbe1beaec569b9c12\",\n   \"label\": \"Event log, alert.raised, 2026-10-21 08:07 UTC\",\n   \"at\": \"2026-10-21T08:07:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 08:07 UTC\",\n  \"who\": \"Shift lead\",\n  \"channel\": \"record\",\n  \"text\": \"incident opened (kind: VEHICLE_WARNING, driver reported safe stop: true)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x94800d28af1fbdb5\",\n   \"label\": \"Event log, incident.opened, 2026-10-21 08:07 UTC\",\n   \"at\": \"2026-10-21T08:07:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 08:13 UTC\",\n  \"who\": \"Support desk → Kasper Kovelund (driver)\",\n  \"channel\": \"driver chat\",\n  \"text\": \"Thank you for stopping. Are you and the vehicle in a safe place? Please do not drive it further while we contact the owner.\",\n  \"source\": {\n   \"kind\": \"messages\",\n   \"id\": \"msg-x5a8dd1267b854b79\",\n   \"label\": \"Support desk, driver chat, 2026-10-21 08:13 UTC\",\n   \"at\": \"2026-10-21T08:13:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 08:22 UTC\",\n  \"who\": \"Kasper Kovelund (driver) → Support desk\",\n  \"channel\": \"driver chat\",\n  \"text\": \"I am safe at a service-area car park. The engine is off. I can send a dashboard photo, but I have not diagnosed the issue.\",\n  \"source\": {\n   \"kind\": \"messages\",\n   \"id\": \"msg-xc6eef673bb0bd1f0\",\n   \"label\": \"Kasper Kovelund (driver), driver chat, 2026-10-21 08:22 UTC\",\n   \"at\": \"2026-10-21T08:22:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 08:31 UTC\",\n  \"who\": \"Shift lead → Support desk\",\n  \"channel\": \"internal note\",\n  \"text\": \"Human owner required. Record the safe stop, get the photo and call the customer for instructions. No recovery booking or delivery promise yet.\",\n  \"source\": {\n   \"kind\": \"messages\",\n   \"id\": \"msg-x165129e343e8a795\",\n   \"label\": \"Shift lead, internal note, 2026-10-21 08:31 UTC\",\n   \"at\": \"2026-10-21T08:31:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 08:32 UTC\",\n  \"who\": \"Shift lead\",\n  \"channel\": \"record\",\n  \"text\": \"alert owner assigned (owner: ops-shift, incident id: incident-x589908b2ed24936a, basis message id: msg-x165129e343e8a795)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x418c503dd54a91a0\",\n   \"label\": \"Event log, alert.owner_assigned, 2026-10-21 08:32 UTC\",\n   \"at\": \"2026-10-21T08:32:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 08:34 UTC\",\n  \"who\": \"Shift lead\",\n  \"channel\": \"record\",\n  \"text\": \"alert acknowledged (incident id: incident-x589908b2ed24936a, driver cleared to drive: false)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-xb3defe127b34c405\",\n   \"label\": \"Event log, alert.acknowledged, 2026-10-21 08:34 UTC\",\n   \"at\": \"2026-10-21T08:34:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 08:35 UTC\",\n  \"who\": \"Shift lead\",\n  \"channel\": \"record\",\n  \"text\": \"work item opened (alert id: alert-x539dcfdd5a51d9ab, incident id: incident-x589908b2ed24936a)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-x0a8f7a5734494d68\",\n   \"label\": \"Event log, work_item.opened, 2026-10-21 08:35 UTC\",\n   \"at\": \"2026-10-21T08:35:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 08:37 UTC\",\n  \"who\": \"Journey monitor → Kasper Kovelund (driver)\",\n  \"channel\": \"driver chat\",\n  \"text\": \"Operations has a human coordinator on this. Please keep the vehicle stopped and send the service-area name or a safe location pin when you can. We are waiting for the owner's service instruction; nobody has cleared onward driving.\",\n  \"source\": {\n   \"kind\": \"messages\",\n   \"id\": \"msg-x55106231dda04051\",\n   \"label\": \"Journey monitor, driver chat, 2026-10-21 08:37 UTC\",\n   \"at\": \"2026-10-21T08:37:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 08:37 UTC\",\n  \"who\": \"Journey monitor\",\n  \"channel\": \"record\",\n  \"text\": \"message sent (proposal id: agent-x95169653143f1607, recipient id: drv-319, recipient type: driver)\",\n  \"source\": {\n   \"kind\": \"operational_events\",\n   \"id\": \"evt-xfa790563b92c0eb6\",\n   \"label\": \"Event log, message.sent, 2026-10-21 08:37 UTC\",\n   \"at\": \"2026-10-21T08:37:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 08:40 UTC\",\n  \"who\": \"Marvellin Motorhandel (customer) → Support desk\",\n  \"channel\": \"customer email\",\n  \"text\": \"Please keep the vehicle stopped. I will ask our service contact whether it needs roadside assistance or collection.\",\n  \"source\": {\n   \"kind\": \"messages\",\n   \"id\": \"msg-x61cd4aae96d91cff\",\n   \"label\": \"Marvellin Motorhandel (customer), customer email, 2026-10-21 08:40 UTC\",\n   \"at\": \"2026-10-21T08:40:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 08:49 UTC\",\n  \"who\": \"Support desk → Marvellin Motorhandel (customer)\",\n  \"channel\": \"customer email\",\n  \"text\": \"We have paused the journey pending the owner's instruction. We will update the delivery estimate after the recovery plan is confirmed.\",\n  \"source\": {\n   \"kind\": \"messages\",\n   \"id\": \"msg-x68049d766dace0bc\",\n   \"label\": \"Support desk, customer email, 2026-10-21 08:49 UTC\",\n   \"at\": \"2026-10-21T08:49:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 08:58 UTC\",\n  \"who\": \"Kasper Kovelund (driver) → Support desk\",\n  \"channel\": \"driver chat\",\n  \"text\": \"I will wait here. Please tell me who is collecting the car before anyone moves it.\",\n  \"source\": {\n   \"kind\": \"messages\",\n   \"id\": \"msg-x552e941e4df20498\",\n   \"label\": \"Kasper Kovelund (driver), driver chat, 2026-10-21 08:58 UTC\",\n   \"at\": \"2026-10-21T08:58:00.000Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 09:00 UTC\",\n  \"who\": \"Kasper Kovelund (driver) → Road Desk agent\",\n  \"channel\": \"driver chat\",\n  \"text\": \"Still waiting at the service area with the Bentley. Has anyone decided who is collecting the car? I need to know if I should stay.\",\n  \"source\": {\n   \"kind\": \"cr_events\",\n   \"id\": \"evt-4e13848d09c2\",\n   \"label\": \"Kasper Kovelund (driver), driver chat, 2026-10-21 09:00 UTC\",\n   \"at\": \"2026-10-21T09:00:00.078Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 09:00 UTC\",\n  \"who\": \"Road Desk agent\",\n  \"channel\": \"internal\",\n  \"text\": \"Read the order record for CD-420322\",\n  \"source\": {\n   \"kind\": \"cr_events\",\n   \"id\": \"evt-f67022fc3861\",\n   \"label\": \"Road Desk agent, internal, 2026-10-21 09:00 UTC\",\n   \"at\": \"2026-10-21T09:00:04.359Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 09:00 UTC\",\n  \"who\": \"Road Desk agent\",\n  \"channel\": \"internal\",\n  \"text\": \"Checked the car and phone data for the last 30 min: nothing received\",\n  \"source\": {\n   \"kind\": \"cr_events\",\n   \"id\": \"evt-4c8d8afb03fe\",\n   \"label\": \"Road Desk agent, internal, 2026-10-21 09:00 UTC\",\n   \"at\": \"2026-10-21T09:00:04.366Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 09:00 UTC\",\n  \"who\": \"Road Desk agent\",\n  \"channel\": \"internal\",\n  \"text\": \"Waiting on the car owner's decision on recovery for the Bentley (incident opened 08:07 UTC). Next check at 2026-10-21 09:30 UTC, in 30 min: Once the owner's decision is recorded, tell Kasper who is collecting the car and when.\",\n  \"source\": {\n   \"kind\": \"cr_events\",\n   \"id\": \"evt-e49bc396a4c0\",\n   \"label\": \"Road Desk agent, internal, 2026-10-21 09:00 UTC\",\n   \"at\": \"2026-10-21T09:00:18.522Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 09:00 UTC\",\n  \"who\": \"Shift lead → Road Desk agent\",\n  \"channel\": \"internal\",\n  \"text\": \"Instruction to the agent: The owner says their roadside partner collects the car from the service area at 12:00 today and takes it to their Hamburg workshop. Today's delivery is lost. Propose to the customer a new delivery window Friday 23 Oct 10:00-14:00 UTC.\",\n  \"source\": {\n   \"kind\": \"cr_events\",\n   \"id\": \"evt-e28b96850563\",\n   \"label\": \"Shift lead, internal, 2026-10-21 09:00 UTC\",\n   \"at\": \"2026-10-21T09:00:20.167Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 09:00 UTC\",\n  \"who\": \"Road Desk agent → Kasper Kovelund (driver)\",\n  \"channel\": \"driver chat\",\n  \"text\": \"No decision yet, Kasper. Operations is still waiting for the Bentley's owner to say who recovers the car and how. Please stay at the service area with the engine off — we will message you the moment we know who is coming and when.\",\n  \"source\": {\n   \"kind\": \"cr_events\",\n   \"id\": \"evt-0a254ffd27f4\",\n   \"label\": \"Road Desk agent, driver chat, 2026-10-21 09:00 UTC\",\n   \"at\": \"2026-10-21T09:00:22.815Z\"\n  }\n },\n {\n  \"at\": \"2026-10-21 09:00 UTC\",\n  \"who\": \"Road Desk agent\",\n  \"channel\": \"internal\",\n  \"text\": \"Read the order record for CD-420322\",\n  \"source\": {\n   \"kind\": \"cr_events\",\n   \"id\": \"evt-8b5f142c7a67\",\n   \"label\": \"Road Desk agent, internal, 2026-10-21 09:00 UTC\",\n   \"at\": \"2026-10-21T09:00:31.725Z\"\n  }\n }\n]"
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "Now I understand the case. The instruction from the shift lead (operator) is clear:\n\n1. The owner's roadside partner collects the car from the service area at 12:00 today and takes it to their Hamburg workshop.\n2. Today's delivery is lost.\n3. Propose to the customer a new delivery window Friday 23 Oct 10:00-14:00 UTC.\n\nSo I need to:\n1. Update the case (title, summary, kind, urgency).\n2. Tell the driver (message_driver) that the owner's roadside partner collects the car at 12:00 today (local time 14:00 CEST? Wait — \"12:00 today\" — is this local or UTC? The instruction says \"collects the car from the service area at 12:00 today\". The local time is CEST. The service area is near Göttingen, Germany, CEST. The shift lead likely meant local time 12:00 CEST. Hmm, but need to be careful. The instruction says \"at 12:00 today\". Given local time now is 11:00 CEST, \"12:00 today\" = 12:00 CEST (noon local). That's in 1 hour.\n\nActually, let me be careful. The operator instruction is from the shift lead, internal. \"at 12:00 today\" — in context of Germany and CEST, that's 12:00 CEST (noon local). The driver is at a service area near Göttingen. So collection at 12:00 CEST.\n\n3. Propose the next decision: CHANGE_PROMISE to the customer with a new delivery window Friday 23 Oct 10:00-14:00 UTC.\n\nThe new window: Friday 23 Oct 10:00-14:00 UTC. Local: Friday 23 Oct 12:00-16:00 CEST.\n\nNow, per the instruction, \"Propose to the customer a new delivery window Friday 23 Oct 10:00-14:00 UTC.\" So the action is CHANGE_PROMISE. The draft goes to the customer. CHANGE_PROMISE: \"Approving CHANGE_PROMISE only sends the question to the customer; the promise changes when they agree.\"\n\nSo the draft should be a customer message proposing the new window. Draft_to = customer. Channel: email (customer has been communicating via email). Language: en? The customer's messages are in English (\"Please keep the vehicle stopped...\"). The customer is German (Marvellin Motorhandel), but their emails are in English. The latest message from customer is in English. So draft in English.\n\nWait — the rule says \"write the draft the operator would send: plain, polite, factual... in the customer's language if it is not English.\" The customer has written in English, so English is fine.\n\nLet me construct the draft email:\n\nSubject: \"Delivery of CD-420322 — new delivery window proposal\" or similar. Actually for customer draft, subject.\n\nBody: Something like:\n\n\"Dear Marvellin Motorhandel,\n\nThe Bentley Continental GT (order CD-420322) remains stopped at the service area near Göttingen after the red warning light. As you instructed, we have kept the vehicle stopped. Your roadside partner will collect the car from the service area at 12:00 today and take it to your Hamburg workshop.\n\nBecause the car will not reach Hamburg today, the delivery window for today (Wednesday 21 October, 12:00–16:00 CEST) can no longer be met. We propose a new delivery window of Friday 23 October, 12:00–16:00 CEST (10:00–14:00 UTC), once the workshop has attended to the car.\n\nPlease confirm whether this new window works for you.\"\n\nHmm, but wait — the car is being taken to the Hamburg workshop, which belongs to the customer (Marvellin Hamburg is the delivery site and belongs to customer). The delivery is to the customer's own workshop? The delivery place is \"Marvellin Hamburg\" at Wolkenfeldstraße 74. And the owner's roadside partner takes the car to \"their Hamburg workshop\". So actually the car is being taken to the same place as delivery? The delivery site is Marvellin Hamburg. The workshop is presumably Marvellin's Hamburg workshop. So the recovery to the workshop may effectively complete delivery, but the workshop needs to attend to the car, and the customer needs to agree to the new window.\n\nActually, let me think. The delivery place is \"Marvellin Hamburg\", the customer's own site. So the owner (customer = Marvellin Motorhandel) says their roadside partner collects the car and takes it to their Hamburg workshop. So the car will end up at the customer's workshop in Hamburg. But today's delivery is lost because the car has a fault — it can't be delivered as a working/ready car today; the workshop will receive it and presumably fix or inspect it, and formal delivery happens Friday.\n\nRegardless, the instruction is clear: propose a new delivery window Friday 23 Oct 10:00-14:00 UTC.\n\nThe proposal action_type: CHANGE_PROMISE. This includes the window start/end UTC.\n\nwindow_start_utc = 2026-10-23T10:00:00Z\nwindow_end_utc = 2026-10-23T14:00:00Z\n\nchanges: before → after. Delivery promise before: Wed 21 Oct 12:00-16:00 CEST (10:00-14:00 UTC), set by customer. After: Fri 23 Oct 12:00-16:00 CEST (10:00-14:00 UTC), pending customer agreement.\n\nActually for CHANGE_PROMISE, changes should reflect before → after.\n\ndraft_to: customer\ndraft_channel: email\ndraft_subject: \"New delivery window for CD-420322\"\ndraft_body: the message\ndraft_language: en\n\nNow let me also think about whether I need to message the driver first. Yes — the driver asked \"who is collecting the car?\" The operator instruction says the roadside partner collects at 12:00. So I should message the driver to tell them:\n\n\"The owner's roadside partner will collect the Bentley from the service area at 12:00 today (noon local time). Please stay with the car and the engine off until they arrive. Do not hand the car to anyone else.\"\n\nWait — should I tell the driver to stay? The driver asked \"I need to know if I should stay.\" The instruction implies the roadside partner collects at 12:00, so the driver should stay until then. I can tell them that.\n\nLet me draft the driver message: \"Kasper, the owner's roadside partner will collect the Bentley from the service area at 12:00 today. Please stay with the car, engine off, until they arrive, and don't hand it over to anyone else.\"\n\nThat's fine. It's information, not clearance to drive.\n\nNow, do I need to also handle the driver's role after handover? The driver hands over the car; their job ends. But that might be a separate decision (driver travel home / reassignment). The instruction only says propose the new delivery window. Let me not over-reach. But I should mention in unknowns or next steps that driver release/travel home may need handling.\n\nActually, the instruction is specific: \"Propose to the customer a new delivery window Friday 23 Oct 10:00-14:00 UTC.\" So my one decision is CHANGE_PROMISE.\n\nBut wait — is CHANGE_PROMISE the right action, or should it be CONTACT_CUSTOMER? The rulebook says for delay: \"A later delivery: the customer agrees (CHANGE_PROMISE, plus a CONTACT_CUSTOMER draft explaining it).\" And the propose_action description says \"Approving CHANGE_PROMISE only sends the question to the customer; the promise changes when they agree.\"\n\nSo CHANGE_PROMISE includes the draft to customer. Good. I'll use CHANGE_PROMISE.\n\nLet me also verify the \"changes\" — the delivery promise currently is win-x7c8722a53360a2ad (Wed 21 Oct 12:00-16:00 CEST). The change to Fri 23 Oct 10:00-14:00 UTC.\n\nNow, the facts to include with sources:\n\n1. Driver reported red warning and stopped safely at a service area. Source: msg-xbd0256027a9d35dd (08:04 UTC) and msg-xc6eef673bb0bd1f0 (08:22 UTC) — driver says safe at service-area car park, engine off.\n\n2. Incident opened VEHICLE_WARNING at 08:07 UTC. Source: evt-x94800d28af1fbdb5.\n\n3. Customer (Marvellin Motorhandel) instructed to keep vehicle stopped at 08:40. Source: msg-x61cd4aae96d91cff.\n\n4. Owner's decision (via shift lead instruction at 09:00): roadside partner collects at 12:00 today, takes to Hamburg workshop; today's delivery lost. Source: evt-e28b96850563 (shift lead internal instruction).\n\n5. Current delivery promise: Wed 21 Oct 12:00-16:00 CEST (10:00-14:00 UTC), set by customer. Source: win-x7c8722a53360a2ad.\n\n6. Delivery site Marvellin Hamburg is the customer's own site (belongs_to_customer: true). Source: ep-xccdd7f7c549de6f5.\n\n7. Driver is waiting at service area. Source: msg-x552e941e4df20498 (08:58) and evt-4e13848d09c2 (09:00).\n\nNote: The car status is null; telemetry \"nothing received\" per earlier agent note. Phone GPS stale (4h). Not critical for this proposal but I can mention tracking gap as unknown.\n\nNow assumptions: \n- The shift lead's instruction (evt-e28b96850563) is the latest recovery decision.\n- The current delivery promise is win-x7c8722a53360a2ad.\n- No new driver message after 09:00 (msg / evt-4e13848d09c2).\n\nActually, the assumptions field wants record assumptions and no_new_message assumptions. Let me include:\n- record assumption: delivery promise still current (win-x7c8722a53360a2ad, field: end_utc, expected: 2026-10-21T14:00:00Z). Hmm, field names. The record has \"end_utc\". table: time_windows. id: win-x7c8722a53360a2ad. field: end_utc. expected \"2026-10-21T14:00:00Z\". label: \"Delivery promise still set to Wed 21 Oct 12:00-16:00 CEST\".\n- no_new_message from driver after 09:00 (evt-4e13848d09c2 at 2026-10-21T09:00:00.078Z).\n\nAlso could add record assumption about the recovery decision? There's no record of the owner's decision other than the shift lead's instruction (cr_events). I could include a no_new_message from customer? The instruction says owner decided. Hmm. I'll keep assumptions minimal but include the key ones.\n\nActually, let me also reconsider: do I need to update_case first? Yes, per the instruction \"Instruction from an operator\": \"First call update_case so the title, summary and urgency say where the case stands now.\"\n\nSo order of operations:\n1. update_case.\n2. message_driver.\n3. propose_action (CHANGE_PROMISE).\n\nThese can be done in sequence. update_case and message_driver are independent of each other but both before propose. Actually, I can do update_case and message_driver in parallel? They're independent. But propose_action should come after I've done update_case and message_driver (so I can list agent_did accurately). The agent_did should include \"Told Kasper the roadside partner collects at 12:00\".\n\nLet me do update_case and message_driver in parallel first, then propose_action.\n\nWait, but message_driver — the text goes to the driver. Let me make sure it's short and calm, one question at a time. No question needed; it's an update.\n\nDriver message: \"Kasper, the owner's roadside partner will collect the Bentley from the service area at 12:00 today (local time). Please stay with the car, engine off, until they arrive, and hand it over only to them.\"\n\nHmm, \"hand it over only to them\" — is that something I can say? The keys-and-access playbook says never accept a change of receiver from someone other than the customer. The instruction from the owner (via shift lead) says their roadside partner collects. That's the customer's instruction. So telling the driver to hand over to the roadside partner is correct. Good.\n\nLet me write a calm message: \"Kasper, the owner's roadside partner will collect the Bentley from the service area at 12:00 today. Please stay with the car and keep the engine off until they arrive.\"\n\nI'll include \"hand it over to them when they identify themselves\" — maybe keep it simple. Actually the driver earlier said \"Please tell me who is collecting the car before anyone moves it.\" So I should identify the collector: \"the owner's roadside partner\". Good enough.\n\nNow update_case:\n- title: \"Recovery arranged; propose new delivery window to customer\"\n- summary: \"Bentley stopped safely at a service area near Göttingen after a red warning light. Owner's roadside partner collects the car at 12:00 today for the Hamburg workshop; today's delivery is lost. Proposing a new delivery window of Friday 23 Oct 10:00–14:00 UTC to the customer.\"\n- kind: DELAY? Or VEHICLE_WARNING? The case is still a vehicle warning, but the current next action is the delivery promise change. The kind should reflect current focus. Hmm. The case is fundamentally a vehicle warning that now requires a promise change. I think kind could be DELAY since the immediate action is proposing a later delivery. But the root is VEHICLE_WARNING.\n\nActually the case notes header says \"vehicle warning\". The update_case kind enum includes VEHICLE_WARNING and DELAY. The current state: recovery decided, now proposing new delivery window. I'll set kind to DELAY? Let me think. The proposal I'm making is CHANGE_PROMISE (a delivery date change), which fits DELAY. But the underlying case is still a warning. \n\nI think keeping it as VEHICLE_WARNING is more accurate for the queue, but the summary should reflect the recovery decision and the pending promise change. Hmm. The kind should say what the case is about now. Since the recovery is decided and the remaining action is the delivery window, \"DELAY\" captures the current work. But the vehicle hasn't been delivered and there's no confirmed delay record yet.\n\nI'll go with DELAY, urgency HIGH (today's delivery is lost, customer needs to be informed). Actually the urgency: the car is stopped safely, recovery at 12:00 arranged, delivery lost. Customer contact is needed promptly but not life-threatening. HIGH is reasonable.\n\nHmm, actually let me reconsider kind. The case title in notes is \"Warning light, Bentley stopped at service area near Göttingen\". The incident kind is VEHICLE_WARNING. The next action is CHANGE_PROMISE. I'll keep kind as DELAY because the recovery decision is settled and what remains is a delayed delivery. Actually, I think either is defensible. Given the guidance \"once a decision is carried out the old ones are out of date; drop contradictions it settled\", the recovery is now decided, so the \"vehicle warning\" aspect is largely resolved (owner decided collection). What remains is the delivery delay. So DELAY is appropriate.\n\nLet me set:\n- title: \"Delivery lost today — propose new window to customer\"\n- summary: \"Bentley stopped safely near Göttingen with a red warning light. The owner's roadside partner collects it at 12:00 today for the Hamburg workshop, so today's delivery is lost. Proposing a new delivery window of Friday 23 Oct 10:00–14:00 UTC to the customer.\"\n- kind: DELAY\n- urgency: HIGH\n\nNow the propose_action. Let me carefully fill all required fields.\n\naction_type: CHANGE_PROMISE\ntitle: \"Propose Friday delivery window to the customer\" — under 12 words. \"Propose new delivery window to the customer\" (7 words).\nrationale: 2-3 sentences.\n\nwhat_happened: \"The Bentley stopped with a red warning light; the owner decided their roadside partner collects it at 12:00 today for the Hamburg workshop, so today's delivery cannot be made.\"\n\nfacts: list with sources.\n\n1. Driver reported a red warning and stopped at a service-area car park near Göttingen, engine off. Sources: msg-xbd0256027a9d35dd (08:04), msg-xc6eef673bb0bd1f0 (08:22). \n\nActually \"near Göttingen\" — the driver said \"service-area car park\" but not Göttingen. The phone position says \"near Göttingen\" (simulated GPS, 05:00 UTC). Let me be careful. The case title says \"near Göttingen\". I'll state: driver safe at a service-area car park (driver messages); simulated phone GPS last placed the car near Göttingen at 05:00 UTC (tel-af9bba0016c3).\n\n2. Incident VEHICLE_WARNING opened, driver reported safe stop. Source evt-x94800d28af1fbdb5 (08:07).\n\n3. Customer instructed to keep the vehicle stopped. Source msg-x61cd4aae96d91cff (08:40).\n\n4. Owner's decision: roadside partner collects the car from the service area at 12:00 today and takes it to their Hamburg workshop; today's delivery is lost. Source evt-e28b96850563 (shift lead instruction, 09:00).\n\n5. Current delivery promise is Wed 21 Oct 12:00–16:00 CEST (10:00–14:00 UTC), set by the customer. Source win-x7c8722a53360a2ad.\n\n6. Delivery site is the customer's own site (Marvellin Hamburg). Source ep-xccdd7f7c549de6f5.\n\nagent_did:\n- Told Kasper the owner's roadside partner collects the car at 12:00 today.\n- Read the order record and timeline.\n- Updated the case.\n\nunknowns:\n- Whether the customer accepts the proposed Friday window.\n- Whether the Hamburg workshop can attend to the car by Friday.\n- Driver's next steps after handover (release/travel home) not yet planned.\n- Exact diagnosis of the red warning light (not yet diagnosed).\n\nWait, \"Exact diagnosis\" — do I know it's not diagnosed? The driver said \"I have not diagnosed the issue\" (08:22). So unknown: diagnosis of the warning light remains open. Good.\n\nrecommendation: \"Propose to the customer a new delivery window of Friday 23 Oct 10:00–14:00 UTC (12:00–16:00 CEST) as instructed.\"\n\nalternatives:\n- Hold the promise change until the workshop confirms the car can be ready by Friday.\n- Propose an even later window / keep today's window unchanged (not viable since recovery is at 12:00 and car can't reach Hamburg today).\n\nchanges:\n- label: \"Delivery promise\" before: \"Wed 21 Oct 12:00–16:00 CEST (10:00–14:00 UTC), set by the customer\" after: \"Fri 23 Oct 12:00–16:00 CEST (10:00–14:00 UTC), proposed to customer (pending agreement)\".\n\ndraft_to: customer\ndraft_channel: email\ndraft_subject: \"CD-420322 – proposed new delivery window\"\ndraft_body: the message\ndraft_language: en\n\nDraft body:\n\n\"Dear Marvellin Motorhandel,\n\nAs you instructed, the Bentley Continental GT (CD-420322) remains stopped at the service area near Göttingen after the red warning light. Your roadside partner will collect the car from the service area at 12:00 today and take it to your Hamburg workshop.\n\nBecause the car cannot reach Hamburg today, the agreed delivery window of Wednesday 21 October 12:00–16:00 CEST can no longer be met. We propose a new delivery window of Friday 23 October 12:00–16:00 CEST (10:00–14:00 UTC), after your workshop has attended to the car.\n\nPlease let us know whether this works for you, and we will update the delivery accordingly.\"\n\nHmm, note: for customer message, \"a phone position is 'the driver's phone position at <time>'\" — but here I'm not mentioning phone position. \"near Göttingen\" — I could just say \"the service area\" without asserting Göttingen, since the driver didn't name it. Actually the case title and shift lead instruction reference the service area. The customer's own message didn't reference Göttingen. I'll say \"the service area where the car stopped\". Keep it factual.\n\nActually, let me include \"near Göttingen\" since the simulated GPS places it there, and it's helpful. But the customer message should avoid \"simulated\" language. I can say \"the service area near Göttingen\". Is that a verified fact? The phone GPS is simulated and 4h stale. Hmm. Better to say \"the service area\" to avoid over-claiming. But the customer may want to know where. The owner already knows (they arranged collection). I'll keep it simple: \"the service area\".\n\nLet me refine draft body:\n\n\"Dear Marvellin Motorhandel,\n\nAs you instructed, the Bentley Continental GT (order CD-420322) remains stopped at the service area after the red warning light. Your roadside partner will collect the car from the service area at 12:00 today and take it to your Hamburg workshop.\n\nBecause the car cannot reach Hamburg today, the delivery window agreed for today, Wednesday 21 October 12:00–16:00 CEST, can no longer be met. We propose a new delivery window of Friday 23 October 12:00–16:00 CEST (10:00–14:00 UTC), after your workshop has attended to the car.\n\nPlease confirm whether this window works for you.\"\n\nGood.\n\nwindow_start_utc: \"2026-10-23T10:00:00Z\"\nwindow_end_utc: \"2026-10-23T14:00:00Z\"\n\nbooking_quote_id: \"\" (empty for CHANGE_PROMISE)\nreplaces_reservation_id: \"\" (empty)\n\noptions: empty (it's a plain yes/no? Actually it's a single proposal; no alternatives needed as options since alternatives field covers it). I'll leave options empty.\n\nActually, options could be empty. The decision is \"propose this window to the customer\" — plain yes/no. Keep options empty.\n\nevidence_refs: the source objects copied exactly. Let me list the sources used:\n\n- {kind: \"messages\", id: \"msg-xbd0256027a9d35dd\", label: \"Kasper Kovelund (driver), driver chat, 2026-10-21 08:04 UTC\", at: \"2026-10-21T08:04:00.000Z\"}\n- {kind: \"messages\", id: \"msg-xc6eef673bb0bd1f0\", label: \"Kasper Kovelund (driver), driver chat, 2026-10-21 08:22 UTC\", at: \"2026-10-21T08:22:00.000Z\"}\n- {kind: \"operational_events\", id: \"evt-x94800d28af1fbdb5\", label: \"Event log, incident.opened, 2026-10-21 08:07 UTC\", at: \"2026-10-21T08:07:00.000Z\"}\n- {kind: \"messages\", id: \"msg-x61cd4aae96d91cff\", label: \"Marvellin Motorhandel (customer), customer email, 2026-10-21 08:40 UTC\", at: \"2026-10-21T08:40:00.000Z\"}\n- {kind: \"cr_events\", id: \"evt-e28b96850563\", label: \"Shift lead, internal, 2026-10-21 09:00 UTC\", at: \"2026-10-21T09:00:20.167Z\"}\n- {kind: \"time_windows\", id: \"win-x7c8722a53360a2ad\", label: \"Delivery promise, set by the customer\", at: \"\"}\n- {kind: \"order_endpoint_details\", id: \"ep-xccdd7f7c549de6f5\", label: \"Delivery details, the site's standard profile, not a call about this car\", at: \"2026-10-16T09:03:00Z\"}\n\nFor time_windows source, \"at\" is null in the record. I'll put empty string.\n\nassumptions:\n- {kind: \"record\", table: \"time_windows\", id: \"win-x7c8722a53360a2ad\", field: \"end_utc\", expected: \"2026-10-21T14:00:00Z\", label: \"Delivery promise still set to Wed 21 Oct 12:00-16:00 CEST\"}\n- {kind: \"no_new_message\", from: \"driver\", after: \"2026-10-21T09:00:00.078Z\", label: \"No new driver message after 09:00 UTC\"}\n- {kind: \"no_new_message\", from: \"customer\", after: \"2026-10-21T08:40:00.000Z\", label: \"No new customer message after 08:40 UTC\"}\n\nHmm, should I include customer no_new_message? The proposal depends on the owner's decision (recorded via shift lead instruction). Adding customer no_new_message is reasonable as the proposal contacts the customer; if they've already replied, we'd want to know. I'll include it.\n\nAlso record assumption about the recovery instruction? There's no separate record id for the owner decision; it's in cr_events. I could add a no_new_message? The instruction is the latest cr_event. I'll rely on the facts. Keep assumptions to the promise record and no-new-messages.\n\nnext_step_if_approved: \"Send the proposal to the customer; once they agree, an operator records the new promise and we tell Kasper and the delivery site.\"\n\nActually the proposal execution sends the question to the customer. Then we wait for customer agreement. next_step_if_approved: \"The draft is sent to Marvellin Motorhandel; we wait for their agreement, then record the new promise and update the driver and delivery site.\"\n\nnext_step_if_rejected: \"Keep today's promise unchanged and return with the operator's preferred window or wording.\"\n\nLet me write these.\n\nNow let me also make sure the draft_to for CHANGE_PROMISE is 'customer'. Yes.\n\ndraft_channel: email (customer has been emailing).\n\nLet me write the final propose_action.\n\nOne more consideration: The instruction says \"Propose to the customer a new delivery window Friday 23 Oct 10:00-14:00 UTC.\" This maps to CHANGE_PROMISE. Good.\n\nAlso, should I include CONTACT_CUSTOMER separately? The rulebook delay playbook mentions \"CHANGE_PROMISE, plus a CONTACT_CUSTOMER draft explaining it\". But propose_action CHANGE_PROMISE includes a draft_body to customer. So the draft is embedded. I'll put the draft in the CHANGE_PROMISE proposal (draft_to: customer). That's the single action.\n\nLet me now also double check: the \"changes\" field — for CHANGE_PROMISE, what changes if approved? The promise doesn't change immediately (only sends question). But changes should reflect the intended change. I'll describe before → after as proposed.\n\nLet me write everything now.\n\nFor update_case and message_driver, I can do them in parallel. Then propose_action after.\n\nActually, wait — should message_driver happen at all given the driver already got a message at 09:00 saying \"we will message you the moment we know\"? Yes, now we know, so message them. Good.\n\nLet me do update_case + message_driver in one block (independent), then propose_action.\n\nActually, I need to be careful: the final text to operators goes after the last tool call. So sequence: tool calls, then final short line.\n\nLet me write the driver message text carefully. Keep calm, short.\n\n\"Kasper, the owner's roadside partner will collect the Bentley from the service area at 12:00 today. Please stay with the car, engine off, until they arrive and hand it over to them.\"\n\nGood.\n\nNow let me write update_case.\n\nTitle: \"Recovery set for 12:00 — propose new delivery window\"\nSummary: \"The Bentley is stopped safely at a service area near Göttingen after a red warning light. The owner's roadside partner collects it at 12:00 today for the Hamburg workshop, so today's delivery is lost. Proposing a new delivery window of Friday 23 Oct 10:00–14:00 UTC to the customer.\"\nKind: DELAY\nUrgency: HIGH\n\nNow proceed.",
+          "signature": ""
+        },
+        {
+          "type": "tool_use",
+          "id": "call_00_P8ppfw1u7YI67Y94cJUm3996",
+          "caller": {
+            "type": "direct"
+          },
+          "name": "update_case",
+          "input": {
+            "title": "Recovery set for 12:00 — propose new delivery window",
+            "summary": "The Bentley is stopped safely at a service area near Göttingen after a red warning light. The owner's roadside partner collects it at 12:00 today for the Hamburg workshop, so today's delivery is lost. Proposing a new delivery window of Friday 23 Oct 10:00–14:00 UTC to the customer.",
+            "kind": "DELAY",
+            "urgency": "HIGH"
+          }
+        },
+        {
+          "type": "tool_use",
+          "id": "call_01_dUQZc1vPmgyxAPuOwt5k2963",
+          "caller": {
+            "type": "direct"
+          },
+          "name": "message_driver",
+          "input": {
+            "text": "Kasper, the owner's roadside partner will collect the Bentley from the service area at 12:00 today. Please stay with the car, engine off, until they arrive, and hand it over only to them."
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "call_00_P8ppfw1u7YI67Y94cJUm3996",
+          "content": "Case updated."
+        },
+        {
+          "type": "tool_result",
+          "tool_use_id": "call_01_dUQZc1vPmgyxAPuOwt5k2963",
+          "content": "Sent to Kasper Kovelund."
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "Now the propose_action for CHANGE_PROMISE.",
+          "signature": ""
+        },
+        {
+          "type": "tool_use",
+          "id": "call_00_hbDJe03fxuNocOwo2EVB7262",
+          "caller": {
+            "type": "direct"
+          },
+          "name": "propose_action",
+          "input": {
+            "action_type": "CHANGE_PROMISE",
+            "title": "Propose new delivery window to the customer",
+            "rationale": "The owner has decided their roadside partner collects the car at 12:00 today and takes it to the Hamburg workshop, so the car cannot be delivered today. The current promise (set by the customer for Wednesday) can no longer be met, and the shift lead asked us to propose Friday 23 Oct 10:00–14:00 UTC.",
+            "what_happened": "The Bentley stopped with a red warning light; the owner decided their roadside partner collects it at 12:00 today for the Hamburg workshop, so today's delivery cannot be made.",
+            "facts": [
+              {
+                "text": "The driver reported a red warning light and that the car felt different when accelerating, then stopped at a service-area car park with the engine off.",
+                "sources": [
+                  {
+                    "kind": "messages",
+                    "id": "msg-xbd0256027a9d35dd",
+                    "label": "Kasper Kovelund (driver), driver chat, 2026-10-21 08:04 UTC",
+                    "at": "2026-10-21T08:04:00.000Z"
+                  },
+                  {
+                    "kind": "messages",
+                    "id": "msg-xc6eef673bb0bd1f0",
+                    "label": "Kasper Kovelund (driver), driver chat, 2026-10-21 08:22 UTC",
+                    "at": "2026-10-21T08:22:00.000Z"
+                  }
+                ]
+              },
+              {
+                "text": "A critical vehicle-warning incident was opened at 08:07 UTC with the driver reported safe stop.",
+                "sources": [
+                  {
+                    "kind": "operational_events",
+                    "id": "evt-x94800d28af1fbdb5",
+                    "label": "Event log, incident.opened, 2026-10-21 08:07 UTC",
+                    "at": "2026-10-21T08:07:00.000Z"
+                  }
+                ]
+              },
+              {
+                "text": "The customer, Marvellin Motorhandel, instructed us to keep the vehicle stopped while they checked whether it needed roadside assistance or collection.",
+                "sources": [
+                  {
+                    "kind": "messages",
+                    "id": "msg-x61cd4aae96d91cff",
+                    "label": "Marvellin Motorhandel (customer), customer email, 2026-10-21 08:40 UTC",
+                    "at": "2026-10-21T08:40:00.000Z"
+                  }
+                ]
+              },
+              {
+                "text": "The shift lead recorded the owner's decision: their roadside partner collects the car from the service area at 12:00 today and takes it to their Hamburg workshop; today's delivery is lost.",
+                "sources": [
+                  {
+                    "kind": "cr_events",
+                    "id": "evt-e28b96850563",
+                    "label": "Shift lead, internal, 2026-10-21 09:00 UTC",
+                    "at": "2026-10-21T09:00:20.167Z"
+                  }
+                ]
+              },
+              {
+                "text": "The current delivery promise is Wednesday 21 October 12:00–16:00 CEST (10:00–14:00 UTC), set by the customer.",
+                "sources": [
+                  {
+                    "kind": "time_windows",
+                    "id": "win-x7c8722a53360a2ad",
+                    "label": "Delivery promise, set by the customer",
+                    "at": ""
+                  }
+                ]
+              },
+              {
+                "text": "The delivery site, Marvellin Hamburg, belongs to the customer.",
+                "sources": [
+                  {
+                    "kind": "order_endpoint_details",
+                    "id": "ep-xccdd7f7c549de6f5",
+                    "label": "Delivery details, the site's standard profile, not a call about this car",
+                    "at": "2026-10-16T09:03:00Z"
+                  }
+                ]
+              }
+            ],
+            "agent_did": [
+              "Read the order record and timeline",
+              "Updated the case to reflect the recovery decision and lost delivery",
+              "Told Kasper that the owner's roadside partner collects the car at 12:00 today and to stay with the car, engine off, until they arrive"
+            ],
+            "unknowns": [
+              "Whether the customer accepts the proposed Friday window",
+              "Whether the Hamburg workshop can attend to the car in time for Friday",
+              "The diagnosis of the red warning light (driver said it has not been diagnosed)",
+              "The driver's next steps after the handover (release and travel home) have not been planned"
+            ],
+            "recommendation": "Propose to the customer a new delivery window of Friday 23 October 12:00–16:00 CEST (10:00–14:00 UTC), as the shift lead instructed.",
+            "alternatives": [
+              "Hold the promise change until the Hamburg workshop confirms it can attend to the car by Friday",
+              "Propose a later window if the workshop needs more time"
+            ],
+            "changes": [
+              {
+                "label": "Delivery promise",
+                "before": "Wed 21 Oct 12:00–16:00 CEST (10:00–14:00 UTC), set by the customer",
+                "after": "Fri 23 Oct 12:00–16:00 CEST (10:00–14:00 UTC), proposed to the customer (pending agreement)"
+              }
+            ],
+            "draft_to": "customer",
+            "draft_channel": "email",
+            "draft_subject": "CD-420322 – proposed new delivery window",
+            "draft_body": "Dear Marvellin Motorhandel,\n\nAs you instructed, the Bentley Continental GT (order CD-420322) remains stopped at the service area after the red warning light. Your roadside partner will collect the car from the service area at 12:00 today and take it to your Hamburg workshop.\n\nBecause the car cannot reach Hamburg today, the delivery window agreed for today, Wednesday 21 October 12:00–16:00 CEST, can no longer be met. We propose a new delivery window of Friday 23 October 12:00–16:00 CEST (10:00–14:00 UTC), after your workshop has attended to the car.\n\nPlease confirm whether this window works for you.",
+            "draft_language": "en",
+            "options": [],
+            "evidence_refs": [
+              {
+                "kind": "messages",
+                "id": "msg-xbd0256027a9d35dd",
+                "label": "Kasper Kovelund (driver), driver chat, 2026-10-21 08:04 UTC",
+                "at": "2026-10-21T08:04:00.000Z"
+              },
+              {
+                "kind": "messages",
+                "id": "msg-xc6eef673bb0bd1f0",
+                "label": "Kasper Kovelund (driver), driver chat, 2026-10-21 08:22 UTC",
+                "at": "2026-10-21T08:22:00.000Z"
+              },
+              {
+                "kind": "operational_events",
+                "id": "evt-x94800d28af1fbdb5",
+                "label": "Event log, incident.opened, 2026-10-21 08:07 UTC",
+                "at": "2026-10-21T08:07:00.000Z"
+              },
+              {
+                "kind": "messages",
+                "id": "msg-x61cd4aae96d91cff",
+                "label": "Marvellin Motorhandel (customer), customer email, 2026-10-21 08:40 UTC",
+                "at": "2026-10-21T08:40:00.000Z"
+              },
+              {
+                "kind": "cr_events",
+                "id": "evt-e28b96850563",
+                "label": "Shift lead, internal, 2026-10-21 09:00 UTC",
+                "at": "2026-10-21T09:00:20.167Z"
+              },
+              {
+                "kind": "time_windows",
+                "id": "win-x7c8722a53360a2ad",
+                "label": "Delivery promise, set by the customer",
+                "at": ""
+              },
+              {
+                "kind": "order_endpoint_details",
+                "id": "ep-xccdd7f7c549de6f5",
+                "label": "Delivery details, the site's standard profile, not a call about this car",
+                "at": "2026-10-16T09:03:00Z"
+              }
+            ],
+            "assumptions": [
+              {
+                "kind": "record",
+                "table": "time_windows",
+                "id": "win-x7c8722a53360a2ad",
+                "field": "end_utc",
+                "expected": "2026-10-21T14:00:00Z",
+                "label": "Delivery promise still set to Wed 21 Oct 12:00–16:00 CEST"
+              },
+              {
+                "kind": "no_new_message",
+                "from": "driver",
+                "after": "2026-10-21T09:00:00.078Z",
+                "label": "No new driver message after 09:00 UTC"
+              },
+              {
+                "kind": "no_new_message",
+                "from": "customer",
+                "after": "2026-10-21T08:40:00.000Z",
+                "label": "No new customer message after 08:40 UTC"
+              }
+            ],
+            "window_start_utc": "2026-10-23T10:00:00Z",
+            "window_end_utc": "2026-10-23T14:00:00Z",
+            "booking_quote_id": "",
+            "replaces_reservation_id": "",
+            "next_step_if_approved": "The proposal is sent to Marvellin Motorhandel; when they agree, an operator records the new promise and we update the driver and delivery site.",
+            "next_step_if_rejected": "Return with the operator's preferred window or wording and redraft the proposal."
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "call_00_hbDJe03fxuNocOwo2EVB7262",
+          "content": "Recorded for an operator to decide: Propose new delivery window to the customer. Nothing changes until they approve."
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Kasper has been told the roadside partner collects the car at 12:00 today and to stay with it until then. The CHANGE_PROMISE card is ready for an operator to approve — it proposes Friday 23 Oct 12:00–16:00 CEST to the customer.",
+          "citations": []
+        }
+      ]
+    }
+  ]
+}

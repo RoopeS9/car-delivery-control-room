@@ -205,6 +205,8 @@ async function saveTrace(name: string) {
   if (!TRACE_DIR || !existsSync(TRACE_DIR)) return
   // Let a follow-up still running finish, so its run is filed with this story and not the next.
   await until(async () => !(await cases()).cases.some((row) => row.status === "AGENT_WORKING"), 150)
+  await sleep(15000) // a turn writes its card, then its closing note and its run file
+
   const dir = path.join(TRACE_DIR, name)
   mkdirSync(dir, { recursive: true })
   for (const file of readdirSync(TRACE_DIR).filter((entry) => entry.endsWith(".json"))) renameSync(path.join(TRACE_DIR, file), path.join(dir, file))
