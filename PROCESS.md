@@ -1400,8 +1400,9 @@ Found and fixed (each from a run or a screenshot, not from reading the code):
   agreement?" with a decision card of its own; while that answer is unrecorded, such a card is refused before
   validation, and the reply is the one card. Rerun: B 9/9.
 - "Need a person" read 44 on All orders, 17 on the map and 20 in Needs you. The board counted any open signal; it
-  now uses the map's rule (a decision due now): both read 16. Needs you still lists three alert-only rows among
-  its decisions (a team choice in the queue; noted, not changed tonight).
+  now uses the map's rule (a decision due now): both read 16. Needs you still lists three urgent alerts among its
+  decisions: moving them to the watched group broke a team test ("an unrelated urgent record remains in Needs your
+  decision"), which states that choice on purpose, so the queue change was reverted and only the board moved.
 
 Added for the deliverables: `RUN-SHEET.md` (roles, clicks, expected screens, timings and fallbacks for the live
 demo), and agent traces for every scenario from the role harness under `starter/traces/e2e-roles-2026-10-25T01-24/`
