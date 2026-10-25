@@ -44,7 +44,7 @@ Not checked here: `docker compose` (no Docker daemon in this sandbox, I used a l
 
 | # | Task | Time | Notes |
 |---|---|---|---|
-| 1 | **Get the final work onto `main`.** `main` is still at `e09d815`, 65 commits behind `roope`. A judge who opens the repo sees the old version. Merge `roope` into `main` (it is a pure fast-forward: `main` is not ahead) or make `roope` the default branch. | 5 min | Do it right after the freeze. |
+| 1 | **Done** at 10:45 Finnish time: `main` fast-forwarded to `roope` (`594703a`); merge again after any later fix. ~~**Get the final work onto `main`.**~~ `main` is still at `e09d815`, 65 commits behind `roope`. A judge who opens the repo sees the old version. Merge `roope` into `main` (it is a pure fast-forward: `main` is not ahead) or make `roope` the default branch. | 5 min | Do it right after the freeze. |
 | 2 | **Make the repo public** and open it in a private window to confirm. GitHub search could not find it, which fits a private repo, but I could not confirm. | 5 min | Brief: "public GitHub repository". |
 | 3 | **Find out how to hand in.** The brief says "hand in two things" by Sunday 15:00 but not where. `PLAN.md` mentions a Prompthack page. Ask on Discord or at the booth now. | 5 min | Everything else waits on this answer. |
 | 4 | **Run the README steps on a Docker machine, verbatim**, including `attachments:seed` and the call service. | 20 min | Fresh clone, not your working copy. |

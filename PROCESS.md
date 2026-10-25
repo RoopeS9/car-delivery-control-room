@@ -1581,3 +1581,8 @@ Got:
 Checked: missed ferry 12/0/0 ("operations decides what to tell the receiver and when"), routine keys 11/0/0, light
 11 checks with one review (no fuel-cap question, which only fuel-tank codes call for); 133 unit tests; the full role
 harness on the final build before the merge to `main`.
+- The full role harness on the final build passed 47/51; all four misses were story B, the same way as after the merge:
+  asked for a new delivery date, the agent drafted it as `CONTACT_CUSTOMER` with the window filled in (two of four
+  runs). The gate now refuses a customer message carrying a window other than the promise while no date waits for an
+  answer, and says to propose `CHANGE_PROMISE`. B then passed 9/9 twice; the refusal fired and the agent re-proposed.
+  `main` was fast-forwarded to `roope` (`594703a`). Spend on Roope's key: $1.29.
