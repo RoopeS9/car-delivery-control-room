@@ -1409,6 +1409,10 @@ demo), and agent traces for every scenario from the role harness under `starter/
 (52/52 checks; B, C and F from a rerun, see its README).
 
 Checked / rejected:
+- Fresh clone of `roope`, following the README without Docker (a local Postgres instead): `npm ci`, typecheck and
+  `npm run build` in `starter/`, `npm ci` and typecheck in `dossier/`, the call service started and loaded 100
+  orders, `db:push` and `db:seed` into an empty database, and the unit suite against it: 126/126. npm 11 warns that
+  esbuild's install script is not approved; `tsx` works without it.
 - C and F failed once in the traced run. Their traces showed the agent doing the right thing more slowly than the
   harness waited (a DeepSeek turn took up to two minutes at that hour), so the harness was changed, not the agent.
 - Spend: about $6 of the $10 for the whole night by this point (OpenRouter key: $8.94, $2.88 before the night).
