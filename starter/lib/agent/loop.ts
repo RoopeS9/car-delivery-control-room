@@ -282,6 +282,11 @@ async function callModel(client: Anthropic, body: Anthropic.MessageStreamParams,
 
 // ---------------------------------------------------------------- case notes
 
+/** The pickup or delivery place a site's turn is about. */
+function siteEndpoint(request: TurnRequest, facts: OrderFacts) {
+  return request.siteEnd === "delivery" ? facts.delivery : facts.pickup
+}
+
 function eventLine(n: Awaited<ReturnType<typeof names>>, event: EventRow): string {
   const who = actorName(n, event.actorType, event.actorId)
   const to = event.recipientType ? ` → ${actorName(n, event.recipientType, event.recipientId)}` : ""
@@ -311,7 +316,7 @@ async function caseNotes(request: TurnRequest, caseRow: CaseRow, facts: OrderFac
   const route = `${String(facts.pickup.address.city ?? "?")} → ${String(facts.delivery.address.city ?? "?")}`
   const counterpart = request.counterpart
   const siteNote = request.audience === "site"
-    ? (request.siteEnd === "delivery" ? facts.delivery : facts.pickup).customerSide
+    ? siteEndpoint(request, facts).customerSide
       ? "\nThis place belongs to the paying customer: your reply will be held as a draft for an operator to approve, not sent."
       : "\nThis place is not the customer: your reply is sent to them directly."
     : ""
@@ -347,7 +352,7 @@ async function deliver(request: TurnRequest, caseRow: CaseRow, facts: OrderFacts
   const text = reply.trim()
   if (!text || text === "NO_MESSAGE") return { eventId: null, held: false }
   if (request.audience === "site") {
-    const endpoint = request.siteEnd === "delivery" ? facts.delivery : facts.pickup
+    const endpoint = siteEndpoint(request, facts)
     if (endpoint.customerSide) {
       // The customer rule covers replies too: draft it, a person approves it. A preamble the model wrote for the
       // operator ("here is the draft…", then a rule) is not part of the message.
@@ -400,8 +405,7 @@ async function settleCase(request: TurnRequest, state: TurnState, spokeToDriver:
   if (!row || state.closed || state.waitSet || row.status !== "AGENT_WORKING" || state.followUps.length > 0 || request.trigger === "ask") return
   // A site's question answered from the records, with nothing asked back, is done: waiting for "the site's reply"
   // would bring an operator a case with nothing in it half an hour later.
-  if (request.audience === "site" && reply.trim() && !reply.includes("?") && !SERIOUS.has(row.kind)
-    && !(request.siteEnd === "delivery" ? state.facts.delivery : state.facts.pickup).customerSide) {
+  if (request.audience === "site" && reply.trim() && !reply.includes("?") && !SERIOUS.has(row.kind) && !siteEndpoint(request, state.facts).customerSide) {
     await updateCase(row.id, { status: "HANDLED_BY_AGENT", owner: "agent", nextAction: null, waitingFor: null, waitingOn: null, nextCheckAt: null })
     await appendEvent({
       caseId: row.id, orderId: row.orderId, actorType: "agent", actorId: AGENT_ID, kind: "note", channel: "internal",
@@ -439,7 +443,7 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
   const facts = await loadOrderFacts(caseRow.orderId)
   if (!facts) throw new Error("Order not found")
   const toPerson = request.audience !== "operator"
-  const holdsReply = request.audience === "site" && (request.siteEnd === "delivery" ? facts.delivery : facts.pickup).customerSide
+  const holdsReply = request.audience === "site" && siteEndpoint(request, facts).customerSide
   const asking = request.trigger === "ask"
   const screen = request.audience === "driver" ? async (text: string) => screenDriverMessage(text, { driverSaid: request.input, safety: await loadDriverSafetyContext(facts, caseRow) }) : null
 
@@ -479,10 +483,15 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
   const system: Anthropic.TextBlockParam[] = [{ type: "text", text: systemPrompt(request.audience), cache_control: { type: "ephemeral" } }]
   const usage: Usage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, cost_usd: 0, calls: 0, attempts: 0 }
   let messages: Anthropic.MessageParam[] = []
-  let gate = new ReplyGate(screen, holdsReply ? undefined : request.onText)
-  gate.deferFallback = request.audience === "driver"
-  gate.forPerson = request.audience !== "operator"
-  gate.personName = request.counterpart.name ?? null
+  // Each attempt gets its own gate, so a retried attempt starts with nothing released.
+  const newReplyGate = () => {
+    const fresh = new ReplyGate(screen, holdsReply ? undefined : request.onText)
+    fresh.deferFallback = request.audience === "driver"
+    fresh.forPerson = request.audience !== "operator"
+    fresh.personName = request.counterpart.name ?? null
+    return fresh
+  }
+  let gate = newReplyGate()
   let stopReason: string | null = null
   let error: string | null = null
 
@@ -536,10 +545,7 @@ export async function runTurn(request: TurnRequest): Promise<TurnResult> {
       caseId: caseRow.id, orderId: caseRow.orderId, actorType: "system", actorId: "road-desk", kind: "note", channel: "internal",
       body: `The agent hit a problem (${error}) before anything was sent or changed; trying once more.`,
     })
-    gate = new ReplyGate(screen, holdsReply ? undefined : request.onText)
-    gate.deferFallback = request.audience === "driver"
-    gate.forPerson = request.audience !== "operator"
-    gate.personName = request.counterpart.name ?? null
+    gate = newReplyGate()
   }
   usage.cost_usd += gate.costUsd + state.costUsd
 
