@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { advanceSimClock, simNow } from "@/lib/cr/clock"
 import type { TickResponse } from "@/lib/cr/types"
+import { autopilotStep } from "@/lib/sim/autopilot"
 import { syncTelemetry } from "@/lib/sim/sync"
 
 export const runtime = "nodejs"
@@ -26,5 +27,7 @@ export async function POST(request: Request) {
       return { ran: true as const, followedUp: tick.followed_up.length, escalated: tick.escalated.length }
     })
     .catch(() => ({ ran: false as const }))
-  return NextResponse.json({ from: from.toISOString(), now: simNow().toISOString(), telemetry, caseTimers })
+  // A jump can bring a check due (a ferry cutoff, a quiet phone): the autopilot looks at once.
+  const autopilot = await autopilotStep(new URL(request.url).origin).then((status) => ({ due: status.due.length, calling: status.inFlight?.reference ?? null })).catch(() => null)
+  return NextResponse.json({ from: from.toISOString(), now: simNow().toISOString(), telemetry, caseTimers, autopilot })
 }

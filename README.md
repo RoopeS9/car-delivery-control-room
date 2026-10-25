@@ -137,6 +137,17 @@ Desk line is stored on the order with its transcript, claims that cite individua
 turns, and a review; it does not start an agent turn. The operator can approve,
 reject, instruct, handle a task externally and log its outcome.
 
+The simulation keeps running on its own: a heartbeat in the server (every 20 s,
+`HEARTBEAT=off` stops it) writes the telemetry that fell due, runs the case
+timers, and lets the **autopilot** place the agent's own check-up calls through
+the call service: a quiet phone on a moving car, a ferry check-in closing, a
+pickup slot with unverified access, a driver who has not started. Every call
+leaves two lines on the order's timeline ("Calling Rafael (position check): no
+position from the driver's phone since 02:12", then what was said and the
+outcome), and what a call finds that needs a decision goes to the agent as a
+follow-up. The demo's scenario orders are left to the presenter; the switch and
+the list of what is due are on `/demo`.
+
 All orders, people, documents, messages, GPS/OBD samples, recovery providers,
 travel quotes, bookings and action effects are fictional. No real customer
 messages, bookings or payments are sent. A quote stays a quote; an operator's

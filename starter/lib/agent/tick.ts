@@ -19,6 +19,7 @@ import { loadOrderFacts } from "./context"
 import { agentCouldNotFinish, driverSilentCard, replyDeadlineMinutes } from "./followup"
 import { utcTime } from "./format"
 import { isCaseLocked, runTurn, withCaseLock } from "./loop"
+import { fleetCar } from "@/lib/sim/fleet"
 
 const WATCHDOG_MINUTES = 3
 const MINUTE = 60000
@@ -123,15 +124,35 @@ async function remindDriver(caseId: string, since: Date) {
   }
 }
 
+/**
+ * Before the card, the agent tries the driver's phone. In the simulation a driver whose phone the demo has switched
+ * off (scenario F) does not pick up, and the attempt is recorded as that; the card then asks a person to try.
+ */
+async function phoneSilentDriver(row: CaseRow, name: string | null, since: Date): Promise<void> {
+  const car = await fleetCar(row.orderId).catch(() => null)
+  const who = name ?? "the driver"
+  await appendEvent({
+    caseId: row.id, orderId: row.orderId, actorType: "agent", actorId: AGENT_ID, kind: "note", channel: "internal",
+    body: `Calling ${who} (position check): no answer in the app since ${utcTime(since)}.`,
+    data: { autopilot: true, call_purpose: "POSITION_CHECK" },
+  })
+  await appendEvent({
+    caseId: row.id, orderId: row.orderId, actorType: "agent", actorId: AGENT_ID, kind: "voice_turn", channel: "driver_voice",
+    body: `Called ${who} to check where the car is: no answer${car?.quietFrom ? ", the phone is off or out of coverage" : ""}.`,
+    data: { autopilot: true, call_purpose: "POSITION_CHECK", call_outcome: "NO_ANSWER", simulated: true },
+  })
+}
+
 /** Second lapse: escalate with what we know (with sources), what is missing, and one next action. */
 async function escalateSilentDriver(caseId: string, since: Date) {
   const row = await getCase(caseId)
   if (!row || row.status !== "WAITING_EXTERNAL" || row.waitingFor !== "driver") return
   const { name } = await driverFacts(row)
+  await phoneSilentDriver(row, name, since)
   if (llm()) {
     await runTurn({
       caseId, audience: "operator", trigger: "follow_up", effort: deepEffort(), counterpart: OPERATIONS, replyChannel: "internal",
-      input: `${name ?? "The driver"} has not answered since ${utcTime(since)}, also not after one reminder. Escalate now with escalate: the known facts with their sources and times (car telemetry, the last driver-app report, the simulated phone position labelled as simulated), the missing facts (the driver's safety, the actual location, whether the car is still moving), and ONE next action for the operator, such as calling the driver on their phone. Do not message the driver again.`,
+      input: `${name ?? "The driver"} has not answered since ${utcTime(since)}, also not after one reminder, and did not pick up the agent's call (in the case notes). Escalate now with escalate: the known facts with their sources and times (car telemetry, the last driver-app report, the simulated phone position labelled as simulated), the missing facts (the driver's safety, the actual location, whether the car is still moving), and ONE next action for the operator, such as calling the driver on their phone. Do not message the driver again.`,
     })
   }
   if ((await listProposals({ caseId, statuses: ["PENDING"] })).length === 0) {

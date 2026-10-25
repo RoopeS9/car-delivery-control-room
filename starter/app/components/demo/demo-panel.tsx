@@ -24,6 +24,14 @@ const STATE_WORDS: Record<string, string> = {
 
 const clock = (iso: string) => new Date(iso).toISOString().slice(11, 19)
 
+type Autopilot = {
+  enabled: boolean; available: boolean; calls: number; holdReason: string | null
+  inFlight: { reference: string; purpose: string; who: string; startedAt: string } | null
+  due: { orderId: string; reference: string; purpose: string; reason: string; who: string }[]
+}
+const PURPOSE_WORDS: Record<string, string> = { POSITION_CHECK: "Position check", FERRY_CHECKIN: "Ferry check-in", PICKUP_READINESS: "Pickup readiness", DRIVER_START_CHECK: "Start check" }
+const purposeWords = (purpose: string) => PURPOSE_WORDS[purpose] ?? purpose.toLowerCase().replace(/_/g, " ")
+
 /** The driver a scenario is about, from its driver-app link ("/driver?driver=drv-042"). */
 function scenarioDriver(scenario: Scenario): string | null {
   for (const link of scenario.links) {
@@ -52,6 +60,7 @@ export function DemoPanel({ onFocus }: { onFocus?: (driverId: string, orderRef: 
   const [error, setError] = useState("")
   const [keepRoutine, setKeepRoutine] = useState(true)
   const [simDriver, setSimDriver] = useState<{ available: boolean; enabled: boolean; humans: string[]; usesModel: boolean; model?: string | null } | null>(null)
+  const [autopilot, setAutopilot] = useState<Autopilot | null>(null)
 
   const refresh = useCallback(async () => {
     try {
@@ -61,6 +70,8 @@ export function DemoPanel({ onFocus }: { onFocus?: (driverId: string, orderRef: 
       setFleet((await stateResponse.json()) as FleetState)
       const driverResponse = await fetch("/api/sim/driver")
       if (driverResponse.ok) setSimDriver(await driverResponse.json())
+      const autopilotResponse = await fetch("/api/sim/autopilot")
+      if (autopilotResponse.ok) setAutopilot(await autopilotResponse.json())
       setError("")
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The simulator did not answer")
@@ -111,6 +122,11 @@ export function DemoPanel({ onFocus }: { onFocus?: (driverId: string, orderRef: 
       setBusy(null)
       void refresh()
     }
+  }
+
+  async function toggleAutopilot(enabled: boolean) {
+    const response = await fetch("/api/sim/autopilot", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ enabled }) })
+    if (response.ok) setAutopilot(await response.json())
   }
 
   async function toggleSimDriver(enabled: boolean) {
@@ -171,6 +187,23 @@ export function DemoPanel({ onFocus }: { onFocus?: (driverId: string, orderRef: 
     </section>
 
     <CustomerWrites stories={stories} onLog={(text, ok) => setLog((items) => [{ at: new Date().toISOString(), text, ok }, ...items].slice(0, 8))} />
+
+    {autopilot && <section className={styles.section} aria-labelledby="autopilot">
+      <h2 id="autopilot">Autopilot <span className={styles.count}>{autopilot.calls} call{autopilot.calls === 1 ? "" : "s"} this session</span></h2>
+      <label className={styles.keep}>
+        <input type="checkbox" checked={autopilot.enabled} onChange={(event) => void toggleAutopilot(event.target.checked)} />
+        Let the agent make its own check-up calls as the simulation runs: a quiet phone on a moving car, a ferry check-in closing, a pickup slot with unverified access, a driver who has not started.
+      </label>
+      {autopilot.inFlight && <p className={styles.muted}>Calling {autopilot.inFlight.who} now ({purposeWords(autopilot.inFlight.purpose)}, {autopilot.inFlight.reference}). The outcome lands on the order in about a minute.</p>}
+      {autopilot.enabled && !autopilot.available && <p className={styles.muted}>Calls need the call service and a model key; without them the checks are listed but not placed.</p>}
+      {autopilot.enabled && autopilot.due.length > 0 && <>
+        <p className={styles.muted}>Due now{autopilot.holdReason ? `, held: ${autopilot.holdReason}` : ", next on the next beat"}:</p>
+        <ul className={styles.dueList}>{autopilot.due.slice(0, 5).map((check) => <li key={`${check.orderId}-${check.purpose}`}>
+          <b>{purposeWords(check.purpose)}</b> · <Link href={`/orders/${check.orderId}`} className="name-link">{check.reference}</Link> · {check.who}: {check.reason}</li>)}</ul>
+      </>}
+      {autopilot.enabled && !autopilot.due.length && <p className={styles.muted}>Nothing is due. Every call it places shows on the order's timeline, with what was said.</p>}
+      <p className={styles.muted}>The scenario orders above are yours: the autopilot leaves them alone. Elsewhere a scenario started here takes precedence on its order (the readiness and start checks stand down; the position and ferry checks follow the car and still run), and an order the agent or a person is working on is left alone.</p>
+    </section>}
 
     {simDriver?.available && <section className={styles.section} aria-labelledby="simdriver">
       <h2 id="simdriver">Simulated driver <span className={styles.count}>video only</span></h2>

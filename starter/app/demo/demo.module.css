@@ -71,3 +71,6 @@
 .customerLines { display: flex; flex-wrap: wrap; gap: 6px; }
 .customerLines button { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--hair); background: transparent; color: var(--muted); font-size: 12px; }
 .customerLines button:hover { color: var(--ink); border-color: var(--ink); }
+
+/* The autopilot: what is due, one line each. */
+.dueList { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: var(--brown); display: grid; gap: 4px; }

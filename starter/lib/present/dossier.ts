@@ -183,9 +183,12 @@ export async function buildDossier(bundle: Bundle): Promise<DossierView> {
   // ---- what happened: records, live case events, calls
   const callIds = new Set(view.calls.map((call) => call.id))
   const lineEventIds = new Set(bundle.cr.events.filter((event) => typeof (event.data as Record<string, unknown>).line_call_id === "string").map((event) => event.id))
+  const roadCallEventIds = new Set(bundle.cr.events.filter((event) => typeof (event.data as Record<string, unknown>).road_call_id === "string").map((event) => event.id))
   const chainSteps: { at: string; text: string }[] = []
   for (const entry of view.timeline) {
     if (entry.kind === "voice" && callIds.size) continue
+    // The autopilot's call summary: the call itself is listed below from the call service, with its claims.
+    if (entry.source.kind === "cr_events" && roadCallEventIds.has(entry.source.id)) continue
     if (entry.source.kind === "cr_events" && lineEventIds.has(entry.source.id)) continue
     const command = entry.source.kind === "operational_events" ? commandOf.get(entry.source.id) ?? null : null
     if (command && LIFECYCLE.has(command)) continue

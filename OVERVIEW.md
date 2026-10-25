@@ -61,8 +61,12 @@ one card: the delivery confirmation, for a person to send to the customer.
 
 **The clock and the car data.** The clock starts at the snapshot (09:00 UTC, 21 October) and runs with real time;
 the demo panel can jump it, and a restart catches it up to the newest record. Operator pages poll every few seconds:
-each poll writes the car readings that fell due, then checks timers. A silent driver gets one reminder, then
-a person gets a "call them" card. A case stuck as "agent working" for three simulated minutes becomes a card.
+each poll writes the car readings that fell due, then checks timers. A silent driver gets one reminder, then the agent
+tries their phone; if nobody answers, a person gets a "call them" card. A case stuck as "agent working" for three
+simulated minutes becomes a card. A heartbeat in the server does the same work when no page is open, and runs the
+**autopilot**: the agent's own check-up calls (a quiet phone on a moving car, a ferry check-in closing, a pickup slot
+with unverified access, a driver who has not started) through the call service, each recorded on the order's
+timeline with what was said. A scenario started from the demo screen takes precedence on its order.
 
 **A phone call.** Before a live call, the call service prepares the line with a brief and the whole dossier, and
 refuses calls the agent may not make (a desk that belongs to the customer). The audio runs on a phone-line server

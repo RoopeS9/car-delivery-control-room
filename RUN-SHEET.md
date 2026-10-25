@@ -15,7 +15,9 @@ with DeepSeek v4 through OpenRouter; `npm run e2e:roles` replays the same paths 
 1. Both services up: the app (`cd starter && npm start`, port 3000) and the call service
    (`cd dossier && npm run serve`, port 8799). `curl -s localhost:3000/api/cases` answers.
 2. `/demo` → **Reset demo**. The sim clock reads 09:00 UTC, 21 Oct.
-3. In `/demo`, the **simulated driver** is off (a person plays Leo).
+3. In `/demo`, the **simulated driver** is off (a person plays Leo). The **autopilot** may stay on: it phones drivers and
+   desks on the other orders as the simulation runs (each call shows on that order's timeline) and leaves the scenario
+   orders A to H alone. Switch it off if you want nothing to happen that you did not start.
 4. Tabs, in order: `/` (map), `/queue`, `/demo`; the driver's phone in its own window.
 5. The queue shows the dataset's own open items and no Road Desk case yet.
 

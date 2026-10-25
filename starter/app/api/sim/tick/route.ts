@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { autopilotStep } from "@/lib/sim/autopilot"
 import { simDriverStep } from "@/lib/sim/sim-driver"
 import { syncTelemetry } from "@/lib/sim/sync"
 
@@ -10,6 +11,9 @@ export const runtime = "nodejs"
  */
 export async function POST(request: Request) {
   const result = await syncTelemetry()
-  await simDriverStep(new URL(request.url).origin)
+  const origin = new URL(request.url).origin
+  await simDriverStep(origin)
+  // The autopilot's checks run on the same beat; a call it places runs in the background.
+  await autopilotStep(origin).catch((error) => console.warn("[autopilot] step failed", error instanceof Error ? error.message : error))
   return NextResponse.json(result)
 }

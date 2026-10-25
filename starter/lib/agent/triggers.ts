@@ -273,6 +273,50 @@ export async function handleTelemetryFault(request: TelemetryTriggerRequest): Pr
   })
 }
 
+// ---------------------------------------------------------------- the autopilot's calls
+
+export type CallOutcomeRequest = {
+  orderRef: string
+  purpose: string
+  who: string
+  /** What the call found, in one sentence (lib/sim/autopilot.ts summarizeCall). */
+  summary: string
+  /** The findings that may need a decision, in words. */
+  urgent: string[]
+  /** The `voice_turn` event the autopilot wrote on the order. */
+  eventId: string
+  callId: string
+}
+
+/**
+ * A call the autopilot placed found something: the agent reads the call's outcome on the case (opening one when
+ * the order has none) and continues as after any new fact: a card for a person, or a note that nothing is needed.
+ */
+export async function handleCallOutcome(request: CallOutcomeRequest): Promise<{ caseId: string; result: TurnResult }> {
+  return withRuntimeWork("call outcome handling", async () => {
+    const order = await resolveOrder(request.orderRef)
+    const facts = order ? await loadOrderFacts(order.id) : null
+    if (!facts) throw new ChannelError(404, `No order ${request.orderRef}.`)
+    const driverId = activeDriverId(facts)
+    const purpose = request.purpose.toLowerCase().replace(/_/g, " ")
+    const kind = /safe|hurt|warning light|will not move|reports:/.test(request.urgent.join(" ")) ? "VEHICLE_WARNING"
+      : /ferry|connection/.test(request.urgent.join(" ")) ? "MISSED_CONNECTION"
+      : /site|keys|release|hold/.test(request.urgent.join(" ")) ? "KEYS_ACCESS" : "DRIVER_QUESTION"
+    const caseRow = await openCase(facts.id, (row) => !row.driverId || row.driverId === driverId, () => createCase({
+      orderId: facts.id, kind, status: "AGENT_WORKING", urgency: kind === "VEHICLE_WARNING" ? "HIGH" : "NORMAL",
+      title: `${request.who}, ${purpose} call: ${request.urgent[0] ?? "follow-up"}`, summary: request.summary, channelOpened: "system", owner: "agent", driverId,
+      linkedRecords: linkedRecordsOf(facts),
+    }))
+    await attachEvents([request.eventId], caseRow.id)
+    const result = await withCaseLock(caseRow.id, () => runTurn({
+      caseId: caseRow.id, audience: "operator", trigger: "follow_up",
+      input: `The agent's ${purpose} call to ${request.who} just ended. What they said, as extracted: ${request.summary}. What may need a decision: ${request.urgent.join("; ")}. The extraction can be wrong: judge by their quoted words, not the label. Someone who says "everything's fine" is fine, even if a yes-or-no came out the other way; then note that nothing is needed and set a wait or close the case. Where their words do name a problem, continue as after any new fact: a card if a person must decide (recovery, a booking, a date, a cost, a missing release), a message to the driver if they need one. A call is what the person said, not a verification.`,
+      counterpart: { type: "operator", id: null, name: "Operations" }, replyChannel: "internal",
+    }))
+    return { caseId: caseRow.id, result }
+  })
+}
+
 // ---------------------------------------------------------------- operators
 
 /** The "Ask the agent" box: read-only answers with sources. */
