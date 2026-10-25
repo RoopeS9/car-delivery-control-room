@@ -1556,3 +1556,28 @@ Got:
 Checked: 133/133 tests, both typechecks, the build, smoke; the role harness on DeepSeek for A, F and G after the
 safety change (18/18), and scenario A twice more for the language fix and the screenshots. Map, board and queue
 show the same count. Spend: about $7.9 of the $10 (OpenRouter key at $10.82, $2.88 before the night).
+
+## 2026-10-25 ~08:05–08:35 UTC · RoopeS + Claude Code (cloud) · the night's open agent gaps, on Roope's own key
+
+Asked: fix the three agent gaps the second night left open (`starter/scripts/night/MORNING.md`) and the driver phone's
+UTC times (review R25); from here on use Roope's own OpenRouter key, up to $15, since the hackathon key had $10.84 of
+$20 spent. Then merge to `main`.
+
+Got:
+- The prompt and the keys playbook: never promise to tell the receiver, the customer or a desk anything (who tells them
+  is a person's decision); a described warning light with no codes gets questions and "an operator decides", never
+  "drive gently"; keys with an unconfirmed contact get the recorded instruction, labelled unconfirmed, with a time box
+  that ends before the driver arrives.
+- The phone shows times where the driver is: the pickup side until the ferry lands, then the delivery side; the ferry
+  in its terminal's zone ("Ferry check-in by 21 Oct 17:30 CEST", "Car and keys collected 09:00 CEST").
+- The night harness ran here for the first time: it reached its database only through `docker exec`; with
+  `NIGHT_DATABASE_URL` it uses a local psql. Its three scenarios against this app found what the unit tests could not:
+  on the keys question the agent wrote exactly the time-boxed answer, before calling `hand_over`; text before a tool
+  call is never sent, and `hand_over` then asked for "one or two short sentences", so the driver got "the fallback is
+  as above". `hand_over` now says its reply is the only text the driver receives. Rerun: the whole answer arrived,
+  with "If you haven't heard from us by 12:35, go ahead with that: hand the keys to reception and get the handover
+  signed". The harness also read "an operator will decide whether you can continue" as clearance; fixed in the judge.
+
+Checked: missed ferry 12/0/0 ("operations decides what to tell the receiver and when"), routine keys 11/0/0, light
+11 checks with one review (no fuel-cap question, which only fuel-tank codes call for); 133 unit tests; the full role
+harness on the final build before the merge to `main`.
