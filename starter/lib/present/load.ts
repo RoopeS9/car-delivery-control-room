@@ -11,7 +11,7 @@ import { simNowIso } from "@/lib/cr/clock"
 import { buildEffectiveOrder } from "@/lib/cr/effective"
 import { latestPositions, latestTelemetry, listCases, listEffects, listEvents, listProposals, type TelemetryRow } from "@/lib/cr/queries"
 import { crCalls, crCallTurns } from "@/lib/voice/schema"
-import { lifecycleByOrder, lifecycleOf, milestoneEvents, overlayAssignment, overlayLane, overlayReservation, overlayStatus, syntheticEvents, type Lifecycle } from "@/lib/cr/lifecycle"
+import { lifecycleByOrder, lifecycleOf, milestoneEvents, overlayAssignment, overlayLane, overlayProofs, overlayReservation, overlayStatus, overlayStep, syntheticEvents, type Lifecycle } from "@/lib/cr/lifecycle"
 import { syncTelemetry } from "@/lib/sim/sync"
 import { Directory, snapshotNames } from "./actors"
 import { type Bundle, type CrSlice, emptyCr, type PlaceRow, type RelatedRow, type SiteRow } from "./bundle"
@@ -171,7 +171,13 @@ export function makeBundle(input: {
   if (lifecycle) {
     const assignments = (related.work_assignments ?? []).map((row) => ({ ...row, details: overlayAssignment({ ...row.details, id: row.id } as Record<string, unknown>, lifecycle) }))
     const reservations = (related.travel_reservations ?? []).map((row) => ({ ...row, details: overlayReservation(row.details as Record<string, unknown>, lifecycle) }))
-    related = { ...related, work_assignments: assignments, ...(related.travel_reservations ? { travel_reservations: reservations } : {}) }
+    const points = (related.transport_points ?? []).map((row) => ({ ...row.details, id: row.id }))
+    const steps = (related.assignment_steps ?? []).map((row) => ({ ...row, details: overlayStep(row.details as Record<string, unknown>, lifecycle) }))
+    const proofs = overlayProofs(related.proofs ?? [], lifecycle, points, (id, details): RelatedRow => ({ id, details }))
+    related = {
+      ...related, work_assignments: assignments, ...(related.travel_reservations ? { travel_reservations: reservations } : {}),
+      ...(related.assignment_steps ? { assignment_steps: steps } : {}), ...(proofs.length ? { proofs } : {}),
+    }
     const collected = lifecycle.COLLECTED ?? lifecycle.DELIVERED
     const assignment = assignments.find((row) => row.id === collected?.data.assignment_id)
     const segmentId = Array.isArray(assignment?.details.segment_ids) ? String(assignment.details.segment_ids[0] ?? "") || null : null

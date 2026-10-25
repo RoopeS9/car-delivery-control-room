@@ -20,6 +20,8 @@ export type DealerCollection = {
   driver: string | null
   /** The paying customer owns this desk: the agent never calls it; a person does. */
   customerSite: boolean
+  /** The driver reported collecting the car in the driver app (simulated). */
+  collected: boolean
 }
 
 export type DealerView = {
@@ -44,8 +46,14 @@ function hoursText(value: unknown): string | null {
   return parts.filter(Boolean).join(" · ")
 }
 
+/** When the driver reported collecting the car in the driver app (simulated); such a collection stays on the desk's list for half a day. */
+function collectedInApp(bundle: Bundle): string | null {
+  const at = bundle.events.find((row) => row.command === "vehicle.picked_up" && row.details.road_desk === true)?.recordedAt ?? null
+  return at && Date.parse(bundle.cr.now) - Date.parse(at) < 12 * 3600_000 ? at : null
+}
+
 export function buildDealerView(bundles: Bundle[], siteId: string | null): DealerView {
-  const upcoming = bundles.filter((bundle) => bundle.order.pickupSiteId && UPCOMING.has(bundle.order.lane))
+  const upcoming = bundles.filter((bundle) => bundle.order.pickupSiteId && (UPCOMING.has(bundle.order.lane) || collectedInApp(bundle)))
   const counts = new Map<string, number>()
   for (const bundle of upcoming) counts.set(bundle.order.pickupSiteId!, (counts.get(bundle.order.pickupSiteId!) ?? 0) + 1)
   const siteMap = bundles[0]?.sites ?? new Map()
@@ -70,11 +78,12 @@ export function buildDealerView(bundles: Bundle[], siteId: string | null): Deale
     return {
       orderId: bundle.order.id, reference: bundle.order.reference,
       vehicle: primary ? `${primary.vehicle.make} ${primary.vehicle.model}` : "Car not linked", plate: primary?.vehicle.registration ?? null,
-      stage: laneLabel(bundle.order.lane),
+      stage: collectedInApp(bundle) ? `Collected ${clock(collectedInApp(bundle)!, zone)} (driver app, simulated)` : laneLabel(bundle.order.lane),
       slot: slot ? `${slot.key === "requested_pickup" ? "requested " : ""}${weekdayClock(slot.start, slot.zone ?? zone)}${slot.end ? ` to ${clock(slot.end, slot.zone ?? zone)}` : ""}` : null,
       slotAt: slot?.start ?? null,
       driver: assignment ? bundle.dir.driverName(assignment.details.driver_id) : null,
       customerSite: str(details.customer_id) === bundle.customer.id,
+      collected: Boolean(collectedInApp(bundle)),
     }
   }).sort((a, b) => String(a.slotAt ?? "~").localeCompare(String(b.slotAt ?? "~")))
   return {

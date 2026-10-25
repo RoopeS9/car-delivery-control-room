@@ -7,7 +7,7 @@ import assert from "node:assert/strict"
 import { after, before, describe, test } from "node:test"
 import { eq, inArray } from "drizzle-orm"
 import { closeCrDb, crDb } from "@/lib/cr/db"
-import { lifecycleOf, nextMilestone, overlayStatus, syntheticEvents } from "@/lib/cr/lifecycle"
+import { lifecycleOf, nextMilestone, overlayProofs, overlayStatus, overlayStep, syntheticEvents, type Lifecycle } from "@/lib/cr/lifecycle"
 import { listEffects, listProposals, resolveOrder } from "@/lib/cr/queries"
 import { crCases, crEvents, crProposals } from "@/lib/cr/schema"
 import { loadOrderFacts } from "./context"
@@ -78,5 +78,22 @@ describe("delivery steps reported in the driver app", () => {
     const events = syntheticEvents(orderId, lifecycle, [{ id: "p1", role: "PICKUP" }, { id: "p2", role: "DELIVERY" }], "seg-1", "WAITING_FOR_PICKUP")
     assert.deepEqual(events.map((row) => row.command), ["assignment.started", "vehicle.picked_up", "order.status_changed", "vehicle.delivered", "assignment.completed", "order.status_changed"])
     assert.ok(events.every((row) => row.simulated === true))
+  })
+
+  test("photos at a step submit the dataset's proof, and the step completes with its evidence", () => {
+    const at = "2026-10-22T07:55:00.000Z"
+    const lifecycle: Lifecycle = { COLLECTED: { at, driverId: DRIVER, eventId: "evt-c", data: { milestone: "COLLECTED", assignment_id: "asg-1", photo_ids: ["p1", "p2", "p3"], simulated: true } } }
+    const step: Record<string, unknown> = overlayStep({ id: "s1", kind: "VEHICLE_PICKUP", status: "PLANNED", assignment_id: "asg-1" }, lifecycle)
+    assert.equal(step.status, "COMPLETED")
+    assert.equal(step.evidence_id, "evt-c-pickup")
+    assert.equal(overlayStep({ id: "s2", kind: "VEHICLE_DELIVERY", status: "PLANNED", assignment_id: "asg-1" }, lifecycle).status, "PLANNED")
+    const points = [{ id: "pt-pick", role: "PICKUP" }, { id: "pt-drop", role: "DELIVERY" }]
+    const required = [{ id: "proof-1", details: { kind: "PICKUP_PHOTOS", status: "REQUIRED", point_id: "pt-pick" } }]
+    const [proof] = overlayProofs(required, lifecycle, points, (id, details) => ({ id, details }))
+    assert.equal(proof.details.status, "SUBMITTED", "the required proof is the one submitted")
+    assert.equal(proof.details.file_count, 3)
+    const added = overlayProofs([], lifecycle, points, (id, details) => ({ id, details }))
+    assert.equal(added[0]?.details.kind, "PICKUP_PHOTOS")
+    assert.equal(added[0]?.details.point_id, "pt-pick")
   })
 })

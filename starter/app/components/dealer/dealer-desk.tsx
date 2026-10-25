@@ -36,7 +36,8 @@ export function DealerDesk({ site, collections, asks, callable }: {
           <p>{item.slot ? `Collection ${item.slot}` : "No collection slot yet"} · {item.driver ? `driver ${item.driver}` : "no driver booked"} · {item.stage}</p>
           {item.plate && <p className="dc-quiet">Plate <span className="mono">{item.plate}</span></p>}
         </div>
-        {!callable[item.reference]?.may
+        {item.collected ? <p className="dc-reason"><b>Collected</b><br />nothing left to check with the desk</p>
+          : !callable[item.reference]?.may
           ? <p className="dc-reason"><b>{/paying customer/i.test(callable[item.reference]?.reason ?? "") ? "Customer site · a person calls" : "A person calls"}</b>{callable[item.reference]?.reason ? <><br />{callable[item.reference].reason}</> : null}</p>
           : <button type="button" className="btn primary" disabled={!!call} onClick={() => ringing(item)}>Simulate outbound call</button>}
       </li>)}</ul>

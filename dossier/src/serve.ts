@@ -14,7 +14,7 @@
 //   GET  /runs?ref=CD-xxxxxx              -> stored runs, newest first;  GET /runs/:id -> one run (mutating while it runs);  GET /runs/plan/:ref -> the timeline a run would walk
 import { createServer } from "node:http"
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
-import { buildDossier, loadDataset } from "./build"
+import { buildDossier, liveOverlay, loadDataset } from "./build"
 import { briefFor } from "./brief"
 import { CallPurpose, CallRecord, emptyLive, type CallBrief } from "./live"
 import { PERSONAS } from "./sim/personas"
@@ -85,8 +85,10 @@ createServer(async (req, res) => {
     if (parts[0] === "actions" && parts[1]) {
       // What an operator can do about this order right now: the calls the agent may place (with their card URL) and the ones a person must make.
       const id = byRef.get(parts[1]); if (!id) return json(res, 404, { error: `no order ${parts[1]}` })
-      const d = buildDossier(ds, id)
+      // Live by default: a car the driver reported collected in the app needs no readiness call (?live=0 reads the snapshot only).
+      const d = await dossierFor(parts[1], id, url.searchParams.get("live") !== "0")
       const order = ds.rows.orders.find((o) => o.id === id)!
+      const status = liveOverlay(d.live).status ?? order.status
       const site = (sid: string | null) => ds.rows.sites.find((x) => x.id === sid) ?? null
       const addr = (aid: string) => ds.rows.addresses.find((x) => x.id === aid) ?? null
       const pickup = site(order.pickup_site_id), delivery = site(order.delivery_site_id)
@@ -97,12 +99,12 @@ createServer(async (req, res) => {
       const tryBrief = (purpose: CallPurpose) => { try { briefFor(d, purpose); return null } catch (e) { return (e as Error).message } }
       const actions: unknown[] = []
       const pickupCustomer = pickup?.customer_id === order.customer_id
-      if (order.status === "NEW" || order.status === "WAITING_FOR_PICKUP") {
+      if (status === "NEW" || status === "WAITING_FOR_PICKUP") {
         const why = pickupCustomer ? "pickup site belongs to the paying customer" : tryBrief("PICKUP_READINESS")
         actions.push({ kind: "CALL", label: `Call the pickup desk`, who: pickup?.name ?? pickupAddr?.name ?? "pickup desk", purpose: "PICKUP_READINESS", agentMay: !why, reason: why, cardUrl: why ? null : card("PICKUP_READINESS") })
       }
       if (driver) {
-        const purpose: CallPurpose = order.status === "IN_TRANSIT" ? "POSITION_CHECK" : "DRIVER_START_CHECK"
+        const purpose: CallPurpose = status === "IN_TRANSIT" ? "POSITION_CHECK" : "DRIVER_START_CHECK"
         const why = tryBrief(purpose)
         actions.push({ kind: "CALL", label: `Call the driver`, who: driver.display_name, purpose, agentMay: !why, reason: why, cardUrl: why ? null : card(purpose) })
       }

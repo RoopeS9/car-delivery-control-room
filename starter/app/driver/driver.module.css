@@ -157,6 +157,7 @@
 .stepForm label { display: grid; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
 .stepForm input, .stepForm select { height: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--hair); background: var(--birch); color: var(--ink); font-size: 14px; font-weight: 400; }
 .stepError { font-size: 12.5px; color: var(--red-ink); }
+.stepPhotos { display: grid; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); }
 .stepLine { margin: 6px 8px; font-size: 12.5px; font-weight: 600; color: var(--teal-ink); text-align: center; }
 .stepLine svg { display: inline; vertical-align: -2px; margin-right: 3px; }
 .stepLine span { margin-left: 4px; font-weight: 400; color: var(--subtle); white-space: nowrap; }

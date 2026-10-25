@@ -27,6 +27,33 @@ type Readings = {
 /** The drawn dashboard picture for scenario A. Fictional; no real car or person. */
 const DEMO_PHOTO = { url: "/sim/dashboard-misfire.jpg", subject: "dashboard" }
 
+/** A condition picture drawn for the demo (front, rear, sides), plainly marked as not a real photo. */
+async function demoConditionPicture(side: string, vehicle: string, reference: string): Promise<Blob> {
+  const canvas = document.createElement("canvas")
+  canvas.width = 800
+  canvas.height = 560
+  const g = canvas.getContext("2d")!
+  const sky = g.createLinearGradient(0, 0, 0, 560)
+  sky.addColorStop(0, "#d9dde0")
+  sky.addColorStop(1, "#8e969c")
+  g.fillStyle = sky
+  g.fillRect(0, 0, 800, 560)
+  g.fillStyle = "#2b3035"
+  g.beginPath()
+  g.roundRect(120, 250, 560, 130, 40)
+  g.roundRect(240, 180, 320, 110, 50)
+  g.fill()
+  g.fillStyle = "#111"
+  for (const x of [230, 570]) { g.beginPath(); g.arc(x, 385, 48, 0, Math.PI * 2); g.fill() }
+  g.fillStyle = "#fff"
+  g.font = "600 30px sans-serif"
+  g.fillText(`${side} · ${vehicle}`, 40, 70)
+  g.font = "22px sans-serif"
+  g.fillText(`${reference} · ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC`, 40, 108)
+  g.fillText("Demo picture: drawn for the demo, not a real photo", 40, 520)
+  return new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not draw the picture.")), "image/jpeg", 0.7))
+}
+
 export function DriverApp({ driver, jobs, job, initialThread, serverNow, onJob }: {
   driver: { id: string; name: string }
   /** Inside Demo: switching jobs stays on the page instead of navigating to /driver. */
@@ -338,6 +365,9 @@ function StepCard({ job, driverId, onDone }: { job: DriverJob; driverId: string;
   const [keys, setKeys] = useState(2)
   const [receiver, setReceiver] = useState("")
   const [error, setError] = useState("")
+  // Condition photos at the collection and the handover: they become the pickup or delivery photo proof.
+  const [photos, setPhotos] = useState<{ file: Blob; demo: boolean }[]>([])
+  const picker = useRef<HTMLInputElement>(null)
   // Going straight past an optional arrival to the step after it.
   const [skipped, setSkipped] = useState<Milestone | null>(null)
   const done = job.steps.filter((step) => step.at).length
@@ -357,15 +387,26 @@ function StepCard({ job, driverId, onDone }: { job: DriverJob; driverId: string;
     setBusy(true)
     setError("")
     try {
+      const counted = milestone === "COLLECTED" || milestone === "DELIVERED"
+      const photoIds: string[] = []
+      if (counted) {
+        for (const photo of photos) {
+          photoIds.push(await uploadPhoto({
+            file: photo.demo ? photo.file : await shrinkImage(photo.file), orderRef: job.reference, uploadedBy: driverId,
+            subject: milestone === "COLLECTED" ? "condition at pickup" : "condition at handover", caption: photo.demo ? "Demo picture, not a real photo" : null,
+          }))
+        }
+      }
       const response = await fetch("/api/channels/driver/milestone", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ orderRef: job.reference, driverId, milestone, keys: milestone === "COLLECTED" || milestone === "DELIVERED" ? keys : null, receiverName: milestone === "DELIVERED" ? receiver.trim() : null }),
+        body: JSON.stringify({ orderRef: job.reference, driverId, milestone, keys: counted ? keys : null, receiverName: milestone === "DELIVERED" ? receiver.trim() : null, photoIds }),
       })
       const result = await response.json() as { eventId?: string; at?: string; text?: string; error?: string }
       if (!response.ok || !result.eventId) throw new Error(result.error ?? "The step could not be recorded.")
       onDone({ id: result.eventId, at: result.at ?? new Date().toISOString(), from: "me", fromName: "You", kind: "milestone", text: result.text ?? STEP_ACTION[milestone], voice: false, photo: null, photoSubject: null, origin: null })
       setForm(false)
       setSkipped(null)
+      setPhotos([])
       router.refresh()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The step could not be recorded.")
@@ -386,6 +427,18 @@ function StepCard({ job, driverId, onDone }: { job: DriverJob; driverId: string;
       <label>Keys handed {next === "DELIVERED" ? "over" : "to you"}
         <select value={keys} onChange={(event) => setKeys(Number(event.target.value))}>{[1, 2, 3, 4].map((count) => <option key={count} value={count}>{count}</option>)}</select>
       </label>
+      <div className={styles.stepPhotos}>
+        <span>Photos of the car {photos.length ? `· ${photos.length} added${photos.some((photo) => photo.demo) ? " (demo pictures)" : ""}` : "· walk round it: front, rear, both sides"}</span>
+        <div className={styles.stepButtons}>
+          <button type="button" className={styles.quiet} onClick={() => picker.current?.click()} disabled={busy}>Add photos</button>
+          <button type="button" className={styles.quiet} disabled={busy} onClick={async () => {
+            const sides = ["Front", "Rear", "Left side", "Right side"]
+            setPhotos(await Promise.all(sides.map(async (side) => ({ file: await demoConditionPicture(side, job.vehicle.title, job.reference), demo: true }))))
+          }}>Demo pictures</button>
+        </div>
+        <input ref={picker} type="file" accept="image/png,image/jpeg,image/webp" capture="environment" multiple hidden
+          onChange={(event) => { const files = [...(event.target.files ?? [])]; event.target.value = ""; setPhotos((now) => [...now.filter((photo) => !photo.demo), ...files.map((file) => ({ file, demo: false }))].slice(0, 8)) }} />
+      </div>
       <div className={styles.stepButtons}>
         <button type="button" onClick={() => void report(next)} disabled={busy}>{busy ? "Recording…" : next === "DELIVERED" ? "Confirm handover" : "Confirm collection"}</button>
         <button type="button" className={styles.quiet} onClick={() => { setForm(false); setSkipped(null) }} disabled={busy}>Cancel</button>
