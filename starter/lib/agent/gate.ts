@@ -275,11 +275,18 @@ function later(minutes: number): Date {
   return new Date(simNow().getTime() + minutes * MINUTE)
 }
 
+/** The case is the agent's again: it picks it up from what just happened, and is looked at again in three minutes. */
+function backToAgent(nextAction: string, nextCheckAt = later(3)) {
+  return { status: "AGENT_WORKING" as const, owner: "agent", waitingOn: "the agent", waitingFor: "agent" as const, nextAction, nextCheckAt }
+}
+
+const isBookingAction = (actionType: ActionType) => actionType === "BOOK_TRAVEL" || actionType === "BOOK_RECOVERY"
+
 /** A new card or case must not bypass an uncertain booking attempt on this order. */
 async function requireReconciledBookings(orderId: string, actionType: ActionType): Promise<void> {
-  if (actionType !== "BOOK_TRAVEL" && actionType !== "BOOK_RECOVERY") return
+  if (!isBookingAction(actionType)) return
   const unresolved = (await listProposals({ orderId, statuses: ["UNKNOWN_OUTCOME"] }))
-    .some((proposal) => proposal.actionType === "BOOK_TRAVEL" || proposal.actionType === "BOOK_RECOVERY")
+    .some((proposal) => isBookingAction(proposal.actionType))
   if (unresolved) throw new DecisionError(409, "A previous booking request on this order still has an unknown outcome. Check with the provider and log whether it exists before booking again.")
 }
 
@@ -290,7 +297,7 @@ const bookingHolder = globalThis as unknown as { __crBookingLocks?: Map<string, 
 const bookingLocks = bookingHolder.__crBookingLocks ??= new Map<string, Promise<void>>()
 
 async function withBookingOrderLock<T>(proposal: ProposalRow, work: () => Promise<T>): Promise<T> {
-  if (proposal.actionType !== "BOOK_TRAVEL" && proposal.actionType !== "BOOK_RECOVERY") return work()
+  if (!isBookingAction(proposal.actionType)) return work()
   const previous = bookingLocks.get(proposal.orderId) ?? Promise.resolve()
   let release!: () => void
   const held = new Promise<void>((resolve) => { release = resolve })
@@ -304,7 +311,6 @@ async function withBookingOrderLock<T>(proposal: ProposalRow, work: () => Promis
   }
 }
 
-/** Record a proposal. At ASK_FIRST it waits for a person; at a higher level the agent carries it out and says so. */
 /**
  * "No new driver message after 09:02": the agent sees minute-precision times,
  * so a message from 09:02:07 that it had already read would count as new and
@@ -349,6 +355,7 @@ async function answersSomeone(caseId: string, toType: DraftMessage["to_type"] | 
 
 const isMessageCard = (actionType: ActionType) => actionType === "CONTACT_CUSTOMER" || actionType === "CONTACT_SITE_AS_CUSTOMER"
 
+/** Record a proposal. At ASK_FIRST it waits for a person; at a higher level the agent carries it out and says so. */
 export async function submitProposal(ctx: GateContext, input: ProposalInput): Promise<{ proposal: ProposalRow; level: AutonomyLevel; executed: boolean }> {
   // A booking with an unknown outcome blocks every new booking card first, even one that repeats a pending card.
   await requireReconciledBookings(ctx.facts.id, input.action_type)
@@ -393,7 +400,7 @@ export async function submitProposal(ctx: GateContext, input: ProposalInput): Pr
   const previous = outdated.filter((row) => !redrafted.has(row.id)).at(-1)
   // A message card changes no record: a "Delivery promise: agreed" line on a reply would read as if approving it
   // recorded the customer's answer, which only the promise block does.
-  const messageOnly = input.action_type === "CONTACT_CUSTOMER" || input.action_type === "CONTACT_SITE_AS_CUSTOMER"
+  const messageOnly = isMessageCard(input.action_type)
   // People read the before and after; the exact UTC instants live in the change's value, not in brackets after the words.
   const readable = (words: string | null) => words?.replace(/\s*\(\d{4}-\d\d-\d\dT[^()]*\)/g, "").trim() || words
   const changes = (messageOnly ? []
@@ -604,7 +611,7 @@ async function markOutdated(proposal: ProposalRow, checks: AssumptionCheck[]): P
     body: `Nothing was carried out: facts changed since "${proposal.title}" was drafted. ${changed.map((check) => `${check.assumption.label}: now ${check.now}`).join("; ")}.`,
     data: { proposal_id: proposal.id, outdated: true, checks: changed },
   })
-  await updateCase(proposal.caseId, { status: "AGENT_WORKING", owner: "agent", waitingOn: "the agent", waitingFor: "agent", nextAction: "The agent redrafts the card with the current facts.", nextCheckAt: later(3) })
+  await updateCase(proposal.caseId, backToAgent("The agent redrafts the card with the current facts."))
   return updated ?? proposal
 }
 
@@ -665,7 +672,7 @@ async function executeProposalUnlocked(proposalId: string, options: { by: string
     return done
   } catch (error) {
     console.error("Proposal execution could not finish; its execution key is retained.", error)
-    const booking = proposal.actionType === "BOOK_TRAVEL" || proposal.actionType === "BOOK_RECOVERY"
+    const booking = isBookingAction(proposal.actionType)
     const nextStep = booking
       ? "The booking result is unknown. Check with the provider and log whether it exists before any new booking is attempted."
       : "The action could not finish. Check the timeline and any recorded effects before deciding the next step; nothing is retried automatically."
@@ -764,7 +771,7 @@ async function decideProposalUnlocked(caseId: string, proposalId: string, reques
     })
     const caseRow = await updateCase(caseId, (await pendingLeft(caseId))
       ? { status: "NEEDS_DECISION" }
-      : { status: "AGENT_WORKING", owner: "agent", nextAction: nextStep, waitingOn: "the agent", waitingFor: "agent", nextCheckAt: new Date(now.getTime() + 3 * MINUTE) })
+      : backToAgent(nextStep, new Date(now.getTime() + 3 * MINUTE)))
     return response(updated, nextStep, { kind: instructing ? "instructed" : "rejected", proposal: updated, caseRow: caseRow!, text: note })
   }
 
@@ -849,7 +856,7 @@ export async function logOutcome(caseId: string, input: LogOutcomeRequest): Prom
     // An outcome with no card waiting is still useful: record it and let the agent continue.
     await insertEffect({ orderId: caseRow.orderId, caseId, kind: "OUTCOME_LOGGED", state: "RECORDED", value: { text }, authority: { by, by_type: "operator", at: simNow().toISOString(), basis: `Logged by ${who}` } })
     await appendEvent({ caseId, orderId: caseRow.orderId, actorType: "operator", actorId: by, kind: "note", channel: "internal", body: `Logged by ${who}: ${text}`, data: { outcome: true } })
-    await updateCase(caseId, { status: "AGENT_WORKING", owner: "agent", waitingOn: "the agent", waitingFor: "agent", nextAction: "The agent continues from the logged outcome.", nextCheckAt: later(3) })
+    await updateCase(caseId, backToAgent("The agent continues from the logged outcome."))
     return { proposal_id: "", status: "EXECUTED", next_step: "The agent continues from the logged outcome.", next_check_at: later(3).toISOString(), case_status: "AGENT_WORKING", followUp: null }
   }
 
@@ -868,7 +875,7 @@ export async function logOutcome(caseId: string, input: LogOutcomeRequest): Prom
       body: `${capitalise(who)} checked the booking: ${input.confirmed ? "it exists" : "it does not exist; nothing was booked"}. ${text}`, data: { proposal_id: proposal.id, booking_exists: input.confirmed },
     })
     const updated = await transitionProposal(proposal.id, ["UNKNOWN_OUTCOME"], { status: input.confirmed ? "EXECUTED" : "FAILED" })
-    await updateCase(caseId, { status: "AGENT_WORKING", owner: "agent", waitingOn: "the agent", waitingFor: "agent", nextAction: "The agent continues from the reconciled booking.", nextCheckAt: later(3) })
+    await updateCase(caseId, backToAgent("The agent continues from the reconciled booking."))
     return response(updated!, "The agent continues from the reconciled booking.", { kind: "outcome", proposal: updated!, caseRow: (await getCase(caseId))!, text })
   }
 
@@ -884,7 +891,7 @@ export async function logOutcome(caseId: string, input: LogOutcomeRequest): Prom
   const updated = await transitionProposal(proposal.id, ["APPROVED", "EDITED_AND_APPROVED"], {
     status: "EXECUTED", executedAt: simNow(), executionResult: { effect_id: logged.id, outcome: text, by, handled_outside: true, revision: proposal.revision },
   })
-  await updateCase(caseId, { status: "AGENT_WORKING", owner: "agent", waitingOn: "the agent", waitingFor: "agent", nextAction: "The agent continues from the logged outcome.", nextCheckAt: later(3) })
+  await updateCase(caseId, backToAgent("The agent continues from the logged outcome."))
   return response(updated!, "The agent continues from the logged outcome.", { kind: "outcome", proposal: updated!, caseRow: (await getCase(caseId))!, text })
 }
 
@@ -939,7 +946,7 @@ export async function recordCustomerAnswer(caseId: string, input: CustomerAnswer
       : `Customer declined the new date. The original promise stands. Evidence: ${note}`,
     data: { effect_id: answer.id, customer_answer: input.answer },
   })
-  await updateCase(caseId, { status: "AGENT_WORKING", owner: "agent", waitingOn: "the agent", waitingFor: "agent", nextAction: "The agent continues from the customer's answer.", nextCheckAt: later(3) })
+  await updateCase(caseId, backToAgent("The agent continues from the customer's answer."))
   const proposal = proposed.proposalId ? await getProposal(proposed.proposalId) : null
   const updatedCase = (await getCase(caseId))!
   return {
@@ -971,6 +978,6 @@ export async function refreshProposal(caseId: string, proposalId: string, by: st
   })
   const caseRow = await updateCase(caseId, (await pendingLeft(caseId))
     ? { status: "NEEDS_DECISION" }
-    : { status: "AGENT_WORKING", owner: "agent", nextAction: nextStep, waitingOn: "the agent", waitingFor: "agent", nextCheckAt: later(3) })
+    : backToAgent(nextStep))
   return { proposal_id: proposal.id, status: "OUTDATED", next_step: nextStep, next_check_at: caseRow!.nextCheckAt?.toISOString() ?? null, case_status: caseRow!.status }
 }
