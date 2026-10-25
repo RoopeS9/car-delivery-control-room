@@ -25,6 +25,7 @@ card. Thirteen scenarios in the first pass, seventeen from the second, each judg
 | 13 | **A site's instruction about the broken car opened a second case** next to the misfire, so the operator had the recovery decision on one case and the owner's written instruction on another. | rerun, misfire-customer-site | While an incident case is open on the order, the site's message lands on it (`lib/agent/triggers.ts`). |
 | 14 | **"Recovery is being arranged now"** was told to the driver before the booking card was approved. | rerun, misfire-customer-site | Prompt: until a person approved the card and it ran, say what is being asked for, not what is being done. |
 | 15 | **The call review counted a refusal as a violation**: "I can't give out the customer's number" matched the customer-details pattern. | clumsy pass and line rerun, fishing driver | A refusal that names the forbidden thing is not a violation (`dossier/src/review.ts`). |
+| 16 | **A sign-off still became a clearance card** on cases with no fault whose kind was not a routine one (a late driver, a keys question the agent had re-titled): "You're all set, Thomas. Safe drive the rest of the way to Munich." | rerun, late-driver-promise and routine-keys | The card is raised only when a fault or restriction is recorded on the job; otherwise the sentence is dropped and the rest sent (`lib/agent/tools.ts`). Verified in pass 5. |
 
 ## What held up
 
@@ -60,8 +61,9 @@ spend shows on the sandbox app's `/api/sim/state` (about $1 per full pass).
 | 1c | ce68de3 | compliant | 17 | 138 | 9 | 5 | 4 line scenarios and the German email failed on the sandbox dossier having lost its key after the reboot; faults 11, 12 found here |
 | 2 | ce68de3 | clumsy | 17 | 153 | 1 | 3 | the clumsy operator (double approvals, non-clearing edits, nonsense instructions) broke nothing; the one fail is fault 15 |
 | lines2 | b4f04d8 | – | 4 | 10 | 1 | 1 | no repeated caller lines, 112 said once and the call ended, review present for inbound calls; the fail is fault 15 |
-| 3 | b4f04d8 | compliant | 7 (rerun) | running at the time of writing | | | faults 13, 14 found here |
-| 4 | 4dc2618 | compliant | 4 (rerun) | queued | | | verifies 13, 14, 15 |
+| 3 | b4f04d8 | compliant | 7 (rerun) | 71 | 3 | 3 | 2 fails are fault 13 (fixed after the pass started), 1 is fault 16; reviews: light-monitor prompt, German basis ids the harness could not resolve, late-driver GPS/driver mismatch |
+| 4 | 4dc2618 | compliant | 4 (rerun) | 27 | 0 | 2 | faults 13, 14, 15 verified fixed; the desk-contradiction call did not read back the corrected values (model variance, extraction prompt amended) |
+| 5 | after 4dc2618 | compliant | 3 (rerun) | see `out/pass5` | | | verifies fault 16 |
 
 Dossier soak: 32 runs, 4 twists × 8 orders, $2.98; 68 findings of which 31 were the old judge misreading a live-section
 source; the rest are faults 7 to 10, all fixed.

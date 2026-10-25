@@ -505,17 +505,18 @@ const handlers: Record<ToolName, (state: TurnState, input: Record<string, unknow
     const screen = await screenDriverMessage(str(input.text), { safety })
     state.costUsd += screen.costUsd
     if (!screen.allowed) {
-      if (safety.mode === "routine") {
-        // No fault, no restriction: a sign-off that sounds like clearance ("you're good to go") is not a decision for
-        // operations, it is a sentence to drop. The rest of the message goes; if nothing is left, the agent rewrites.
-        const kept = str(input.text).split(/(?<=[.!?])\s+|\n+/).filter((sentence) => sentence.trim() && !findClearance(sentence) && !DRIVING_WORDS.test(sentence) && !/\b(good to go|all clear|all sorted|safe (last )?stretch)\b/i.test(sentence))
+      if (safety.mode !== "restricted") {
+        // No recorded fault or restriction: a sign-off that sounds like clearance ("you're good to go", "safe drive") is
+        // not a decision for operations, it is a sentence to drop. The rest of the message goes; if nothing is left, the
+        // agent rewrites. Only a recorded fault or restriction makes "may they drive on" a real question for a person.
+        const kept = str(input.text).split(/(?<=[.!?])\s+|\n+/).filter((sentence) => sentence.trim() && !findClearance(sentence) && !DRIVING_WORDS.test(sentence) && !/\b(good to go|all clear|all set|all sorted|safe (last )?(stretch|drive|trip|travels|journey)|drive safe(ly)?)\b/i.test(sentence))
         const rest = kept.join(" ").trim()
         await appendEvent({
           caseId: state.caseRow.id, orderId: state.facts.id, actorType: "system", actorId: "gate", kind: "tool_call", channel: "internal",
-          body: `Drivability screen dropped a sentence that read as permission to drive on (${screen.reason ?? "classifier"}) from a routine reply; no card: nothing about the car is in question.`,
+          body: `Drivability screen dropped a sentence that read as permission to drive on (${screen.reason ?? "classifier"}) from a reply on a case with no recorded fault or restriction; no card: nothing about the car is in question.`,
           data: { refused: true, rule: "drivability_screen", text: str(input.text), sent: rest || null },
         })
-        if (!rest) return { content: `Not sent: it reads as permission to drive on (${screen.reason}). This is a routine case: answer the question and say what happens next, without any remark about driving on.`, isError: true, gate: "REFUSED" }
+        if (!rest) return { content: `Not sent: it reads as permission to drive on (${screen.reason}). Nothing about the car is in question on this case: answer and say what happens next, without any remark about driving on or sign-off about the drive.`, isError: true, gate: "REFUSED" }
         await sendToDriver(state, { body: rest, channel: "driver_chat", data: { screened: screen.layer, trimmed: true } })
         return { content: `Sent to ${state.driverName ?? "the driver"} without the part that read as permission to drive on (${screen.reason}): "${rest.slice(0, 200)}"`, log: null }
       }
